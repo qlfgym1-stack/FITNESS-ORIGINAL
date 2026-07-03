@@ -18,6 +18,16 @@ interface AuthContextValue extends AuthState {
   signOut: () => Promise<void>
 }
 
+const IS_MOCK = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://your-project.supabase.co'
+
+const MOCK_ADMIN: AuthState = {
+  user: { id: 'mock-admin-id', email: 'admin@fitmanager.pro', app_metadata: {}, user_metadata: { full_name: 'Admin User' }, aud: 'authenticated', created_at: new Date().toISOString() } as any,
+  profile: { id: 'mock-admin-id', email: 'admin@fitmanager.pro', full_name: 'Admin User' },
+  organization: { id: 'mock-org-id', name: 'FitManager Pro Gym', slug: 'fitmanager-pro', logo_url: null, address: null, phone: null, email: 'admin@fitmanager.pro', created_at: new Date().toISOString() },
+  roles: [{ id: 'mock-role-id', user_id: 'mock-admin-id', organization_id: 'mock-org-id', role: 'super_admin', created_at: new Date().toISOString() }],
+  isLoading: false, isAuthenticated: true, isSuperAdmin: true,
+}
+
 const initialState: AuthState = {
   user: null, profile: null, organization: null, roles: [],
   isLoading: true, isAuthenticated: false, isSuperAdmin: false,
@@ -30,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(initialState)
 
   const fetchSession = useCallback(async () => {
+    if (IS_MOCK) { setState(MOCK_ADMIN); return }
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) { setState(s => ({ ...s, isLoading: false })); return }
     const user = session.user
@@ -52,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, fetchSession])
 
   const signIn = useCallback(async (email: string, password: string) => {
+    if (IS_MOCK) { setState(MOCK_ADMIN); return { error: null } }
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error }
   }, [supabase])
