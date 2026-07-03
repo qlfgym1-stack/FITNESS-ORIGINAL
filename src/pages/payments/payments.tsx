@@ -1,0 +1,671 @@
+import { useState, useCallback, useRef } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
+import { useSupabase } from "@/hooks/useSupabase"
+import { useT } from "@/i18n"
+import { useAuth } from "@/stores/auth"
+import { PageHeader } from "@/components/layout/page-header"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import {
+  Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
+} from "@/components/ui/table"
+import {
+  Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
+} from "@/components/ui/dialog"
+import {
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+} from "@/components/ui/select"
+import {
+  Form, FormField, FormItem, FormLabel, FormControl, FormMessage,
+} from "@/components/ui/form"
+import {
+  Card, CardContent, CardHeader, CardTitle,
+} from "@/components/ui/card"
+import { useToast } from "@/components/ui/toast"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import {
+  Plus, Download, Upload, FileText, Printer, Search, Eye, Loader2,
+} from "lucide-react"
+import { formatDate, formatCurrency } from "@/lib/utils"
+import type { Payment, Member, SubscriptionType } from "@/types/supabase"
+import { format } from "date-fns"
+import jsPDF from "jspdf"
+import "jspdf-autotable"
+import * as XLSX from "xlsx"
+
+const paymentSchema = z.object({
+  member_id: z.string().min(1, "Member is required"),
+  subscription_id: z.string().optional(),
+  amount: z.coerce.number().positive("Amount must be positive"),
+  payment_method: z.enum(["cash", "card", "transfer", "other"]),
+  payment_date: z.string().min(1, "Date is required"),
+  notes: z.string().optional(),
+})
+
+type PaymentFormValues = z.infer<typeof paymentSchema>
+
+const statusBadge: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  completed: "default",
+  pending: "secondary",
+  cancelled: "destructive",
+}
+
+const methodLabels: Record<string, string> = {
+  cash: "Espèces",
+  card: "Carte",
+  transfer: "Virement",
+  other: "Autre",
+}
+
+interface ImportRow {
+  member_name: string
+  amount: number
+  payment_method: string
+  payment_date: string
+  notes: string
+}
+
+export default function PaymentsPage() {
+  const t = useT()
+  const supabase = useSupabase()
+  const queryClient = useQueryClient()
+  const { organization } = useAuth()
+  const { toast } = useToast()
+  const orgId = organization?.id
+
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [methodFilter, setMethodFilter] = useState<string>("all")
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false)
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [importData, setImportData] = useState<ImportRow[]>([])
+  const [memberSearch, setMemberSearch] = useState("")
+  const invoiceRef = useRef<HTMLDivElement>(null)
+
+  const form = useForm<PaymentFormValues>({
+    resolver: zodResolver(paymentSchema),
+    defaultValues: {
+      member_id: "",
+      subscription_id: "",
+      amount: 0,
+      payment_method: "cash",
+      payment_date: format(new Date(), "yyyy-MM-dd"),
+      notes: "",
+    },
+  })
+
+  const { data: payments, isLoading } = useQuery({
+    queryKey: ["payments", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("payments")
+        .select("*, members!inner(first_name, last_name), member_subscriptions!inner(subscription_types(name))")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+      return data as (Payment & { members: { first_name: string; last_name: string }; member_subscriptions: { subscription_types: { name: string } } | null })[]
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: members } = useQuery({
+    queryKey: ["members-list", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("members")
+        .select("id, first_name, last_name")
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .order("first_name")
+      return data as Pick<Member, "id" | "first_name" | "last_name">[]
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: subscriptions } = useQuery({
+    queryKey: ["subscriptions-list", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("subscription_types")
+        .select("id, name, price")
+        .eq("organization_id", orgId)
+        .eq("is_active", true)
+        .order("name")
+      return data as Pick<SubscriptionType, "id" | "name" | "price">[]
+    },
+    enabled: !!orgId,
+  })
+
+  const addMutation = useMutation({
+    mutationFn: async (values: PaymentFormValues) => {
+      if (!orgId) throw new Error("No organization")
+      const { error } = await supabase.from("payments").insert({
+        organization_id: orgId,
+        member_id: values.member_id,
+        subscription_id: values.subscription_id || null,
+        amount: values.amount,
+        payment_method: values.payment_method,
+        payment_date: values.payment_date,
+        status: "completed",
+        notes: values.notes || null,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payments"] })
+      setAddDialogOpen(false)
+      form.reset()
+      toast({ title: "Paiement ajouté" })
+    },
+    onError: (err) => {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" })
+    },
+  })
+
+  const filteredPayments = payments?.filter((p) => {
+    const name = `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`.toLowerCase()
+    const matchesSearch = name.includes(search.toLowerCase()) || p.notes?.toLowerCase().includes(search.toLowerCase())
+    const matchesStatus = statusFilter === "all" || p.status === statusFilter
+    const matchesMethod = methodFilter === "all" || p.payment_method === methodFilter
+    return matchesSearch && matchesStatus && matchesMethod
+  })
+
+  const handleGenerateInvoice = useCallback((payment: Payment) => {
+    setSelectedPayment(payment)
+    setInvoiceDialogOpen(true)
+  }, [])
+
+  const handlePrintInvoice = useCallback(() => {
+    window.print()
+  }, [])
+
+  const handleDownloadInvoice = useCallback(() => {
+    if (!selectedPayment) return
+    const member = payments?.find((p) => p.id === selectedPayment.id)?.members
+    const doc = new jsPDF()
+    doc.setFontSize(20)
+    doc.text("FACTURE", 105, 20, { align: "center" })
+    doc.setFontSize(10)
+    doc.text(`N°: ${selectedPayment.id.slice(0, 8).toUpperCase()}`, 20, 35)
+    doc.text(`Date: ${formatDate(selectedPayment.payment_date)}`, 20, 42)
+    if (member) doc.text(`Client: ${member.first_name} ${member.last_name}`, 20, 49)
+    doc.line(20, 55, 190, 55)
+    ;(doc as any).autoTable({
+      startY: 60,
+      head: [["Description", "Montant"]],
+      body: [[
+        selectedPayment.notes || "Paiement",
+        `${selectedPayment.amount.toLocaleString()} DZD`,
+      ]],
+      theme: "grid",
+    })
+    const finalY = (doc as any).lastAutoTable.finalY + 10
+    doc.setFontSize(12)
+    doc.text(`Total: ${selectedPayment.amount.toLocaleString()} DZD`, 190, finalY, { align: "right" })
+    doc.save(`facture-${selectedPayment.id.slice(0, 8)}.pdf`)
+  }, [selectedPayment, payments])
+
+  const handleImportExcel = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const data = new Uint8Array(ev.target?.result as ArrayBuffer)
+      const workbook = XLSX.read(data, { type: "array" })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const json = XLSX.utils.sheet_to_json(sheet) as Record<string, string>[]
+      const rows: ImportRow[] = json.map((r) => ({
+        member_name: String(r.member_name || r.Member || ""),
+        amount: Number(r.amount || r.Amount || 0),
+        payment_method: String(r.payment_method || r.Method || "cash"),
+        payment_date: String(r.payment_date || r.Date || format(new Date(), "yyyy-MM-dd")),
+        notes: String(r.notes || r.Notes || ""),
+      }))
+      setImportData(rows)
+    }
+    reader.readAsArrayBuffer(file)
+    e.target.value = ""
+  }, [])
+
+  const handleConfirmImport = useCallback(async () => {
+    if (!orgId) return
+    for (const row of importData) {
+      const { data: member } = await supabase
+        .from("members")
+        .select("id")
+        .eq("organization_id", orgId)
+        .or(`first_name.ilike.%${row.member_name}%,last_name.ilike.%${row.member_name}%`)
+        .maybeSingle()
+      if (member) {
+        await supabase.from("payments").insert({
+          organization_id: orgId,
+          member_id: member.id,
+          amount: row.amount,
+          payment_method: (["cash", "card", "transfer", "other"].includes(row.payment_method) ? row.payment_method : "cash") as Payment["payment_method"],
+          payment_date: row.payment_date,
+          status: "completed",
+          notes: row.notes || null,
+        })
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["payments"] })
+    setImportData([])
+    setImportDialogOpen(false)
+    toast({ title: t("payments.importSuccess") })
+  }, [importData, orgId, supabase, queryClient, toast, t])
+
+  const handleExportExcel = useCallback(() => {
+    if (!payments) return
+    const data = payments.map((p) => ({
+      Membre: `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`,
+      Montant: p.amount,
+      Date: formatDate(p.payment_date),
+      Méthode: methodLabels[p.payment_method] || p.payment_method,
+      Statut: p.status,
+      Notes: p.notes || "",
+    }))
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Paiements")
+    XLSX.writeFile(wb, "paiements.xlsx")
+  }, [payments])
+
+  const filteredMembers = members?.filter((m) =>
+    `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase())
+  )
+
+  return (
+    <div>
+      <PageHeader
+        title={t("payments.title")}
+        description={t("payments.description")}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              {t("payments.import")}
+            </Button>
+            <Button variant="outline" onClick={handleExportExcel}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export")}
+            </Button>
+            <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("payments.add")}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>{t("payments.add")}</DialogTitle>
+                  <DialogDescription>Ajouter un nouveau paiement</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit((v) => addMutation.mutate(v))} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="member_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Membre</FormLabel>
+                          <FormControl>
+                            <div>
+                              <Input
+                                placeholder="Rechercher un membre..."
+                                value={memberSearch}
+                                onChange={(e) => setMemberSearch(e.target.value)}
+                                className="mb-2"
+                              />
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Sélectionner un membre" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <ScrollArea className="h-48">
+                                    {filteredMembers?.map((m) => (
+                                      <SelectItem key={m.id} value={m.id}>
+                                        {m.first_name} {m.last_name}
+                                      </SelectItem>
+                                    ))}
+                                    {filteredMembers?.length === 0 && (
+                                      <div className="p-2 text-sm text-muted-foreground">Aucun membre trouvé</div>
+                                    )}
+                                  </ScrollArea>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="subscription_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Abonnement</FormLabel>
+                          <Select value={field.value || ""} onValueChange={field.onChange}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Aucun" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">Aucun</SelectItem>
+                              {subscriptions?.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name} - {s.price.toLocaleString()} DZD
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="amount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("payments.amount")}</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.01" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="payment_method"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("payments.method")}</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="cash">{t("payments.cash")}</SelectItem>
+                              <SelectItem value="card">{t("payments.card")}</SelectItem>
+                              <SelectItem value="transfer">{t("payments.transfer")}</SelectItem>
+                              <SelectItem value="other">Autre</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="payment_date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("payments.date")}</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("payments.notes")}</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button type="button" variant="outline">{t("common.cancel")}</Button>
+                      </DialogClose>
+                      <Button type="submit" disabled={addMutation.isPending}>
+                        {addMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {t("common.save")}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </>
+        }
+      />
+
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t("common.search")}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder={t("common.status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("common.all")}</SelectItem>
+                <SelectItem value="completed">{t("payments.completed")}</SelectItem>
+                <SelectItem value="pending">{t("common.pending")}</SelectItem>
+                <SelectItem value="cancelled">{t("payments.cancelled")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={methodFilter} onValueChange={setMethodFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder={t("payments.method")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("common.all")}</SelectItem>
+                <SelectItem value="cash">{t("payments.cash")}</SelectItem>
+                <SelectItem value="card">{t("payments.card")}</SelectItem>
+                <SelectItem value="transfer">{t("payments.transfer")}</SelectItem>
+                <SelectItem value="other">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Membre</TableHead>
+                <TableHead>{t("payments.amount")}</TableHead>
+                <TableHead>{t("payments.date")}</TableHead>
+                <TableHead>{t("payments.method")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead>{t("payments.notes")}</TableHead>
+                <TableHead className="text-right">{t("common.actions")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                  </TableCell>
+                </TableRow>
+              ) : filteredPayments?.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    {t("payments.noData")}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredPayments?.map((payment) => (
+                  <TableRow key={payment.id}>
+                    <TableCell className="font-medium">
+                      {payment.members?.first_name} {payment.members?.last_name}
+                    </TableCell>
+                    <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                    <TableCell>{formatDate(payment.payment_date)}</TableCell>
+                    <TableCell>
+                      <Badge variant={payment.payment_method === "cash" ? "secondary" : payment.payment_method === "card" ? "default" : "outline"}>
+                        {methodLabels[payment.payment_method] || payment.payment_method}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={statusBadge[payment.status] || "outline"}>
+                        {payment.status === "completed" ? t("payments.completed") : payment.status === "pending" ? t("common.pending") : t("payments.cancelled")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate">{payment.notes || "-"}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleGenerateInvoice(payment)}>
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{t("payments.invoice")}</DialogTitle>
+            <DialogDescription>{t("payments.generateInvoice")}</DialogDescription>
+          </DialogHeader>
+          <div ref={invoiceRef} className="p-6 border rounded-lg">
+            {selectedPayment && (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <h2 className="text-xl font-bold">FACTURE</h2>
+                  <p className="text-sm text-muted-foreground">N°: {selectedPayment.id.slice(0, 8).toUpperCase()}</p>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="font-medium">Date:</p>
+                    <p>{formatDate(selectedPayment.payment_date)}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium">Client:</p>
+                    <p>
+                      {payments?.find((p) => p.id === selectedPayment.id)?.members?.first_name}{" "}
+                      {payments?.find((p) => p.id === selectedPayment.id)?.members?.last_name}
+                    </p>
+                  </div>
+                </div>
+                <Separator />
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Montant</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>{selectedPayment.notes || "Paiement"}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(selectedPayment.amount)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+                <div className="flex justify-end">
+                  <p className="text-lg font-bold">Total: {formatCurrency(selectedPayment.amount)}</p>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handlePrintInvoice}>
+              <Printer className="mr-2 h-4 w-4" />
+              {t("payments.printInvoice")}
+            </Button>
+            <Button onClick={handleDownloadInvoice}>
+              <Download className="mr-2 h-4 w-4" />
+              Télécharger PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{t("payments.import")}</DialogTitle>
+            <DialogDescription>Importer des paiements depuis un fichier Excel</DialogDescription>
+          </DialogHeader>
+          {importData.length === 0 ? (
+            <div className="space-y-4">
+              <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-2">
+                  {t("payments.importInstructions")}
+                </p>
+                <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportExcel} className="max-w-sm mx-auto" />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {importData.length} ligne(s) trouvée(s). Vérifiez les données avant import.
+              </p>
+              <ScrollArea className="h-64">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Membre</TableHead>
+                      <TableHead>Montant</TableHead>
+                      <TableHead>Méthode</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {importData.map((row, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{row.member_name}</TableCell>
+                        <TableCell>{row.amount}</TableCell>
+                        <TableCell>{row.payment_method}</TableCell>
+                        <TableCell>{row.payment_date}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setImportData([])}>
+                  Annuler
+                </Button>
+                <Button onClick={handleConfirmImport}>
+                  {t("common.confirm")}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
