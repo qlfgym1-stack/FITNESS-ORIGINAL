@@ -36,7 +36,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border/50 bg-background/80 backdrop-blur-lg px-4 lg:px-6">
       <Button
         variant="ghost"
         size="icon"
@@ -92,7 +92,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">Admin</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  admin@dinateck.com
+                  admin@fitmanager.pro
                 </p>
               </div>
             </DropdownMenuLabel>

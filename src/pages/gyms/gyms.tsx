@@ -30,10 +30,10 @@ interface Gym {
 }
 
 const defaultGyms: Gym[] = [
-  { id: "1", name: "Dinatek Fitness Alger Centre", slug: "alger-centre", address: "123 Rue Didouche Mourad, Alger", phone: "+213 21 123 456", email: "alger@dinatek.dz", logo_url: null, member_count: 450, created_at: "2025-01-15" },
-  { id: "2", name: "Dinatek Fitness Oran", slug: "oran", address: "45 Boulevard Front de Mer, Oran", phone: "+213 41 789 012", email: "oran@dinatek.dz", logo_url: null, member_count: 320, created_at: "2025-03-20" },
-  { id: "3", name: "Dinatek Fitness Constantine", slug: "constantine", address: "78 Rue Larbi Ben M'hidi, Constantine", phone: "+213 31 456 789", email: "constantine@dinatek.dz", logo_url: null, member_count: 280, created_at: "2025-06-10" },
-  { id: "4", name: "Dinatek Fitness Annaba", slug: "annaba", address: "12 Boulevard de la République, Annaba", phone: "+213 38 123 456", email: "annaba@dinatek.dz", logo_url: null, member_count: 190, created_at: "2026-01-05" },
+  { id: "1", name: "FitManager Alger Centre", slug: "alger-centre", address: "123 Rue Didouche Mourad, Alger", phone: "+213 21 123 456", email: "alger@fitmanager.dz", logo_url: null, member_count: 450, created_at: "2025-01-15" },
+  { id: "2", name: "FitManager Oran", slug: "oran", address: "45 Boulevard Front de Mer, Oran", phone: "+213 41 789 012", email: "oran@fitmanager.dz", logo_url: null, member_count: 320, created_at: "2025-03-20" },
+  { id: "3", name: "FitManager Constantine", slug: "constantine", address: "78 Rue Larbi Ben M'hidi, Constantine", phone: "+213 31 456 789", email: "constantine@fitmanager.dz", logo_url: null, member_count: 280, created_at: "2025-06-10" },
+  { id: "4", name: "FitManager Annaba", slug: "annaba", address: "12 Boulevard de la République, Annaba", phone: "+213 38 123 456", email: "annaba@fitmanager.dz", logo_url: null, member_count: 190, created_at: "2026-01-05" },
 ]
 
 export default function GymsPage() {

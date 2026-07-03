@@ -44,20 +44,27 @@ export default function SignUp() {
       toast({ variant: 'destructive', title: 'Error', description: error.message })
       return
     }
-    toast({ title: 'Account created', description: 'Welcome to Dinateck Gym!' })
+    toast({ title: 'Account created', description: 'Welcome to FitManager Pro!' })
     navigate('/dashboard', { replace: true })
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="text-center space-y-2 pb-6">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-            <Dumbbell className="h-7 w-7 text-primary" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
+      </div>
+      <Card className="w-full max-w-md shadow-2xl glass-card gradient-border relative">
+        <CardHeader className="text-center space-y-2 pb-6 pt-8">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary shadow-lg">
+            <Dumbbell className="h-7 w-7 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription className="text-base">
-            Set up your gym management account
+          <CardTitle className="text-2xl font-bold">
+            <span className="text-gradient">FitManager</span>{" "}
+            <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">Pro</span>
+          </CardTitle>
+          <CardDescription className="text-base text-muted-foreground">
+            Create your gym management account
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -28,10 +28,10 @@ interface Organization {
 }
 
 const defaultOrgs: Organization[] = [
-  { id: "1", name: "Dinatek Fitness Alger Centre", slug: "alger-centre", address: "Alger", phone: "+213 21 123 456", email: "alger@dinatek.dz", member_count: 450, revenue: 2250000, status: "active", created_at: "2025-01-15" },
-  { id: "2", name: "Dinatek Fitness Oran", slug: "oran", address: "Oran", phone: "+213 41 789 012", email: "oran@dinatek.dz", member_count: 320, revenue: 1600000, status: "active", created_at: "2025-03-20" },
-  { id: "3", name: "Dinatek Fitness Constantine", slug: "constantine", address: "Constantine", phone: "+213 31 456 789", email: "constantine@dinatek.dz", member_count: 280, revenue: 1400000, status: "active", created_at: "2025-06-10" },
-  { id: "4", name: "Dinatek Fitness Annaba", slug: "annaba", address: "Annaba", phone: "+213 38 123 456", email: "annaba@dinatek.dz", member_count: 190, revenue: 950000, status: "active", created_at: "2026-01-05" },
+  { id: "1", name: "FitManager Alger Centre", slug: "alger-centre", address: "Alger", phone: "+213 21 123 456", email: "alger@fitmanager.dz", member_count: 450, revenue: 2250000, status: "active", created_at: "2025-01-15" },
+  { id: "2", name: "FitManager Oran", slug: "oran", address: "Oran", phone: "+213 41 789 012", email: "oran@fitmanager.dz", member_count: 320, revenue: 1600000, status: "active", created_at: "2025-03-20" },
+  { id: "3", name: "FitManager Constantine", slug: "constantine", address: "Constantine", phone: "+213 31 456 789", email: "constantine@fitmanager.dz", member_count: 280, revenue: 1400000, status: "active", created_at: "2025-06-10" },
+  { id: "4", name: "FitManager Annaba", slug: "annaba", address: "Annaba", phone: "+213 38 123 456", email: "annaba@fitmanager.dz", member_count: 190, revenue: 950000, status: "active", created_at: "2026-01-05" },
   { id: "5", name: "FitZone Blida", slug: "blida", address: "Blida", phone: "+213 25 111 222", email: "contact@fitzone.dz", member_count: 0, revenue: 0, status: "pending", created_at: "2026-07-01" },
 ]
 

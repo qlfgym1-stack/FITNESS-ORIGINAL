@@ -10,10 +10,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Dinateck Gym - Gestion de Salle de Sport',
-        short_name: 'Dinateck Gym',
+        name: 'FitManager Pro - Gestion de Salle de Sport',
+        short_name: 'FitManager Pro',
         description: 'Application de gestion complète pour salles de sport en Algérie',
-        theme_color: '#10b981',
+        theme_color: '#f97316',
         background_color: '#0a0a0a',
         display: 'standalone',
         orientation: 'portrait',

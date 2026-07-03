@@ -29,10 +29,10 @@ interface License {
 }
 
 const defaultLicenses: License[] = [
-  { id: "1", license_key: "DNK-A1B2-C3D4-E5F6", type: "premium", issued_at: "2026-01-01", expires_at: "2027-01-01", is_active: true, organization: "Dinatek Alger Centre" },
-  { id: "2", license_key: "DNK-G7H8-I9J0-K1L2", type: "standard", issued_at: "2026-03-15", expires_at: "2026-09-15", is_active: true, organization: "Dinatek Oran" },
-  { id: "3", license_key: "DNK-M3N4-O5P6-Q7R8", type: "basic", issued_at: "2026-02-01", expires_at: "2026-08-01", is_active: false, organization: "Dinatek Constantine" },
-  { id: "4", license_key: "DNK-S9T0-U1V2-W3X4", type: "premium", issued_at: "2026-06-01", expires_at: "2027-06-01", is_active: true, organization: "Dinatek Annaba" },
+  { id: "1", license_key: "DNK-A1B2-C3D4-E5F6", type: "premium", issued_at: "2026-01-01", expires_at: "2027-01-01", is_active: true, organization: "FitManager Alger Centre" },
+  { id: "2", license_key: "DNK-G7H8-I9J0-K1L2", type: "standard", issued_at: "2026-03-15", expires_at: "2026-09-15", is_active: true, organization: "FitManager Oran" },
+  { id: "3", license_key: "DNK-M3N4-O5P6-Q7R8", type: "basic", issued_at: "2026-02-01", expires_at: "2026-08-01", is_active: false, organization: "FitManager Constantine" },
+  { id: "4", license_key: "DNK-S9T0-U1V2-W3X4", type: "premium", issued_at: "2026-06-01", expires_at: "2027-06-01", is_active: true, organization: "FitManager Annaba" },
 ]
 
 export default function LicensesPage() {

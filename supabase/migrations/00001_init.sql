@@ -1,4 +1,4 @@
--- Dinateck Gym - Initial Schema
+-- FitManager Pro - Initial Schema
 -- Organizations
 CREATE TABLE organizations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

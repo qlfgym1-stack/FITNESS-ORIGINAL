@@ -43,10 +43,10 @@ export default function SettingsPage() {
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      gym_name: "Dinatek Fitness Alger Centre",
+      gym_name: "FitManager Alger Centre",
       address: "123 Rue Didouche Mourad, Alger",
       phone: "+213 21 123 456",
-      email: "contact@dinatek.dz",
+      email: "contact@fitmanager.dz",
       currency: "DZD",
       language: locale,
       notifications_enabled: true,

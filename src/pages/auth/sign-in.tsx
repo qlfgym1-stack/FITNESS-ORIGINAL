@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Dumbbell, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 
 const signInSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -41,14 +42,27 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="text-center space-y-2 pb-6">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-            <Dumbbell className="h-7 w-7 text-primary" />
-          </div>
-          <CardTitle className="text-2xl font-bold">Dinateck Gym</CardTitle>
-          <CardDescription className="text-base">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent/5 rounded-full blur-3xl" />
+      </div>
+      <Card className="w-full max-w-md shadow-2xl glass-card gradient-border relative">
+        <CardHeader className="text-center space-y-2 pb-6 pt-8">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary shadow-lg"
+          >
+            <Dumbbell className="h-7 w-7 text-white" />
+          </motion.div>
+          <CardTitle className="text-2xl font-bold">
+            <span className="text-gradient">FitManager</span>{" "}
+            <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">Pro</span>
+          </CardTitle>
+          <CardDescription className="text-base text-muted-foreground">
             Sign in to your account to continue
           </CardDescription>
         </CardHeader>

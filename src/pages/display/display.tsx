@@ -37,7 +37,7 @@ export default function DisplayPage() {
     <div className="fixed inset-0 bg-background overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-8 py-6 border-b bg-card">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dinatek Fitness</h1>
+          <h1 className="text-3xl font-bold tracking-tight">FitManager</h1>
           <p className="text-muted-foreground text-lg">{t("display.title")}</p>
         </div>
         <div className="text-right">
