@@ -5,3 +5,6 @@ $RECYCLE.BIN/
 
 # Git
 .git/
+
+# Temp download script
+download.ps1
