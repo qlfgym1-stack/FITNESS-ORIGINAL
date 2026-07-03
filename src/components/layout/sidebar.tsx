@@ -135,12 +135,12 @@ function SidebarNav({ onNavClick }: { onNavClick?: () => void }) {
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="flex h-14 items-center gap-2 border-b border-border/50 px-4"
       >
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20">
           <Dumbbell className="h-4 w-4 text-white" />
         </div>
-        <span className="text-lg font-bold">
-          <span className="text-gradient">FitManager</span>{" "}
-          <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Pro</span>
+        <span className="text-lg font-bold tracking-tight">
+          <span className="text-gradient">FitManager</span>
+          <span className="ml-1 text-xs font-semibold text-muted-foreground tracking-wider uppercase">Pro</span>
         </span>
       </motion.div>
       <ScrollArea className="flex-1 px-3 py-2">
@@ -186,7 +186,7 @@ function SidebarNav({ onNavClick }: { onNavClick?: () => void }) {
           </Avatar>
           <div className="flex-1 truncate">
             <p className="text-sm font-medium">Admin</p>
-            <p className="text-xs text-muted-foreground">admin@dinateck.com</p>
+            <p className="text-xs text-muted-foreground">admin@fitmanager.pro</p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
             <LogOut className="h-4 w-4" />
