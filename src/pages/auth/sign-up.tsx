@@ -97,7 +97,7 @@ export default function SignUp() {
               <h1 className="text-5xl font-bold leading-tight text-white">
                 <span className="stroke-text text-6xl block mb-2">START</span>
                 <span>Your Journey.</span>
-                <span className="text-gradient block text-5xl mt-2">Join Today.</span>
+                <span className="text-gradient block text-5xl mt-2 pb-1">Join Today.</span>
               </h1>
               <p className="mt-6 text-lg text-white/50 max-w-md leading-relaxed">
                 Create your gym management account and take control of every aspect of your fitness business.

@@ -89,7 +89,7 @@ export default function SignIn() {
               <h1 className="text-5xl font-bold leading-tight text-white">
                 <span className="stroke-text text-6xl block mb-2">MANAGE</span>
                 <span>Your Gym.</span>
-                <span className="text-gradient block text-5xl mt-2">Grow Stronger.</span>
+                <span className="text-gradient block text-5xl mt-2 pb-1">Grow Stronger.</span>
               </h1>
               <p className="mt-6 text-lg text-white/50 max-w-md leading-relaxed">
                 Complete gym management platform — members, subscriptions, staff, inventory, and analytics in one place.
