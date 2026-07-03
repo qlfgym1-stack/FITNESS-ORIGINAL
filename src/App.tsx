@@ -65,19 +65,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function PublicRoute() {
+function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
   if (isLoading) return <Loading />
   if (isAuthenticated) return <Navigate to="/dashboard" replace />
-  return (
-    <Suspense fallback={<Loading />}>
-      <Routes>
-        <Route path="/auth" element={<SignIn />} />
-        <Route path="/auth/sign-up" element={<SignUp />} />
-        <Route path="*" element={<Navigate to="/auth" replace />} />
-      </Routes>
-    </Suspense>
-  )
+  return <>{children}</>
 }
 
 export default function App() {
@@ -88,7 +80,8 @@ export default function App() {
       <Suspense fallback={<Loading />}>
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
-            <Route path="/auth/*" element={<PublicRoute />} />
+            <Route path="/auth" element={<PublicRoute><Suspense fallback={<Loading />}><SignIn /></Suspense></PublicRoute>} />
+            <Route path="/auth/sign-up" element={<PublicRoute><Suspense fallback={<Loading />}><SignUp /></Suspense></PublicRoute>} />
             <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<PageTransition><Suspense fallback={<Loading />}><Dashboard /></Suspense></PageTransition>} />

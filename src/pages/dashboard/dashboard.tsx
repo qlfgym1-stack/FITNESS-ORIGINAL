@@ -327,7 +327,7 @@ export default function Dashboard() {
                   <XAxis dataKey="month" className="text-xs text-muted-foreground" />
                   <YAxis className="text-xs text-muted-foreground" />
                   <Tooltip />
-                  <Line type="monotone" dataKey="amount" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))' }} />
+                  <Line type="monotone" dataKey="amount" stroke="var(--primary)" strokeWidth={2} dot={{ fill: 'var(--primary)' }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -345,7 +345,7 @@ export default function Dashboard() {
                   <XAxis dataKey="month" className="text-xs text-muted-foreground" />
                   <YAxis className="text-xs text-muted-foreground" />
                   <Tooltip />
-                  <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))' }} />
+                  <Line type="monotone" dataKey="count" stroke="var(--primary)" strokeWidth={2} dot={{ fill: 'var(--primary)' }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

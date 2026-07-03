@@ -44,7 +44,7 @@ const subscriptionPie = [
   { name: "Student", value: 10 },
 ]
 
-const COLORS = ["hsl(var(--primary))", "hsl(var(--success))", "hsl(var(--warning))", "hsl(var(--destructive))"]
+const COLORS = ["var(--primary)", "var(--success)", "var(--warning)", "var(--destructive)"]
 
 const statsCards = [
   { title: "Total Revenue", value: 336000, change: 12.5, icon: DollarSign, format: true },
@@ -102,8 +102,8 @@ export default function ReportsPage() {
                       <YAxis className="text-xs" />
                       <Tooltip />
                       <Legend />
-                      <Line type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} name="Revenue" />
-                      <Line type="monotone" dataKey="expenses" stroke="hsl(var(--destructive))" strokeWidth={2} name="Expenses" />
+                      <Line type="monotone" dataKey="revenue" stroke="var(--primary)" strokeWidth={2} name="Revenue" />
+                      <Line type="monotone" dataKey="expenses" stroke="var(--destructive)" strokeWidth={2} name="Expenses" />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -142,8 +142,8 @@ export default function ReportsPage() {
                     <YAxis className="text-xs" />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="new" fill="hsl(var(--primary))" name="New Members" />
-                    <Bar dataKey="active" fill="hsl(var(--success))" name="Active Members" />
+                    <Bar dataKey="new" fill="var(--primary)" name="New Members" />
+                    <Bar dataKey="active" fill="var(--success)" name="Active Members" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -163,8 +163,8 @@ export default function ReportsPage() {
                     <YAxis className="text-xs" />
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="checkins" stroke="hsl(var(--primary))" strokeWidth={2} name="Check-ins" />
-                    <Line type="monotone" dataKey="classes" stroke="hsl(var(--warning))" strokeWidth={2} name="Classes" />
+                    <Line type="monotone" dataKey="checkins" stroke="var(--primary)" strokeWidth={2} name="Check-ins" />
+                    <Line type="monotone" dataKey="classes" stroke="var(--warning)" strokeWidth={2} name="Classes" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
