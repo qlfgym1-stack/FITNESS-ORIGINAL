@@ -1,8 +1,10 @@
 import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
@@ -13,6 +15,9 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import {
+  Form, FormField, FormItem, FormLabel, FormControl, FormMessage,
+} from "@/components/ui/form"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
@@ -52,6 +57,23 @@ const defaultMemberBadges: MemberBadge[] = [
 
 const colorOptions = ["#FFD700", "#00C853", "#448AFF", "#FF6D00", "#E040FB", "#FF1744", "#00BCD4", "#795548"]
 
+const badgeTypeSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional().or(z.literal("")),
+  color: z.string().min(1, "Color is required"),
+  icon: z.string().min(1, "Icon is required"),
+  is_active: z.boolean(),
+})
+
+type BadgeTypeForm = z.infer<typeof badgeTypeSchema>
+
+const assignSchema = z.object({
+  member: z.string().min(1, "Member is required"),
+  badge: z.string().min(1, "Badge is required"),
+})
+
+type AssignForm = z.infer<typeof assignSchema>
+
 export default function BadgesPage() {
   const t = useT()
   const { toast } = useToast()
@@ -62,10 +84,16 @@ export default function BadgesPage() {
   const [editing, setEditing] = useState<BadgeType | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
-  const [form, setForm] = useState<Omit<BadgeType, "id">>({
-    name: "", description: "", color: "#FFD700", icon: "star", is_active: true,
+
+  const badgeForm = useForm<BadgeTypeForm>({
+    resolver: zodResolver(badgeTypeSchema),
+    defaultValues: { name: "", description: "", color: "#FFD700", icon: "star", is_active: true },
   })
-  const [assignForm, setAssignForm] = useState({ member: "", badge: "" })
+
+  const assignForm = useForm<AssignForm>({
+    resolver: zodResolver(assignSchema),
+    defaultValues: { member: "", badge: "" },
+  })
 
   const filtered = badgeTypes.filter((b) =>
     b.name.toLowerCase().includes(search.toLowerCase())
@@ -73,22 +101,22 @@ export default function BadgesPage() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ name: "", description: "", color: "#FFD700", icon: "star", is_active: true })
+    badgeForm.reset({ name: "", description: "", color: "#FFD700", icon: "star", is_active: true })
     setDialogOpen(true)
   }
 
   function openEdit(b: BadgeType) {
     setEditing(b)
-    setForm({ name: b.name, description: b.description, color: b.color, icon: b.icon, is_active: b.is_active })
+    badgeForm.reset({ name: b.name, description: b.description, color: b.color, icon: b.icon, is_active: b.is_active })
     setDialogOpen(true)
   }
 
-  function save() {
+  function onBadgeSubmit(values: BadgeTypeForm) {
     if (editing) {
-      setBadgeTypes((prev) => prev.map((b) => (b.id === editing.id ? { ...b, ...form } : b)))
+      setBadgeTypes((prev) => prev.map((b) => (b.id === editing.id ? { ...b, ...values } : b)))
       toast({ title: t("common.updated") })
     } else {
-      setBadgeTypes((prev) => [...prev, { id: String(Date.now()), ...form }])
+      setBadgeTypes((prev) => [...prev, { id: String(Date.now()), ...values } as BadgeType])
       toast({ title: t("common.created") })
     }
     setDialogOpen(false)
@@ -99,17 +127,16 @@ export default function BadgesPage() {
     toast({ title: t("common.deleted") })
   }
 
-  function assignBadge() {
-    if (!assignForm.member || !assignForm.badge) return
+  function onAssignSubmit(values: AssignForm) {
     setMemberBadges((prev) => [...prev, {
       id: String(Date.now()),
-      member: assignForm.member,
-      badge: assignForm.badge,
+      member: values.member,
+      badge: values.badge,
       assigned_at: new Date().toISOString().slice(0, 10),
     }])
     toast({ title: t("badges.assigned") })
     setAssignOpen(false)
-    setAssignForm({ member: "", badge: "" })
+    assignForm.reset()
   }
 
   function removeAssignment(id: string) {
@@ -124,7 +151,7 @@ export default function BadgesPage() {
         description={t("badges.description")}
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setAssignOpen(true)}>
+            <Button variant="outline" onClick={() => { assignForm.reset(); setAssignOpen(true) }}>
               <UserCheck className="mr-2 h-4 w-4" /> {t("badges.assign")}
             </Button>
             <Button onClick={openCreate}>
@@ -236,38 +263,54 @@ export default function BadgesPage() {
             <DialogTitle>{editing ? t("badges.edit") : t("badges.add")}</DialogTitle>
             <DialogDescription>{t("badges.formDescription")}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>{t("badges.name")}</Label>
-              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("badges.description")}</Label>
-              <Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("badges.color")}</Label>
-              <div className="flex gap-2 flex-wrap">
-                {colorOptions.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={cn("h-8 w-8 rounded-full border-2 transition-all", form.color === c ? "border-foreground scale-110" : "border-transparent")}
-                    style={{ backgroundColor: c }}
-                    onClick={() => setForm((f) => ({ ...f, color: c }))}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("badges.icon")}</Label>
-              <Input value={form.icon} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
-            <Button onClick={save}>{t("common.save")}</Button>
-          </DialogFooter>
+          <Form {...badgeForm}>
+            <form onSubmit={badgeForm.handleSubmit(onBadgeSubmit)} className="space-y-4">
+              <FormField control={badgeForm.control} name="name" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("badges.name")}</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={badgeForm.control} name="description" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("badges.description")}</FormLabel>
+                  <FormControl><Textarea {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={badgeForm.control} name="color" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("badges.color")}</FormLabel>
+                  <FormControl>
+                    <div className="flex gap-2 flex-wrap">
+                      {colorOptions.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          className={cn("h-8 w-8 rounded-full border-2 transition-all", field.value === c ? "border-foreground scale-110" : "border-transparent")}
+                          style={{ backgroundColor: c }}
+                          onClick={() => field.onChange(c)}
+                        />
+                      ))}
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={badgeForm.control} name="icon" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("badges.icon")}</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
+                <Button type="submit">{t("common.save")}</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
@@ -277,27 +320,37 @@ export default function BadgesPage() {
             <DialogTitle>{t("badges.assign")}</DialogTitle>
             <DialogDescription>{t("badges.assignDescription")}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>{t("badges.member")}</Label>
-              <Input value={assignForm.member} onChange={(e) => setAssignForm((f) => ({ ...f, member: e.target.value }))} />
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("badges.badge")}</Label>
-              <Select value={assignForm.badge} onValueChange={(v) => setAssignForm((f) => ({ ...f, badge: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {badgeTypes.filter((b) => b.is_active).map((b) => (
-                    <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignOpen(false)}>{t("common.cancel")}</Button>
-            <Button onClick={assignBadge}>{t("badges.assign")}</Button>
-          </DialogFooter>
+          <Form {...assignForm}>
+            <form onSubmit={assignForm.handleSubmit(onAssignSubmit)} className="space-y-4">
+              <FormField control={assignForm.control} name="member" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("badges.member")}</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={assignForm.control} name="badge" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("badges.badge")}</FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {badgeTypes.filter((b) => b.is_active).map((b) => (
+                          <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setAssignOpen(false)}>{t("common.cancel")}</Button>
+                <Button type="submit">{t("badges.assign")}</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>

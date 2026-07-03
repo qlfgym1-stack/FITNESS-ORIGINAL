@@ -1,8 +1,10 @@
 import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
@@ -10,9 +12,11 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  Form, FormField, FormItem, FormLabel, FormControl, FormMessage,
+} from "@/components/ui/form"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
-import { formatDate } from "@/lib/utils"
 import { Building2, Plus, Search, Edit, Trash2, Phone, Mail, MapPin } from "lucide-react"
 
 interface Supplier {
@@ -32,6 +36,16 @@ const defaultSuppliers: Supplier[] = [
   { id: "4", name: "SportSupply", contact_name: "Lamia Bensaid", email: "lamia@sportsupply.dz", phone: "+213 550 321 654", address: "Cité des Sports, Annaba", created_at: "2026-04-05" },
 ]
 
+const supplierSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  contact_name: z.string().min(1, "Contact name is required"),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
+  address: z.string().optional().or(z.literal("")),
+})
+
+type SupplierForm = z.infer<typeof supplierSchema>
+
 export default function SuppliersPage() {
   const t = useT()
   const { toast } = useToast()
@@ -39,8 +53,10 @@ export default function SuppliersPage() {
   const [search, setSearch] = useState("")
   const [editing, setEditing] = useState<Supplier | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [form, setForm] = useState<Omit<Supplier, "id" | "created_at">>({
-    name: "", contact_name: "", email: "", phone: "", address: "",
+
+  const form = useForm<SupplierForm>({
+    resolver: zodResolver(supplierSchema),
+    defaultValues: { name: "", contact_name: "", email: "", phone: "", address: "" },
   })
 
   const filtered = suppliers.filter((s) =>
@@ -51,22 +67,28 @@ export default function SuppliersPage() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ name: "", contact_name: "", email: "", phone: "", address: "" })
+    form.reset({ name: "", contact_name: "", email: "", phone: "", address: "" })
     setDialogOpen(true)
   }
 
   function openEdit(s: Supplier) {
     setEditing(s)
-    setForm({ name: s.name, contact_name: s.contact_name, email: s.email, phone: s.phone, address: s.address })
+    form.reset({
+      name: s.name,
+      contact_name: s.contact_name,
+      email: s.email,
+      phone: s.phone,
+      address: s.address,
+    })
     setDialogOpen(true)
   }
 
-  function save() {
+  function onSubmit(values: SupplierForm) {
     if (editing) {
-      setSuppliers((prev) => prev.map((s) => (s.id === editing.id ? { ...s, ...form } : s)))
+      setSuppliers((prev) => prev.map((s) => (s.id === editing.id ? { ...s, ...values } : s)))
       toast({ title: t("common.updated"), description: t("suppliers.updateSuccess") })
     } else {
-      setSuppliers((prev) => [...prev, { id: String(Date.now()), ...form, created_at: new Date().toISOString().slice(0, 10) }])
+      setSuppliers((prev) => [...prev, { id: String(Date.now()), ...values, created_at: new Date().toISOString().slice(0, 10) } as Supplier])
       toast({ title: t("common.created"), description: t("suppliers.createSuccess") })
     }
     setDialogOpen(false)
@@ -165,36 +187,53 @@ export default function SuppliersPage() {
             <DialogTitle>{editing ? t("suppliers.edit") : t("suppliers.add")}</DialogTitle>
             <DialogDescription>{t("suppliers.formDescription")}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>{t("suppliers.name")}</Label>
-                <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("suppliers.name")}</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="contact_name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("suppliers.contactName")}</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
-              <div className="grid gap-2">
-                <Label>{t("suppliers.contactName")}</Label>
-                <Input value={form.contact_name} onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="email" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("suppliers.email")}</FormLabel>
+                    <FormControl><Input type="email" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="phone" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("suppliers.phone")}</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>{t("suppliers.email")}</Label>
-                <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("suppliers.phone")}</Label>
-                <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("suppliers.address")}</Label>
-              <Textarea value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
-            <Button onClick={save}>{t("common.save")}</Button>
-          </DialogFooter>
+              <FormField control={form.control} name="address" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("suppliers.address")}</FormLabel>
+                  <FormControl><Textarea {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
+                <Button type="submit">{t("common.save")}</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>

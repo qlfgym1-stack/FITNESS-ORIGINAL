@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Menu, Search, Bell, Sun, Moon, LogOut, User } from "lucide-react"
+import { motion } from "framer-motion"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,13 +46,18 @@ export function Navbar({ onMenuClick }: NavbarProps) {
         <Menu className="h-5 w-5" />
       </Button>
 
-      <div className="relative max-w-md flex-1">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="relative max-w-md flex-1"
+      >
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search..."
           className="bg-muted pl-8"
         />
-      </div>
+      </motion.div>
 
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" className="relative">

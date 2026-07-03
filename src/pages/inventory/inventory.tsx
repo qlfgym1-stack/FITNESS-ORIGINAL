@@ -1,17 +1,22 @@
 import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from "@/components/ui/table"
 import {
-  Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import {
+  Form, FormField, FormItem, FormLabel, FormControl, FormMessage,
+} from "@/components/ui/form"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
@@ -38,6 +43,18 @@ const defaultItems: InventoryItem[] = [
   { id: "5", name: "Water Bottles", category: "Accessories", quantity: 150, unit: "pcs", min_stock: 30, price: 350, supplier: "SportSupply" },
 ]
 
+const inventorySchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  category: z.string().min(1, "Category is required"),
+  quantity: z.coerce.number().min(0, "Min 0"),
+  unit: z.string().min(1, "Unit is required"),
+  min_stock: z.coerce.number().min(0, "Min 0"),
+  price: z.coerce.number().min(0, "Min 0"),
+  supplier: z.string().optional().or(z.literal("")),
+})
+
+type InventoryForm = z.infer<typeof inventorySchema>
+
 export default function InventoryPage() {
   const t = useT()
   const { toast } = useToast()
@@ -45,8 +62,10 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("")
   const [editing, setEditing] = useState<InventoryItem | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [form, setForm] = useState<Omit<InventoryItem, "id">>({
-    name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier: "",
+
+  const form = useForm<InventoryForm>({
+    resolver: zodResolver(inventorySchema),
+    defaultValues: { name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier: "" },
   })
 
   const filtered = items.filter((i) =>
@@ -57,22 +76,30 @@ export default function InventoryPage() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier: "" })
+    form.reset({ name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier: "" })
     setDialogOpen(true)
   }
 
   function openEdit(item: InventoryItem) {
     setEditing(item)
-    setForm({ name: item.name, category: item.category, quantity: item.quantity, unit: item.unit, min_stock: item.min_stock, price: item.price, supplier: item.supplier })
+    form.reset({
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      unit: item.unit,
+      min_stock: item.min_stock,
+      price: item.price,
+      supplier: item.supplier,
+    })
     setDialogOpen(true)
   }
 
-  function save() {
+  function onSubmit(values: InventoryForm) {
     if (editing) {
-      setItems((prev) => prev.map((i) => (i.id === editing.id ? { ...i, ...form } : i)))
+      setItems((prev) => prev.map((i) => (i.id === editing.id ? { ...i, ...values } : i)))
       toast({ title: t("common.updated"), description: t("inventory.updateSuccess") })
     } else {
-      const newItem: InventoryItem = { id: String(Date.now()), ...form }
+      const newItem = { id: String(Date.now()), ...values } as InventoryItem
       setItems((prev) => [...prev, newItem])
       toast({ title: t("common.created"), description: t("inventory.createSuccess") })
     }
@@ -174,52 +201,77 @@ export default function InventoryPage() {
             <DialogTitle>{editing ? t("inventory.edit") : t("inventory.add")}</DialogTitle>
             <DialogDescription>{t("inventory.formDescription")}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>{t("inventory.name")}</Label>
-              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>{t("inventory.category")}</Label>
-                <Input value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField control={form.control} name="name" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("inventory.name")}</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="category" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.category")}</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="unit" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.unit")}</FormLabel>
+                    <FormControl>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pcs">Pieces</SelectItem>
+                          <SelectItem value="kg">Kilograms</SelectItem>
+                          <SelectItem value="L">Liters</SelectItem>
+                          <SelectItem value="box">Box</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
-              <div className="grid gap-2">
-                <Label>{t("inventory.unit")}</Label>
-                <Select value={form.unit} onValueChange={(v) => setForm((f) => ({ ...f, unit: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pcs">Pieces</SelectItem>
-                    <SelectItem value="kg">Kilograms</SelectItem>
-                    <SelectItem value="L">Liters</SelectItem>
-                    <SelectItem value="box">Box</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="quantity" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.quantity")}</FormLabel>
+                    <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="min_stock" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.minStock")}</FormLabel>
+                    <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>{t("inventory.quantity")}</Label>
-                <Input type="number" value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: Number(e.target.value) }))} />
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("inventory.minStock")}</Label>
-                <Input type="number" value={form.min_stock} onChange={(e) => setForm((f) => ({ ...f, min_stock: Number(e.target.value) }))} />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("inventory.price")}</Label>
-              <Input type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: Number(e.target.value) }))} />
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("inventory.supplier")}</Label>
-              <Input value={form.supplier} onChange={(e) => setForm((f) => ({ ...f, supplier: e.target.value }))} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
-            <Button onClick={save}>{t("common.save")}</Button>
-          </DialogFooter>
+              <FormField control={form.control} name="price" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("inventory.price")}</FormLabel>
+                  <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="supplier" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("inventory.supplier")}</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
+                <Button type="submit">{t("common.save")}</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>

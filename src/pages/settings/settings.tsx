@@ -1,4 +1,7 @@
 import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import {
+  Form, FormField, FormItem, FormLabel, FormControl, FormMessage,
+} from "@/components/ui/form"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/toast"
@@ -14,24 +20,42 @@ import { useT, useLocale } from "@/i18n"
 import { useTheme } from "@/stores/theme"
 import { Save, Building2, Globe, Palette, Bell } from "lucide-react"
 
+const settingsSchema = z.object({
+  gym_name: z.string().min(1, "Gym name is required"),
+  address: z.string().optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  currency: z.string().min(1, "Currency is required"),
+  language: z.string().min(1, "Language is required"),
+  notifications_enabled: z.boolean(),
+  email_notifications: z.boolean(),
+  sms_notifications: z.boolean(),
+})
+
+type SettingsForm = z.infer<typeof settingsSchema>
+
 export default function SettingsPage() {
   const t = useT()
   const { toast } = useToast()
   const { theme, setTheme } = useTheme()
   const { locale, setLocale } = useLocale()
-  const [form, setForm] = useState({
-    gym_name: "Dinatek Fitness Alger Centre",
-    address: "123 Rue Didouche Mourad, Alger",
-    phone: "+213 21 123 456",
-    email: "contact@dinatek.dz",
-    currency: "DZD",
-    language: locale,
-    notifications_enabled: true,
-    email_notifications: true,
-    sms_notifications: false,
+
+  const form = useForm<SettingsForm>({
+    resolver: zodResolver(settingsSchema),
+    defaultValues: {
+      gym_name: "Dinatek Fitness Alger Centre",
+      address: "123 Rue Didouche Mourad, Alger",
+      phone: "+213 21 123 456",
+      email: "contact@dinatek.dz",
+      currency: "DZD",
+      language: locale,
+      notifications_enabled: true,
+      email_notifications: true,
+      sms_notifications: false,
+    },
   })
 
-  function save() {
+  function onSubmit() {
     toast({ title: t("settings.saved"), description: t("settings.savedDescription") })
   }
 
@@ -48,23 +72,35 @@ export default function SettingsPage() {
             <CardDescription>{t("settings.gymInfoDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-2">
-              <Label>{t("settings.gymName")}</Label>
-              <Input value={form.gym_name} onChange={(e) => setForm((f) => ({ ...f, gym_name: e.target.value }))} />
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("settings.address")}</Label>
-              <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
-            </div>
+            <FormField control={form.control} name="gym_name" render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("settings.gymName")}</FormLabel>
+                <FormControl><Input {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="address" render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("settings.address")}</FormLabel>
+                <FormControl><Input {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>{t("settings.phone")}</Label>
-                <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("settings.email")}</Label>
-                <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              </div>
+              <FormField control={form.control} name="phone" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("settings.phone")}</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("settings.email")}</FormLabel>
+                  <FormControl><Input type="email" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
           </CardContent>
         </Card>
@@ -78,30 +114,37 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>{t("settings.language")}</Label>
-                <Select value={form.language} onValueChange={(v) => {
-                  setForm((f) => ({ ...f, language: v }))
-                  setLocale(v)
-                }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fr">Français</SelectItem>
-                    <SelectItem value="ar">العربية</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("settings.currency")}</Label>
-                <Select value={form.currency} onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DZD">DZD - Algerian Dinar</SelectItem>
-                    <SelectItem value="EUR">EUR - Euro</SelectItem>
-                    <SelectItem value="USD">USD - US Dollar</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormField control={form.control} name="language" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("settings.language")}</FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={(v) => { field.onChange(v); setLocale(v) }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fr">Français</SelectItem>
+                        <SelectItem value="ar">العربية</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="currency" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("settings.currency")}</FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DZD">DZD - Algerian Dinar</SelectItem>
+                        <SelectItem value="EUR">EUR - Euro</SelectItem>
+                        <SelectItem value="USD">USD - US Dollar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
           </CardContent>
         </Card>
@@ -138,33 +181,51 @@ export default function SettingsPage() {
             <CardDescription>{t("settings.notificationsDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>{t("settings.pushNotifications")}</Label>
-                <p className="text-sm text-muted-foreground">{t("settings.pushNotificationsDescription")}</p>
-              </div>
-              <Switch checked={form.notifications_enabled} onCheckedChange={(v) => setForm((f) => ({ ...f, notifications_enabled: v }))} />
-            </div>
+            <FormField control={form.control} name="notifications_enabled" render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <FormLabel>{t("settings.pushNotifications")}</FormLabel>
+                    <p className="text-sm text-muted-foreground">{t("settings.pushNotificationsDescription")}</p>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </div>
+              </FormItem>
+            )} />
             <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>{t("settings.emailNotifications")}</Label>
-                <p className="text-sm text-muted-foreground">{t("settings.emailNotificationsDescription")}</p>
-              </div>
-              <Switch checked={form.email_notifications} onCheckedChange={(v) => setForm((f) => ({ ...f, email_notifications: v }))} />
-            </div>
+            <FormField control={form.control} name="email_notifications" render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <FormLabel>{t("settings.emailNotifications")}</FormLabel>
+                    <p className="text-sm text-muted-foreground">{t("settings.emailNotificationsDescription")}</p>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </div>
+              </FormItem>
+            )} />
             <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>{t("settings.smsNotifications")}</Label>
-                <p className="text-sm text-muted-foreground">{t("settings.smsNotificationsDescription")}</p>
-              </div>
-              <Switch checked={form.sms_notifications} onCheckedChange={(v) => setForm((f) => ({ ...f, sms_notifications: v }))} />
-            </div>
+            <FormField control={form.control} name="sms_notifications" render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <FormLabel>{t("settings.smsNotifications")}</FormLabel>
+                    <p className="text-sm text-muted-foreground">{t("settings.smsNotificationsDescription")}</p>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </div>
+              </FormItem>
+            )} />
           </CardContent>
         </Card>
 
-        <Button onClick={save} className="w-full sm:w-auto">
+        <Button onClick={form.handleSubmit(onSubmit)} className="w-full sm:w-auto">
           <Save className="mr-2 h-4 w-4" /> {t("settings.saveSettings")}
         </Button>
       </div>

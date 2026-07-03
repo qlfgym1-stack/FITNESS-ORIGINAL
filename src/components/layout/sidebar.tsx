@@ -1,4 +1,5 @@
 import { useLocation, Link } from "react-router-dom"
+import { motion } from "framer-motion"
 import {
   LayoutDashboard,
   Users,
@@ -128,10 +129,15 @@ function SidebarNav({ onNavClick }: { onNavClick?: () => void }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-14 items-center gap-2 border-b px-4">
+      <motion.div
+        initial={{ rotate: -180, opacity: 0 }}
+        animate={{ rotate: 0, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="flex h-14 items-center gap-2 border-b px-4"
+      >
         <Dumbbell className="h-6 w-6 text-primary" />
         <span className="text-lg font-bold">Dinateck Gym</span>
-      </div>
+      </motion.div>
       <ScrollArea className="flex-1 px-3 py-2">
         <nav className="space-y-4">
           {navGroups.map((group) => (
@@ -141,7 +147,11 @@ function SidebarNav({ onNavClick }: { onNavClick?: () => void }) {
               </h4>
               <ul className="space-y-0.5">
                 {group.items.map((item) => (
-                  <li key={item.path}>
+                  <motion.li
+                    key={item.path}
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.15 }}
+                  >
                     <Link
                       to={item.path}
                       onClick={onNavClick}
@@ -155,7 +165,7 @@ function SidebarNav({ onNavClick }: { onNavClick?: () => void }) {
                       <item.icon className="h-4 w-4 shrink-0" />
                       {item.label}
                     </Link>
-                  </li>
+                  </motion.li>
                 ))}
               </ul>
             </div>
@@ -188,14 +198,17 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   return (
-    <aside
+    <motion.aside
+      initial={{ width: 240 }}
+      animate={{ width: 240 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
       className={cn(
         "hidden lg:flex lg:w-60 lg:flex-col lg:border-r lg:bg-card",
         className
       )}
     >
       <SidebarNav />
-    </aside>
+    </motion.aside>
   )
 }
 

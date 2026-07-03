@@ -173,7 +173,7 @@ const addToRemoveQueue = (toastId: string) => {
       type: "REMOVE_TOAST",
       toastId: toastId,
     })
-  }, 5000)
+  }, 4000)
 
   toastTimeouts.set(toastId, timeout)
 }
@@ -317,6 +317,18 @@ function Toaster() {
   )
 }
 
+function showSuccess(msg: string, opts?: { description?: string; action?: ToastActionElement }) {
+  toast({ variant: 'success', title: msg, ...opts })
+}
+
+function showError(msg: string, opts?: { description?: string; action?: ToastActionElement }) {
+  toast({ variant: 'destructive', title: 'Error', description: msg, ...opts })
+}
+
+function showInfo(msg: string, opts?: { description?: string; action?: ToastActionElement }) {
+  toast({ title: msg, ...opts })
+}
+
 export {
   type ToastProps,
   type ToastActionElement,
@@ -330,4 +342,7 @@ export {
   Toaster,
   useToast,
   toast,
+  showSuccess,
+  showError,
+  showInfo,
 }

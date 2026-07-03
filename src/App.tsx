@@ -1,8 +1,9 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/components/layout'
 import { AuthProvider } from '@/stores/auth'
 import { useAuth } from '@/stores/auth'
 import { lazy, Suspense } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const SignIn = lazy(() => import('@/pages/auth/sign-in'))
 const SignUp = lazy(() => import('@/pages/auth/sign-up'))
@@ -44,6 +45,19 @@ function Loading() {
   return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
 }
 
+function PageTransition({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.2 }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
   if (isLoading) return <Loading />
@@ -67,49 +81,53 @@ function PublicRoute() {
 }
 
 export default function App() {
+  const location = useLocation()
+
   return (
     <AuthProvider>
       <Suspense fallback={<Loading />}>
-        <Routes>
-          <Route path="/auth/*" element={<PublicRoute />} />
-          <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Suspense fallback={<Loading />}><Dashboard /></Suspense>} />
-            <Route path="members" element={<Suspense fallback={<Loading />}><Members /></Suspense>} />
-            <Route path="subscriptions" element={<Suspense fallback={<Loading />}><Subscriptions /></Suspense>} />
-            <Route path="payments" element={<Suspense fallback={<Loading />}><Payments /></Suspense>} />
-            <Route path="classes" element={<Suspense fallback={<Loading />}><Classes /></Suspense>} />
-            <Route path="attendance" element={<Suspense fallback={<Loading />}><Attendance /></Suspense>} />
-            <Route path="staff" element={<Suspense fallback={<Loading />}><Staff /></Suspense>} />
-            <Route path="staff/timesheet" element={<Suspense fallback={<Loading />}><StaffTimesheet /></Suspense>} />
-            <Route path="staff/planning" element={<Suspense fallback={<Loading />}><StaffPlanning /></Suspense>} />
-            <Route path="staff/leaves" element={<Suspense fallback={<Loading />}><StaffLeaves /></Suspense>} />
-            <Route path="pos" element={<Suspense fallback={<Loading />}><POS /></Suspense>} />
-            <Route path="equipment" element={<Suspense fallback={<Loading />}><Equipment /></Suspense>} />
-            <Route path="equipment/reservations" element={<Suspense fallback={<Loading />}><EquipmentReservations /></Suspense>} />
-            <Route path="equipment/report" element={<Suspense fallback={<Loading />}><EquipmentReport /></Suspense>} />
-            <Route path="inventory" element={<Suspense fallback={<Loading />}><Inventory /></Suspense>} />
-            <Route path="stock" element={<Suspense fallback={<Loading />}><Stock /></Suspense>} />
-            <Route path="suppliers" element={<Suspense fallback={<Loading />}><Suppliers /></Suspense>} />
-            <Route path="purchase-orders" element={<Suspense fallback={<Loading />}><PurchaseOrders /></Suspense>} />
-            <Route path="access-control" element={<Suspense fallback={<Loading />}><AccessControl /></Suspense>} />
-            <Route path="badges" element={<Suspense fallback={<Loading />}><Badges /></Suspense>} />
-            <Route path="check-in-kiosk" element={<Suspense fallback={<Loading />}><CheckInKiosk /></Suspense>} />
-            <Route path="member-portal" element={<Suspense fallback={<Loading />}><MemberPortal /></Suspense>} />
-            <Route path="coach-mode" element={<Suspense fallback={<Loading />}><CoachMode /></Suspense>} />
-            <Route path="reports" element={<Suspense fallback={<Loading />}><Reports /></Suspense>} />
-            <Route path="corporate" element={<Suspense fallback={<Loading />}><Corporate /></Suspense>} />
-            <Route path="gyms" element={<Suspense fallback={<Loading />}><Gyms /></Suspense>} />
-            <Route path="licenses" element={<Suspense fallback={<Loading />}><Licenses /></Suspense>} />
-            <Route path="notifications" element={<Suspense fallback={<Loading />}><Notifications /></Suspense>} />
-            <Route path="settings" element={<Suspense fallback={<Loading />}><Settings /></Suspense>} />
-            <Route path="profile" element={<Suspense fallback={<Loading />}><Profile /></Suspense>} />
-            <Route path="super-admin" element={<Suspense fallback={<Loading />}><SuperAdmin /></Suspense>} />
-            <Route path="display" element={<Suspense fallback={<Loading />}><Display /></Suspense>} />
-            <Route path="install" element={<Suspense fallback={<Loading />}><Install /></Suspense>} />
-          </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        <AnimatePresence mode="wait">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/auth/*" element={<PublicRoute />} />
+            <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<PageTransition><Suspense fallback={<Loading />}><Dashboard /></Suspense></PageTransition>} />
+              <Route path="members" element={<PageTransition><Suspense fallback={<Loading />}><Members /></Suspense></PageTransition>} />
+              <Route path="subscriptions" element={<PageTransition><Suspense fallback={<Loading />}><Subscriptions /></Suspense></PageTransition>} />
+              <Route path="payments" element={<PageTransition><Suspense fallback={<Loading />}><Payments /></Suspense></PageTransition>} />
+              <Route path="classes" element={<PageTransition><Suspense fallback={<Loading />}><Classes /></Suspense></PageTransition>} />
+              <Route path="attendance" element={<PageTransition><Suspense fallback={<Loading />}><Attendance /></Suspense></PageTransition>} />
+              <Route path="staff" element={<PageTransition><Suspense fallback={<Loading />}><Staff /></Suspense></PageTransition>} />
+              <Route path="staff/timesheet" element={<PageTransition><Suspense fallback={<Loading />}><StaffTimesheet /></Suspense></PageTransition>} />
+              <Route path="staff/planning" element={<PageTransition><Suspense fallback={<Loading />}><StaffPlanning /></Suspense></PageTransition>} />
+              <Route path="staff/leaves" element={<PageTransition><Suspense fallback={<Loading />}><StaffLeaves /></Suspense></PageTransition>} />
+              <Route path="pos" element={<PageTransition><Suspense fallback={<Loading />}><POS /></Suspense></PageTransition>} />
+              <Route path="equipment" element={<PageTransition><Suspense fallback={<Loading />}><Equipment /></Suspense></PageTransition>} />
+              <Route path="equipment/reservations" element={<PageTransition><Suspense fallback={<Loading />}><EquipmentReservations /></Suspense></PageTransition>} />
+              <Route path="equipment/report" element={<PageTransition><Suspense fallback={<Loading />}><EquipmentReport /></Suspense></PageTransition>} />
+              <Route path="inventory" element={<PageTransition><Suspense fallback={<Loading />}><Inventory /></Suspense></PageTransition>} />
+              <Route path="stock" element={<PageTransition><Suspense fallback={<Loading />}><Stock /></Suspense></PageTransition>} />
+              <Route path="suppliers" element={<PageTransition><Suspense fallback={<Loading />}><Suppliers /></Suspense></PageTransition>} />
+              <Route path="purchase-orders" element={<PageTransition><Suspense fallback={<Loading />}><PurchaseOrders /></Suspense></PageTransition>} />
+              <Route path="access-control" element={<PageTransition><Suspense fallback={<Loading />}><AccessControl /></Suspense></PageTransition>} />
+              <Route path="badges" element={<PageTransition><Suspense fallback={<Loading />}><Badges /></Suspense></PageTransition>} />
+              <Route path="check-in-kiosk" element={<PageTransition><Suspense fallback={<Loading />}><CheckInKiosk /></Suspense></PageTransition>} />
+              <Route path="member-portal" element={<PageTransition><Suspense fallback={<Loading />}><MemberPortal /></Suspense></PageTransition>} />
+              <Route path="coach-mode" element={<PageTransition><Suspense fallback={<Loading />}><CoachMode /></Suspense></PageTransition>} />
+              <Route path="reports" element={<PageTransition><Suspense fallback={<Loading />}><Reports /></Suspense></PageTransition>} />
+              <Route path="corporate" element={<PageTransition><Suspense fallback={<Loading />}><Corporate /></Suspense></PageTransition>} />
+              <Route path="gyms" element={<PageTransition><Suspense fallback={<Loading />}><Gyms /></Suspense></PageTransition>} />
+              <Route path="licenses" element={<PageTransition><Suspense fallback={<Loading />}><Licenses /></Suspense></PageTransition>} />
+              <Route path="notifications" element={<PageTransition><Suspense fallback={<Loading />}><Notifications /></Suspense></PageTransition>} />
+              <Route path="settings" element={<PageTransition><Suspense fallback={<Loading />}><Settings /></Suspense></PageTransition>} />
+              <Route path="profile" element={<PageTransition><Suspense fallback={<Loading />}><Profile /></Suspense></PageTransition>} />
+              <Route path="super-admin" element={<PageTransition><Suspense fallback={<Loading />}><SuperAdmin /></Suspense></PageTransition>} />
+              <Route path="display" element={<PageTransition><Suspense fallback={<Loading />}><Display /></Suspense></PageTransition>} />
+              <Route path="install" element={<PageTransition><Suspense fallback={<Loading />}><Install /></Suspense></PageTransition>} />
+            </Route>
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </AnimatePresence>
       </Suspense>
     </AuthProvider>
   )
