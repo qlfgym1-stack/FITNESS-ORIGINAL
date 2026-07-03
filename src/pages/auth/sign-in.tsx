@@ -139,7 +139,7 @@ export default function SignIn() {
       </div>
 
       {/* Right: Form */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative bg-background">
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative bg-transparent">
         <div className="absolute inset-0 pointer-events-none lg:hidden">
           <motion.div
             animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
