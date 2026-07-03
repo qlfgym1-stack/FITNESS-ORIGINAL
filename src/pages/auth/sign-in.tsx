@@ -44,7 +44,16 @@ export default function SignIn() {
   return (
     <div className="min-h-screen flex relative overflow-hidden">
       {/* Left: Brand panel with image */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-[#0a0a12] via-[#12121e] to-[#1a0f0a]">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a12] via-[#12121e] to-[#1a0f0a]" />
+        <div className="absolute inset-0" style={{
+          backgroundImage: 'url(https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'brightness(0.35) saturate(1.2)',
+        }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a12]/90 via-[#0a0a12]/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a12]/80 via-transparent to-transparent" />
         <div className="absolute inset-0">
           <motion.div
             animate={{ x: [0, 40, 0], y: [0, -30, 0] }}
