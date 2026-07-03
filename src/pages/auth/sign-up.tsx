@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
-import { Dumbbell, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Dumbbell, Eye, EyeOff, Loader2, Shield, Zap, Users, BarChart3 } from 'lucide-react'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 
@@ -50,129 +50,221 @@ export default function SignUp() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none">
-        <motion.div
-          animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-20 left-10 w-96 h-96 bg-primary/20 rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{ x: [0, -20, 0], y: [0, 30, 0] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-20 right-10 w-[30rem] h-[30rem] bg-secondary/15 rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent/5 rounded-full blur-3xl"
-        />
-      </div>
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="relative"
-      >
-        <Card className="w-full max-w-md shadow-2xl glass-card gradient-border">
-          <CardHeader className="text-center space-y-2 pb-6 pt-8">
-            <motion.div
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary shadow-lg"
-            >
-              <Dumbbell className="h-7 w-7 text-white" />
-            </motion.div>
-            <CardTitle className="text-2xl font-bold flex items-baseline justify-center gap-2">
+    <div className="min-h-screen flex relative overflow-hidden">
+      {/* Left: Brand panel with image */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-[#0a0a12] via-[#12121e] to-[#1a0f0a]">
+        <div className="absolute inset-0">
+          <motion.div
+            animate={{ x: [0, 40, 0], y: [0, -30, 0] }}
+            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute -top-20 -left-20 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[150px]"
+          />
+          <motion.div
+            animate={{ x: [0, -30, 0], y: [0, 40, 0] }}
+            transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute -bottom-20 -right-20 w-[400px] h-[400px] bg-secondary/15 rounded-full blur-[150px]"
+          />
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23f97316' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundSize: '60px 60px'
+          }} />
+        </div>
+        <div className="relative z-10 flex flex-col justify-between p-16 w-full">
+          <motion.div
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="flex items-center gap-3"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/30">
+              <Dumbbell className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-xl font-bold">
               <span className="text-gradient">FitManager</span>
-              <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">Pro</span>
-            </CardTitle>
-            <CardDescription className="text-base text-muted-foreground">
-              <span className="text-foreground/80 font-medium">Create your</span>{" "}
-              <span className="text-muted-foreground">gym management account</span>
-            </CardDescription>
-          </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="gymName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Gym Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="My Fitness Gym" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input type={showPassword ? 'text' : 'password'} placeholder="••••••••" {...field} />
-                        <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
-                          {showPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-                        </Button>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input type={showConfirm ? 'text' : 'password'} placeholder="••••••••" {...field} />
-                        <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowConfirm(!showConfirm)}>
-                          {showConfirm ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-                        </Button>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Account
-              </Button>
-            </form>
-          </Form>
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link to="/auth" className="font-medium text-primary hover:underline">
-              Sign in
-            </Link>
+              <span className="ml-1.5 text-xs font-semibold text-white/50 tracking-widest uppercase">Pro</span>
+            </span>
+          </motion.div>
+          <div className="space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+            >
+              <h1 className="text-5xl font-bold leading-tight text-white">
+                <span className="stroke-text text-6xl block mb-2">START</span>
+                <span>Your Journey.</span>
+                <span className="text-gradient block text-5xl mt-2">Join Today.</span>
+              </h1>
+              <p className="mt-6 text-lg text-white/50 max-w-md leading-relaxed">
+                Create your gym management account and take control of every aspect of your fitness business.
+              </p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+              className="space-y-4"
+            >
+              {[
+                { icon: Shield, text: "Role-based access control" },
+                { icon: Zap, text: "Real-time attendance & check-in" },
+                { icon: Users, text: "Member management & subscriptions" },
+                { icon: BarChart3, text: "Revenue & performance analytics" },
+              ].map((item, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.4, delay: 0.6 + i * 0.1 }}
+                  className="flex items-center gap-3"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                    <item.icon className="h-4 w-4 text-primary" />
+                  </div>
+                  <span className="text-sm text-white/60">{item.text}</span>
+                </motion.div>
+              ))}
+            </motion.div>
           </div>
-        </CardContent>
-      </Card>
-      </motion.div>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 1 }}
+            className="text-xs text-white/20"
+          >
+            &copy; 2026 FitManager Pro. All rights reserved.
+          </motion.p>
+        </div>
+      </div>
+
+      {/* Right: Form */}
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative bg-background">
+        <div className="absolute inset-0 pointer-events-none lg:hidden">
+          <motion.div
+            animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-20 left-10 w-96 h-96 bg-primary/20 rounded-full blur-3xl"
+          />
+          <motion.div
+            animate={{ x: [0, -20, 0], y: [0, 30, 0] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute bottom-20 right-10 w-[30rem] h-[30rem] bg-secondary/15 rounded-full blur-3xl"
+          />
+        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="w-full max-w-lg relative"
+        >
+          {/* Mobile logo */}
+          <div className="flex lg:hidden items-center justify-center gap-2 mb-8">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary shadow-lg">
+              <Dumbbell className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-lg font-bold">
+              <span className="text-gradient">FitManager</span>
+              <span className="ml-1 text-xs font-semibold text-muted-foreground tracking-widest uppercase">Pro</span>
+            </span>
+          </div>
+          <Card className="shadow-2xl glass-card gradient-border">
+            <CardHeader className="text-center space-y-2 pb-6 pt-10">
+              <motion.div
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20"
+              >
+                <Dumbbell className="h-8 w-8 text-white" />
+              </motion.div>
+              <CardTitle className="text-3xl font-bold">
+                <span className="text-gradient">Create account</span>
+              </CardTitle>
+              <CardDescription className="text-base text-muted-foreground">
+                Start managing your gym in minutes
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pb-8 px-8">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                  <FormField
+                    control={form.control}
+                    name="gymName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Gym Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="My Fitness Gym" className="h-11 text-base" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="you@example.com" className="h-11 text-base" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input type={showPassword ? 'text' : 'password'} placeholder="••••••••" className="h-11 text-base pr-10" {...field} />
+                            <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-11 px-3" onClick={() => setShowPassword(!showPassword)}>
+                              {showPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                            </Button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">Confirm Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input type={showConfirm ? 'text' : 'password'} placeholder="••••••••" className="h-11 text-base pr-10" {...field} />
+                            <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-11 px-3" onClick={() => setShowConfirm(!showConfirm)}>
+                              {showConfirm ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                            </Button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" size="lg" className="w-full h-11 text-base font-semibold" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                    Create Account
+                  </Button>
+                </form>
+              </Form>
+              <div className="mt-8 text-center text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link to="/auth" className="font-semibold text-primary hover:underline">
+                  Sign in
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
     </div>
   )
 }
