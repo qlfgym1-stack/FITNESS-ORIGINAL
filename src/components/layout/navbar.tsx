@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react"
 import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe } from "lucide-react"
 import { motion } from "framer-motion"
 
@@ -15,6 +16,24 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "@/stores/theme"
 import { useT, useLocale } from "@/i18n"
+
+function ClockDisplay() {
+  const [time, setTime] = useState(new Date())
+  useEffect(() => {
+    const interval = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(interval)
+  }, [])
+  return (
+    <div className="hidden sm:block text-right mr-2">
+      <div className="text-sm font-semibold tabular-nums leading-tight">
+        {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      </div>
+      <div className="text-[10px] text-muted-foreground leading-tight">
+        {time.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}
+      </div>
+    </div>
+  )
+}
 
 interface NavbarProps {
   onMenuClick: () => void
@@ -54,6 +73,8 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           className="bg-muted pl-8"
         />
       </motion.div>
+
+      <ClockDisplay />
 
       <div className="flex items-center gap-2">
         {/* Language Switcher */}

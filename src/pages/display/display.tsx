@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
@@ -26,31 +25,10 @@ const mockTodayClasses = [
 
 export default function DisplayPage() {
   const t = useT()
-  const [time, setTime] = useState(new Date())
-
-  useEffect(() => {
-    const interval = setInterval(() => setTime(new Date()), 1000)
-    return () => clearInterval(interval)
-  }, [])
 
   return (
-    <div className="fixed inset-0 bg-background overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-8 py-6 border-b bg-card">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">FitManager</h1>
-          <p className="text-muted-foreground text-lg">{t("display.title")}</p>
-        </div>
-        <div className="text-right">
-          <div className="text-5xl font-bold tracking-tight antialiased">
-            {time.toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
-          </div>
-          <div className="text-lg text-muted-foreground mt-1">
-            {time.toLocaleDateString("fr-DZ", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 grid grid-cols-3 gap-6 p-8 overflow-hidden">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 grid grid-cols-3 gap-6 overflow-hidden">
         <div className="col-span-2 flex flex-col gap-6 overflow-hidden">
           <div className="grid grid-cols-4 gap-4">
             <Card className="bg-primary/5 border-primary/20">
@@ -142,10 +120,6 @@ export default function DisplayPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
-
-      <div className="border-t px-8 py-3 text-center text-sm text-muted-foreground bg-card">
-        {t("display.footer")}
       </div>
     </div>
   )
