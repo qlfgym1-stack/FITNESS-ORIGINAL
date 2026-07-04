@@ -24,12 +24,12 @@ function ClockDisplay() {
     return () => clearInterval(interval)
   }, [])
   return (
-    <div className="hidden sm:block text-right mr-2">
-      <div className="text-sm font-semibold tabular-nums leading-tight">
+    <div className="hidden sm:block text-right ml-auto mr-3">
+      <div className="text-2xl font-bold tabular-nums leading-none tracking-tight text-foreground">
         {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
       </div>
-      <div className="text-[10px] text-muted-foreground leading-tight">
-        {time.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}
+      <div className="text-xs text-muted-foreground leading-none mt-1">
+        {time.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}
       </div>
     </div>
   )
