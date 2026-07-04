@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@/hooks/useQuery'
 import { useSupabase } from '@/hooks/useSupabase'
 import { useAuth } from '@/stores/auth'
@@ -162,6 +163,7 @@ function StatCard({ title, rawValue, icon: Icon, change, trend, format }: StatCa
 // ── Main Dashboard ───────────────────────────────────────────────────
 export default function Dashboard() {
   const t = useT()
+  const nav = useNavigate()
   const supabase = useSupabase()
   const queryClient = useQueryClient()
   const { organization } = useAuth()
@@ -272,12 +274,12 @@ export default function Dashboard() {
         <h2 className="text-lg font-semibold mb-3">Quick Actions</h2>
         <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
           {[
-            { label: 'Add Member', desc: 'Register a new member', icon: UserPlus, onClick: () => toast({ title: 'Navigate to Members' }) },
-            { label: 'New Subscription', desc: 'Assign a plan', icon: CreditCard, onClick: () => toast({ title: 'Navigate to Subscriptions' }) },
-            { label: 'Record Payment', desc: 'Log a payment', icon: DollarSign, onClick: () => toast({ title: 'Navigate to Payments' }) },
-            { label: 'Check In', desc: 'Quick member check-in', icon: LogIn, onClick: () => toast({ title: 'Navigate to Check In' }) },
+            { label: 'Add Member', desc: 'Register a new member', icon: UserPlus, path: '/members' },
+            { label: 'New Subscription', desc: 'Assign a plan', icon: CreditCard, path: '/subscriptions' },
+            { label: 'Record Payment', desc: 'Log a payment', icon: DollarSign, path: '/payments' },
+            { label: 'Check In', desc: 'Quick member check-in', icon: LogIn, path: '/check-in' },
           ].map((item) => (
-            <Card key={item.label} className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={item.onClick}>
+            <Card key={item.label} className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => nav(item.path)}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-2">
                 <div className="rounded-full bg-primary/10 p-3">
                   <item.icon className="h-6 w-6 text-primary" />
