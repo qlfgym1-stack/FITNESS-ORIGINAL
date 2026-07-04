@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useLocation, Link } from "react-router-dom"
 import { motion } from "framer-motion"
 import {
@@ -29,6 +30,9 @@ import {
   Key,
   Briefcase,
   LogOut,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -37,94 +41,147 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
+import { useT, useLocale } from "@/i18n"
 
 interface NavItem {
-  label: string
+  key: string
   path: string
   icon: React.ElementType
 }
 
 interface NavGroup {
-  label: string
+  groupKey: string
   items: NavItem[]
 }
 
 const navGroups: NavGroup[] = [
   {
-    label: "Main",
+    groupKey: "main",
     items: [
-      { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
-      { label: "Members", icon: Users, path: "/members" },
-      { label: "Subscriptions", icon: CreditCard, path: "/subscriptions" },
-      { label: "Payments", icon: Wallet, path: "/payments" },
+      { key: "dashboard", icon: LayoutDashboard, path: "/dashboard" },
+      { key: "members", icon: Users, path: "/members" },
+      { key: "subscriptions", icon: CreditCard, path: "/subscriptions" },
+      { key: "payments", icon: Wallet, path: "/payments" },
     ],
   },
   {
-    label: "Planning",
+    groupKey: "planning",
     items: [
-      { label: "Classes", icon: Calendar, path: "/classes" },
-      { label: "Attendance", icon: ClipboardCheck, path: "/attendance" },
-      { label: "Staff", icon: UsersRound, path: "/staff" },
+      { key: "classes", icon: Calendar, path: "/classes" },
+      { key: "attendance", icon: ClipboardCheck, path: "/attendance" },
+      { key: "staff", icon: UsersRound, path: "/staff" },
     ],
   },
   {
-    label: "Sales",
+    groupKey: "sales",
     items: [
-      { label: "POS", icon: ShoppingCart, path: "/pos" },
-      { label: "Inventory", icon: Package, path: "/inventory" },
-      { label: "Stock", icon: Boxes, path: "/stock" },
-      { label: "Suppliers", icon: Truck, path: "/suppliers" },
+      { key: "pos", icon: ShoppingCart, path: "/pos" },
+      { key: "inventory", icon: Package, path: "/inventory" },
+      { key: "stock", icon: Boxes, path: "/stock" },
+      { key: "suppliers", icon: Truck, path: "/suppliers" },
     ],
   },
   {
-    label: "Equipment",
+    groupKey: "equipment",
     items: [
-      { label: "Equipment", icon: Dumbbell, path: "/equipment" },
-      { label: "Reservations", icon: Clock, path: "/reservations" },
-      { label: "Reports", icon: BarChart3, path: "/reports" },
+      { key: "equipment", icon: Dumbbell, path: "/equipment" },
+      { key: "reservations", icon: Clock, path: "/reservations" },
+      { key: "reports", icon: BarChart3, path: "/reports" },
     ],
   },
   {
-    label: "Access",
+    groupKey: "access",
     items: [
-      { label: "Access Control", icon: Shield, path: "/access-control" },
-      { label: "Badges", icon: Award, path: "/badges" },
-      { label: "Check-in Kiosk", icon: ScanQrCode, path: "/check-in" },
+      { key: "accessControl", icon: Shield, path: "/access-control" },
+      { key: "badges", icon: Award, path: "/badges" },
+      { key: "checkInKiosk", icon: ScanQrCode, path: "/check-in" },
     ],
   },
   {
-    label: "Portal",
+    groupKey: "portal",
     items: [
-      { label: "Member Portal", icon: UserCircle, path: "/member-portal" },
-      { label: "Coach Mode", icon: GraduationCap, path: "/coach" },
-      { label: "Display", icon: Monitor, path: "/display" },
+      { key: "memberPortal", icon: UserCircle, path: "/member-portal" },
+      { key: "coachMode", icon: GraduationCap, path: "/coach" },
+      { key: "display", icon: Monitor, path: "/display" },
     ],
   },
   {
-    label: "Admin",
+    groupKey: "admin",
     items: [
-      { label: "Settings", icon: Settings, path: "/settings" },
-      { label: "Profile", icon: UserCog, path: "/profile" },
-      { label: "Gyms", icon: Building2, path: "/gyms" },
-      { label: "Notifications", icon: Bell, path: "/notifications" },
+      { key: "settings", icon: Settings, path: "/settings" },
+      { key: "profile", icon: UserCog, path: "/profile" },
+      { key: "gyms", icon: Building2, path: "/gyms" },
+      { key: "notifications", icon: Bell, path: "/notifications" },
     ],
   },
   {
-    label: "Super Admin",
+    groupKey: "superAdmin",
     items: [
-      { label: "Super Admin", icon: ShieldCheck, path: "/super-admin" },
-      { label: "Licenses", icon: Key, path: "/licenses" },
-      { label: "Corporate", icon: Briefcase, path: "/corporate" },
+      { key: "superAdmin", icon: ShieldCheck, path: "/super-admin" },
+      { key: "licenses", icon: Key, path: "/licenses" },
+      { key: "corporate", icon: Briefcase, path: "/corporate" },
     ],
   },
 ]
 
-function SidebarNav({ onNavClick }: { onNavClick?: () => void }) {
+function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collapsed?: boolean }) {
   const pathname = useLocation().pathname
+  const t = useT()
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const groups: Record<string, boolean> = {}
+    navGroups.forEach((g) => { groups[g.groupKey] = true })
+    return groups
+  })
 
   const isActive = (path: string) => {
     if (path === "/dashboard") return pathname === path
     return pathname.startsWith(path) || pathname === path
+  }
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  if (collapsed) {
+    return (
+      <div className="flex h-full flex-col items-center">
+        <div className="flex h-14 items-center justify-center border-b border-border/50 w-full">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20">
+            <Dumbbell className="h-4 w-4 text-white" />
+          </div>
+        </div>
+        <ScrollArea className="flex-1 w-full px-2 py-2">
+          <nav className="space-y-2">
+            {navGroups.map((group) => (
+              <div key={group.groupKey} className="space-y-0.5">
+                {group.items.map((item) => (
+                  <motion.li key={item.path} whileHover={{ scale: 1.05 }} transition={{ duration: 0.15 }} className="list-none">
+                    <Link
+                      to={item.path}
+                      onClick={onNavClick}
+                      className={cn(
+                        "flex items-center justify-center rounded-md p-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                        isActive(item.path) ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                      )}
+                      title={t(`nav.${item.key}`)}
+                    >
+                      <item.icon className="h-5 w-5 shrink-0" />
+                    </Link>
+                  </motion.li>
+                ))}
+              </div>
+            ))}
+          </nav>
+        </ScrollArea>
+        <Separator />
+        <div className="p-2">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src="" />
+            <AvatarFallback>AD</AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -144,35 +201,46 @@ function SidebarNav({ onNavClick }: { onNavClick?: () => void }) {
         </span>
       </motion.div>
       <ScrollArea className="flex-1 px-3 py-2">
-        <nav className="space-y-4">
+        <nav className="space-y-1">
           {navGroups.map((group) => (
-            <div key={group.label}>
-              <h4 className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {group.label}
-              </h4>
-              <ul className="space-y-0.5">
-                {group.items.map((item) => (
-                  <motion.li
-                    key={item.path}
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Link
-                      to={item.path}
-                      onClick={onNavClick}
-                      className={cn(
-                        "flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                        isActive(item.path)
-                          ? "bg-accent text-accent-foreground"
-                          : "text-muted-foreground"
-                      )}
+            <div key={group.groupKey}>
+              <button
+                onClick={() => toggleGroup(group.groupKey)}
+                className="flex w-full items-center justify-between rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {t(`nav.groups.${group.groupKey}`)}
+                <ChevronDown
+                  className={cn(
+                    "h-3 w-3 transition-transform",
+                    openGroups[group.groupKey] ? "rotate-0" : "-rotate-90"
+                  )}
+                />
+              </button>
+              {openGroups[group.groupKey] && (
+                <ul className="space-y-0.5 mt-0.5">
+                  {group.items.map((item) => (
+                    <motion.li
+                      key={item.path}
+                      whileHover={{ scale: 1.05 }}
+                      transition={{ duration: 0.15 }}
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {item.label}
-                    </Link>
-                  </motion.li>
-                ))}
-              </ul>
+                      <Link
+                        to={item.path}
+                        onClick={onNavClick}
+                        className={cn(
+                          "flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                          isActive(item.path)
+                            ? "bg-accent text-accent-foreground"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {t(`nav.${item.key}`)}
+                      </Link>
+                    </motion.li>
+                  ))}
+                </ul>
+              )}
             </div>
           ))}
         </nav>
@@ -202,17 +270,27 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className }: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(false)
+
   return (
     <motion.aside
-      initial={{ width: 240 }}
-      animate={{ width: 240 }}
+      animate={{ width: collapsed ? 64 : 240 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
       className={cn(
-        "hidden lg:flex lg:w-60 lg:flex-col lg:border-r lg:bg-card",
+        "hidden lg:flex lg:flex-col lg:border-r lg:bg-card relative",
+        collapsed ? "lg:w-16" : "lg:w-60",
         className
       )}
     >
-      <SidebarNav />
+      <SidebarNav collapsed={collapsed} />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setCollapsed(!collapsed)}
+        className="absolute -right-3 top-16 h-6 w-6 rounded-full border bg-background shadow-sm z-20"
+      >
+        {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+      </Button>
     </motion.aside>
   )
 }
@@ -223,9 +301,11 @@ interface MobileSidebarProps {
 }
 
 export function MobileSidebar({ open, onOpenChange }: MobileSidebarProps) {
+  const { locale } = useLocale()
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-72 p-0">
+      <SheetContent side={locale === "ar" ? "right" : "left"} className="w-72 p-0">
         <SidebarNav onNavClick={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import fr from "./fr";
+import en from "./en";
 import ar from "./ar";
 
 type TranslationValue = string | Record<string, unknown>;
@@ -12,6 +13,7 @@ interface I18nContextValue {
 
 const translations: Record<string, Record<string, TranslationValue>> = {
   fr,
+  en,
   ar,
 };
 

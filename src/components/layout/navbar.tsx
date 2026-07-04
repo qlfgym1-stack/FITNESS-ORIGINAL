@@ -1,5 +1,4 @@
-import { useState } from "react"
-import { Menu, Search, Bell, Sun, Moon, LogOut, User } from "lucide-react"
+import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe } from "lucide-react"
 import { motion } from "framer-motion"
 
 import { Button } from "@/components/ui/button"
@@ -14,26 +13,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useTheme } from "@/stores/theme"
+import { useT, useLocale } from "@/i18n"
 
 interface NavbarProps {
   onMenuClick: () => void
 }
 
-export function Navbar({ onMenuClick }: NavbarProps) {
-  const [isDark, setIsDark] = useState(
-    () => document.documentElement.classList.contains("dark")
-  )
+const locales = [
+  { code: "fr", label: "Français", flag: "🇫🇷" },
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "ar", label: "العربية", flag: "🇩🇿" },
+]
 
-  const toggleTheme = () => {
-    const html = document.documentElement
-    if (html.classList.contains("dark")) {
-      html.classList.remove("dark")
-      setIsDark(false)
-    } else {
-      html.classList.add("dark")
-      setIsDark(true)
-    }
-  }
+export function Navbar({ onMenuClick }: NavbarProps) {
+  const t = useT()
+  const { locale, setLocale } = useLocale()
+  const { theme, toggleTheme } = useTheme()
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border/50 bg-background/80 backdrop-blur-lg px-4 lg:px-6">
@@ -54,12 +50,35 @@ export function Navbar({ onMenuClick }: NavbarProps) {
       >
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search..."
+          placeholder={t("navbar.search")}
           className="bg-muted pl-8"
         />
       </motion.div>
 
       <div className="flex items-center gap-2">
+        {/* Language Switcher */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <Globe className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuLabel>{t("navbar.language")}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {locales.map((loc) => (
+              <DropdownMenuItem
+                key={loc.code}
+                onClick={() => setLocale(loc.code)}
+                className={locale === loc.code ? "bg-accent" : ""}
+              >
+                <span className="mr-2">{loc.flag}</span>
+                {loc.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           <Badge
@@ -71,7 +90,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
         </Button>
 
         <Button variant="ghost" size="icon" onClick={toggleTheme}>
-          {isDark ? (
+          {theme === "dark" ? (
             <Sun className="h-5 w-5" />
           ) : (
             <Moon className="h-5 w-5" />
@@ -99,12 +118,12 @@ export function Navbar({ onMenuClick }: NavbarProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <User className="mr-2 h-4 w-4" />
-              Profile
+              {t("navbar.profile")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <LogOut className="mr-2 h-4 w-4" />
-              Log out
+              {t("navbar.logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

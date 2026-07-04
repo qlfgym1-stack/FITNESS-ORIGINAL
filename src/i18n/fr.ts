@@ -54,6 +54,22 @@ const fr = {
     licenses: "Licences",
     corporate: "Corporate",
     reports: "Rapports",
+    groups: {
+      main: "Principal",
+      planning: "Planification",
+      sales: "Ventes",
+      equipment: "Équipement",
+      access: "Accès",
+      portal: "Portail",
+      admin: "Administration",
+      superAdmin: "Super admin",
+    },
+  },
+  navbar: {
+    search: "Rechercher...",
+    profile: "Profil",
+    logout: "Déconnexion",
+    language: "Langue",
   },
   auth: {
     signIn: "Connexion",

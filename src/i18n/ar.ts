@@ -54,6 +54,22 @@ const ar = {
     licenses: "التراخيص",
     corporate: "الشركات",
     reports: "التقارير",
+    groups: {
+      main: "الرئيسية",
+      planning: "التخطيط",
+      sales: "المبيعات",
+      equipment: "المعدات",
+      access: "الدخول",
+      portal: "البوابة",
+      admin: "الإدارة",
+      superAdmin: "المشرف العام",
+    },
+  },
+  navbar: {
+    search: "بحث...",
+    profile: "الملف الشخصي",
+    logout: "تسجيل الخروج",
+    language: "اللغة",
   },
   auth: {
     signIn: "تسجيل الدخول",
