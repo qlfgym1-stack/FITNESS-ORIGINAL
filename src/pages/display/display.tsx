@@ -41,7 +41,7 @@ export default function DisplayPage() {
           <p className="text-muted-foreground text-lg">{t("display.title")}</p>
         </div>
         <div className="text-right">
-          <div className="text-5xl font-bold tabular-nums tracking-tight">
+          <div className="text-5xl font-bold tracking-tight antialiased">
             {time.toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
           </div>
           <div className="text-lg text-muted-foreground mt-1">

@@ -68,7 +68,7 @@ export default function KioskPage() {
           <p className="text-muted-foreground">{t("kiosk.subtitle")}</p>
         </div>
         <div className="text-right">
-          <div className="text-4xl font-bold tabular-nums">
+          <div className="text-4xl font-bold antialiased">
             {time.toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
           </div>
           <div className="text-muted-foreground">
