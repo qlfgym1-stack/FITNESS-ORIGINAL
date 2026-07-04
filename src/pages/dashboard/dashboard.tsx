@@ -271,13 +271,13 @@ export default function Dashboard() {
 
       {/* ── Quick Actions ─────────────────────────────────────── */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Quick Actions</h2>
+        <h2 className="text-lg font-semibold mb-3">{t('dashboard.quickActions')}</h2>
         <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
           {[
-            { label: 'Add Member', desc: 'Register a new member', icon: UserPlus, path: '/members' },
-            { label: 'New Subscription', desc: 'Assign a plan', icon: CreditCard, path: '/subscriptions' },
-            { label: 'Record Payment', desc: 'Log a payment', icon: DollarSign, path: '/payments' },
-            { label: 'Check In', desc: 'Quick member check-in', icon: LogIn, path: '/check-in' },
+            { label: t('dashboard.addMember'), desc: t('dashboard.addMemberDesc'), icon: UserPlus, path: '/members' },
+            { label: t('dashboard.newSubscription'), desc: t('dashboard.newSubscriptionDesc'), icon: CreditCard, path: '/subscriptions' },
+            { label: t('dashboard.recordPayment'), desc: t('dashboard.recordPaymentDesc'), icon: DollarSign, path: '/payments' },
+            { label: t('dashboard.checkIn'), desc: t('dashboard.checkInDesc'), icon: LogIn, path: '/check-in' },
           ].map((item) => (
             <Card key={item.label} className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => nav(item.path)}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-2">
