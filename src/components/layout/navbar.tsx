@@ -51,6 +51,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const { locale, setLocale } = useLocale()
   const { theme, toggleTheme } = useTheme()
   const { signOut } = useAuth()
+  console.log('[Navbar] locale:', locale, 't("dashboard.title"):', t('dashboard.title'))
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border/50 bg-background/80 backdrop-blur-lg px-4 lg:px-6">
@@ -78,6 +79,9 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
       <ClockDisplay />
 
+      {/* DEBUG: current locale indicator — remove after fixing */}
+      <span className="text-[10px] text-muted-foreground/50 mr-1">{locale}</span>
+
       <div className="flex items-center gap-2">
         {/* Language Switcher */}
         <DropdownMenu>
@@ -92,7 +96,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
             {locales.map((loc) => (
               <DropdownMenuItem
                 key={loc.code}
-                onClick={() => setLocale(loc.code)}
+                onClick={() => { console.log('[LangSwitch] clicking:', loc.code); setLocale(loc.code) }}
                 className={locale === loc.code ? "bg-accent" : ""}
               >
                 <span className="mr-2">{loc.flag}</span>

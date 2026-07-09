@@ -169,6 +169,7 @@ export default function Dashboard() {
   const { organization } = useAuth()
   const { toast } = useToast()
   const orgId = organization?.id
+  console.log('[Dashboard] t("dashboard.title"):', t('dashboard.title'), 't("dashboard.addMember"):', t('dashboard.addMember'))
 
   const { data: stats } = useQuery({
     queryKey: ['dashboard-stats', orgId],
