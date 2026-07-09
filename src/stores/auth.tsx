@@ -18,7 +18,7 @@ interface AuthContextValue extends AuthState {
   signOut: () => Promise<void>
 }
 
-const IS_MOCK = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder') || import.meta.env.VITE_SUPABASE_URL === 'https://your-project.supabase.co'
+export const IS_MOCK = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder') || import.meta.env.VITE_SUPABASE_URL === 'https://your-project.supabase.co'
 
 const MOCK_ADMIN: AuthState = {
   user: { id: 'mock-admin-id', email: 'admin@fitmanager.pro', app_metadata: {}, user_metadata: { full_name: 'Admin User' }, aud: 'authenticated', created_at: new Date().toISOString() } as any,

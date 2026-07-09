@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "@/stores/theme"
+import { useAuth } from "@/stores/auth"
 import { useT, useLocale } from "@/i18n"
 
 function ClockDisplay() {
@@ -49,6 +50,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const t = useT()
   const { locale, setLocale } = useLocale()
   const { theme, toggleTheme } = useTheme()
+  const { signOut } = useAuth()
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border/50 bg-background/80 backdrop-blur-lg px-4 lg:px-6">
@@ -142,7 +144,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
               {t("navbar.profile")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" />
               {t("navbar.logout")}
             </DropdownMenuItem>
