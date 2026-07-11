@@ -1,12 +1,13 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { formatDate, formatCurrency, cn } from "@/lib/utils"
+import { formatDate, formatCurrency, cn, toUpper } from "@/lib/utils"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,10 +48,10 @@ type StaffForm = z.infer<typeof staffSchema>
 
 const ROLES = ["coach", "trainer", "receptionist", "cleaner", "manager"]
 const TABS = [
-  { value: "list", label: "Staff List", path: "/staff" },
-  { value: "timesheet", label: "Timesheet", path: "/staff/timesheet" },
-  { value: "planning", label: "Planning", path: "/staff/planning" },
-  { value: "leaves", label: "Leaves", path: "/staff/leaves" },
+  { value: "list", labelKey: "staff.staffList", path: "/staff" },
+  { value: "timesheet", labelKey: "staff.timesheet", path: "/staff/timesheet" },
+  { value: "planning", labelKey: "staff.planning", path: "/staff/planning" },
+  { value: "leaves", labelKey: "staff.leaves", path: "/staff/leaves" },
 ]
 
 export default function StaffPage() {
@@ -60,25 +61,36 @@ export default function StaffPage() {
   const t = useT()
   const navigate = useNavigate()
   const location = useLocation()
+  const { organization } = useAuth()
+  const orgId = organization?.id
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Staff | null>(null)
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
+  const [statusConfirmStaff, setStatusConfirmStaff] = useState<Staff | null>(null)
 
   const form = useForm<StaffForm>({
     resolver: zodResolver(staffSchema),
     defaultValues: { firstName: "", lastName: "", email: "", phone: "", role: "", salary: "" as unknown as number, hireDate: "" },
   })
 
-  const { data: staffList, isLoading } = useQuery({
-    queryKey: ["staff"],
+  const { data: staffList, isLoading, isError: staffError, error: staffQueryError } = useQuery({
+    queryKey: ["staff", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("staff").select("*").order("created_at", { ascending: false })
+      if (!orgId) return []
+      const { data } = await supabase.from("staff").select("*").eq("organization_id", orgId).order("created_at", { ascending: false })
       return data ?? []
     },
+    enabled: !!orgId,
   })
+
+  useEffect(() => {
+    if (staffError && staffQueryError) {
+      toast({ title: t("errors.error") || "Error", description: staffQueryError.message, variant: "destructive" })
+    }
+  }, [staffError, staffQueryError])
 
   const upsertMutation = useMutation({
     mutationFn: async (values: StaffForm) => {
-      const orgId = (await supabase.auth.getUser()).data.user?.id
       if (!orgId) throw new Error("No org")
       const payload = {
         first_name: values.firstName,
@@ -100,12 +112,13 @@ export default function StaffPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] })
-      toast({ title: editing ? "Staff updated" : "Staff created" })
+      queryClient.invalidateQueries({ queryKey: ["coaches-list"] })
+      toast({ title: editing ? t("staff.updated") : t("staff.created") })
       setOpen(false)
       setEditing(null)
       form.reset()
     },
-    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),
   })
 
   const toggleStatus = useMutation({
@@ -115,9 +128,10 @@ export default function StaffPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] })
-      toast({ title: "Status updated" })
+      queryClient.invalidateQueries({ queryKey: ["coaches-list"] })
+      toast({ title: t("staff.statusUpdated") })
     },
-    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),
   })
 
   function openEdit(staff: Staff) {
@@ -149,12 +163,12 @@ export default function StaffPage() {
   return (
     <div>
       <PageHeader
-        title={t("staff.title") || "Staff"}
-        description={t("staff.description") || "Manage your staff"}
+        title={t("staff.title")}
+        description={t("staff.description")}
         actions={
           <Button onClick={openAdd}>
             <Plus className="mr-2 h-4 w-4" />
-            {t("staff.add") || "Add Staff"}
+            {t("staff.add")}
           </Button>
         }
       />
@@ -162,7 +176,7 @@ export default function StaffPage() {
       <Tabs value={currentTab} onValueChange={(v) => { const tab = TABS.find(t => t.value === v); if (tab) navigate(tab.path) }}>
         <TabsList className="mb-6">
           {TABS.map(tab => (
-            <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+            <TabsTrigger key={tab.value} value={tab.value}>{t(tab.labelKey)}</TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
@@ -172,32 +186,32 @@ export default function StaffPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t("staff.name") || "Name"}</TableHead>
-                <TableHead>{t("staff.email") || "Email"}</TableHead>
-                <TableHead>{t("staff.phone") || "Phone"}</TableHead>
-                <TableHead>{t("staff.role") || "Role"}</TableHead>
-                <TableHead>{t("staff.salary") || "Salary"}</TableHead>
-                <TableHead>{t("staff.hireDate") || "Hire Date"}</TableHead>
-                <TableHead>{t("staff.status") || "Status"}</TableHead>
-                <TableHead className="w-[70px]">{t("staff.actions") || "Actions"}</TableHead>
+                <TableHead>{t("staff.name")}</TableHead>
+                <TableHead>{t("staff.email")}</TableHead>
+                <TableHead>{t("staff.phone")}</TableHead>
+                <TableHead>{t("staff.role")}</TableHead>
+                <TableHead>{t("staff.salary")}</TableHead>
+                <TableHead>{t("staff.hireDate")}</TableHead>
+                <TableHead>{t("staff.status")}</TableHead>
+                <TableHead className="w-[70px]">{t("staff.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : staffList?.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">{t("staff.noData") || "No staff found"}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">{t("staff.noData")}</TableCell></TableRow>
               ) : (
                 staffList?.map(staff => (
                   <TableRow key={staff.id}>
-                    <TableCell className="font-medium">{staff.first_name} {staff.last_name}</TableCell>
+                    <TableCell className="font-medium">{toUpper(staff.first_name)} {toUpper(staff.last_name)}</TableCell>
                     <TableCell>{staff.email}</TableCell>
-                    <TableCell>{staff.phone}</TableCell>
-                    <TableCell className="capitalize">{staff.role}</TableCell>
+                    <TableCell>{toUpper(staff.phone)}</TableCell>
+                    <TableCell className="capitalize">{toUpper(staff.role)}</TableCell>
                     <TableCell>{staff.salary ? formatCurrency(staff.salary) : "-"}</TableCell>
                     <TableCell>{staff.hire_date ? formatDate(staff.hire_date) : "-"}</TableCell>
                     <TableCell>
-                      <Badge variant={staff.is_active ? "default" : "secondary"}>{staff.is_active ? "Active" : "Inactive"}</Badge>
+                      <Badge variant={staff.is_active ? "default" : "secondary"}>{staff.is_active ? t("common.active") : t("common.inactive")}</Badge>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -206,10 +220,10 @@ export default function StaffPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openEdit(staff)}>
-                            <Pencil className="mr-2 h-4 w-4" /> {t("staff.edit") || "Edit"}
+                            <Pencil className="mr-2 h-4 w-4" /> {t("staff.edit")}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toggleStatus.mutate(staff)}>
-                            {staff.is_active ? t("staff.deactivate") || "Deactivate" : t("staff.activate") || "Activate"}
+                          <DropdownMenuItem onClick={() => { setStatusConfirmStaff(staff); setStatusConfirmOpen(true) }}>
+                            {staff.is_active ? t("staff.deactivate") : t("staff.activate")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -225,22 +239,22 @@ export default function StaffPage() {
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); form.reset() } }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>{editing ? (t("staff.editStaff") || "Edit Staff") : (t("staff.addStaff") || "Add Staff")}</DialogTitle>
-            <DialogDescription>{editing ? "Update staff information" : "Fill in the details to add a new staff member"}</DialogDescription>
+            <DialogTitle>{editing ? t("staff.editStaff") : t("staff.addStaff")}</DialogTitle>
+            <DialogDescription>{editing ? t("staff.editDescription") : t("staff.addDescription")}</DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="firstName" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("staff.firstName") || "First Name"}</FormLabel>
+                    <FormLabel>{t("staff.firstName")}</FormLabel>
                     <FormControl><Input {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="lastName" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("staff.lastName") || "Last Name"}</FormLabel>
+                    <FormLabel>{t("staff.lastName")}</FormLabel>
                     <FormControl><Input {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
@@ -249,14 +263,14 @@ export default function StaffPage() {
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="email" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("staff.email") || "Email"}</FormLabel>
+                    <FormLabel>{t("staff.email")}</FormLabel>
                     <FormControl><Input type="email" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="phone" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("staff.phone") || "Phone"}</FormLabel>
+                    <FormLabel>{t("staff.phone")}</FormLabel>
                     <FormControl><Input {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
@@ -265,14 +279,14 @@ export default function StaffPage() {
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="role" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("staff.role") || "Role"}</FormLabel>
+                    <FormLabel>{t("staff.role")}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={t("staff.selectRole")} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {ROLES.map(r => (
-                          <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+                          <SelectItem key={r} value={r} className="capitalize">{t(`staff.${r}`)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -281,7 +295,7 @@ export default function StaffPage() {
                 )} />
                 <FormField control={form.control} name="salary" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("staff.salary") || "Salary"}</FormLabel>
+                    <FormLabel>{t("staff.salary")}</FormLabel>
                     <FormControl><Input type="number" min="0" step="0.01" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
@@ -289,20 +303,37 @@ export default function StaffPage() {
               </div>
               <FormField control={form.control} name="hireDate" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("staff.hireDate") || "Hire Date"}</FormLabel>
+                    <FormLabel>{t("staff.hireDate")}</FormLabel>
                   <FormControl><Input type="date" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset() }}>{t("cancel") || "Cancel"}</Button>
+                <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset() }}>{t("common.cancel")}</Button>
                 <Button type="submit" disabled={upsertMutation.isPending}>
                   {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editing ? (t("save") || "Save") : (t("create") || "Create")}
+                  {editing ? t("common.save") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={statusConfirmOpen} onOpenChange={setStatusConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("common.confirm") || "Confirm"}</DialogTitle>
+            <DialogDescription>
+              {statusConfirmStaff?.is_active ? (t("staff.confirmDeactivate") || "Are you sure you want to deactivate this staff member?") : (t("staff.confirmActivate") || "Are you sure you want to activate this staff member?")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setStatusConfirmOpen(false); setStatusConfirmStaff(null) }}>{t("common.cancel")}</Button>
+            <Button variant="destructive" onClick={() => { if (statusConfirmStaff) toggleStatus.mutate(statusConfirmStaff); setStatusConfirmOpen(false); setStatusConfirmStaff(null) }}>
+              {t("common.confirm") || "Confirm"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
 import { useNavigate, useLocation } from "react-router-dom"
-import { formatDateTime } from "@/lib/utils"
+import { formatDateTime, toUpper } from "@/lib/utils"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -57,6 +58,8 @@ export default function ReservationsPage() {
   const t = useT()
   const navigate = useNavigate()
   const location = useLocation()
+  const { organization } = useAuth()
+  const orgId = organization?.id
   const [open, setOpen] = useState(false)
 
   const form = useForm<ReservationForm>({
@@ -65,28 +68,40 @@ export default function ReservationsPage() {
   })
 
   const { data: equipmentList } = useQuery({
-    queryKey: ["equipment"],
+    queryKey: ["equipment", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("equipment").select("*").gt("available_quantity", 0).order("name")
+      if (!orgId) return []
+      const { data } = await supabase.from("equipment").select("*").eq("organization_id", orgId).gt("available_quantity", 0).order("name")
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
   const { data: members } = useQuery({
-    queryKey: ["members_minimal"],
+    queryKey: ["members_minimal", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("members").select("id, first_name, last_name").eq("status", "active").order("first_name")
+      if (!orgId) return []
+      const { data } = await supabase.from("members").select("id, first_name, last_name").eq("organization_id", orgId).eq("status", "active").order("first_name")
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
-  const { data: reservations, isLoading } = useQuery({
-    queryKey: ["equipment_reservations"],
+  const { data: reservations, isLoading, isError: reservationsError, error: reservationsQueryError } = useQuery({
+    queryKey: ["equipment_reservations", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("equipment_reservations").select("*").order("created_at", { ascending: false })
+      if (!orgId) return []
+      const { data } = await supabase.from("equipment_reservations").select("*").eq("organization_id", orgId).order("created_at", { ascending: false })
       return data ?? []
     },
+    enabled: !!orgId,
   })
+
+  useEffect(() => {
+    if (reservationsError && reservationsQueryError) {
+      toast({ title: t("errors.error") || "Error", description: reservationsQueryError.message, variant: "destructive" })
+    }
+  }, [reservationsError, reservationsQueryError])
 
   const equipmentMap = new Map<string, Equipment>()
   equipmentList?.forEach(e => equipmentMap.set(e.id, e))
@@ -105,24 +120,57 @@ export default function ReservationsPage() {
         status: "confirmed",
       })
       if (error) throw error
+
+      // Decrement available_quantity on equipment
+      const { data: equip } = await supabase
+        .from('equipment')
+        .select('available_quantity')
+        .eq('id', values.equipmentId)
+        .single()
+      if (equip) {
+        const { error: eqError } = await supabase
+          .from('equipment')
+          .update({ available_quantity: Math.max(0, (equip.available_quantity ?? 0) - 1) })
+          .eq('id', values.equipmentId)
+        if (eqError) console.error('Failed to decrement available_quantity:', eqError)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["equipment_reservations"] })
-      toast({ title: "Reservation created" })
+      queryClient.invalidateQueries({ queryKey: ["equipment"] })
+      queryClient.invalidateQueries({ queryKey: ["equipment_reservations_report"] })
+      toast({ title: t("reservations.created") || "Reservation created" })
       setOpen(false)
       form.reset()
     },
-    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),
   })
 
   const statusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "confirmed" | "cancelled" | "completed" }) => {
+    mutationFn: async ({ id, status, equipmentId }: { id: string; status: "confirmed" | "cancelled" | "completed"; equipmentId: string }) => {
       const { error } = await supabase.from("equipment_reservations").update({ status }).eq("id", id)
       if (error) throw error
+
+      // If cancelling or completing, restore available_quantity
+      if (status === 'cancelled' || status === 'completed') {
+        const { data: equip } = await supabase
+          .from('equipment')
+          .select('available_quantity')
+          .eq('id', equipmentId)
+          .single()
+        if (equip) {
+          await supabase
+            .from('equipment')
+            .update({ available_quantity: (equip.available_quantity ?? 0) + 1 })
+            .eq('id', equipmentId)
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["equipment_reservations"] })
-      toast({ title: "Reservation updated" })
+      queryClient.invalidateQueries({ queryKey: ["equipment"] })
+      queryClient.invalidateQueries({ queryKey: ["equipment_reservations_report"] })
+      toast({ title: t("reservations.updated") || "Reservation updated" })
     },
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   })
@@ -177,25 +225,25 @@ export default function ReservationsPage() {
                   const member = memberMap.get(res.member_id)
                   return (
                     <TableRow key={res.id}>
-                      <TableCell className="font-medium">{equipment?.name || "-"}</TableCell>
-                      <TableCell>{member ? `${member.first_name} ${member.last_name}` : "-"}</TableCell>
+                      <TableCell className="font-medium">{toUpper(equipment?.name) || "-"}</TableCell>
+                      <TableCell>{member ? `${toUpper(member.first_name)} ${toUpper(member.last_name)}` : "-"}</TableCell>
                       <TableCell>{formatDateTime(res.start_time)}</TableCell>
                       <TableCell>{formatDateTime(res.end_time)}</TableCell>
                       <TableCell>
-                        <Badge variant={STATUS_VARIANTS[res.status]} className="capitalize">{res.status}</Badge>
+                        <Badge variant={STATUS_VARIANTS[res.status]} className="capitalize">{toUpper(res.status)}</Badge>
                       </TableCell>
                       <TableCell>
                         {res.status === "confirmed" ? (
                           <div className="flex gap-1">
-                            <Button size="sm" variant="default" onClick={() => statusMutation.mutate({ id: res.id, status: "completed" })} disabled={statusMutation.isPending}>
+                            <Button size="sm" variant="default" onClick={() => statusMutation.mutate({ id: res.id, status: "completed", equipmentId: res.equipment_id })} disabled={statusMutation.isPending}>
                               <Check className="h-3 w-3 mr-1" /> Complete
                             </Button>
-                            <Button size="sm" variant="destructive" onClick={() => statusMutation.mutate({ id: res.id, status: "cancelled" })} disabled={statusMutation.isPending}>
+                            <Button size="sm" variant="destructive" onClick={() => statusMutation.mutate({ id: res.id, status: "cancelled", equipmentId: res.equipment_id })} disabled={statusMutation.isPending}>
                               <X className="h-3 w-3 mr-1" /> Cancel
                             </Button>
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground capitalize">{res.status}</span>
+                          <span className="text-xs text-muted-foreground capitalize">{toUpper(res.status)}</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -224,7 +272,7 @@ export default function ReservationsPage() {
                     </FormControl>
                     <SelectContent>
                       {equipmentList?.map(e => (
-                        <SelectItem key={e.id} value={e.id}>{e.name} ({e.available_quantity} available)</SelectItem>
+                        <SelectItem key={e.id} value={e.id}>{toUpper(e.name)} ({e.available_quantity} available)</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -240,7 +288,7 @@ export default function ReservationsPage() {
                     </FormControl>
                     <SelectContent>
                       {members?.map(m => (
-                        <SelectItem key={m.id} value={m.id}>{m.first_name} {m.last_name}</SelectItem>
+                        <SelectItem key={m.id} value={m.id}>{toUpper(m.first_name)} {toUpper(m.last_name)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

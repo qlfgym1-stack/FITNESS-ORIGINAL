@@ -1,4 +1,7 @@
 import { useState } from "react"
+import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
+import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -20,8 +23,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
+import { toUpper } from "../../lib/utils"
 import {
-  Package, Plus, Search, Edit, Trash2, AlertTriangle,
+  Package, Plus, Search, Edit, Trash2, AlertTriangle, Loader2,
 } from "lucide-react"
 
 interface InventoryItem {
@@ -32,16 +36,9 @@ interface InventoryItem {
   unit: string
   min_stock: number
   price: number
-  supplier: string
+  supplier_id: string | null
+  suppliers?: { name: string } | null
 }
-
-const defaultItems: InventoryItem[] = [
-  { id: "1", name: "Protein Powder", category: "Supplements", quantity: 50, unit: "kg", min_stock: 10, price: 4500, supplier: "NutriSport" },
-  { id: "2", name: "Yoga Mats", category: "Equipment", quantity: 30, unit: "pcs", min_stock: 5, price: 2500, supplier: "FitGear" },
-  { id: "3", name: "Resistance Bands", category: "Equipment", quantity: 100, unit: "pcs", min_stock: 20, price: 800, supplier: "FitGear" },
-  { id: "4", name: "Towels", category: "Linens", quantity: 200, unit: "pcs", min_stock: 50, price: 600, supplier: "TextilePro" },
-  { id: "5", name: "Water Bottles", category: "Accessories", quantity: 150, unit: "pcs", min_stock: 30, price: 350, supplier: "SportSupply" },
-]
 
 const inventorySchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -50,7 +47,7 @@ const inventorySchema = z.object({
   unit: z.string().min(1, "Unit is required"),
   min_stock: z.coerce.number().min(0, "Min 0"),
   price: z.coerce.number().min(0, "Min 0"),
-  supplier: z.string().optional().or(z.literal("")),
+  supplier_id: z.string().optional().or(z.literal("")),
 })
 
 type InventoryForm = z.infer<typeof inventorySchema>
@@ -58,25 +55,88 @@ type InventoryForm = z.infer<typeof inventorySchema>
 export default function InventoryPage() {
   const t = useT()
   const { toast } = useToast()
-  const [items, setItems] = useState<InventoryItem[]>(defaultItems)
+  const supabase = useSupabase()
+  const queryClient = useQueryClient()
+  const { organization } = useAuth()
+  const orgId = organization?.id
   const [search, setSearch] = useState("")
   const [editing, setEditing] = useState<InventoryItem | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState<InventoryItem | null>(null)
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["inventory", orgId],
+    queryFn: async (): Promise<InventoryItem[]> => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("inventory")
+        .select("*, suppliers(name)")
+        .eq("organization_id", orgId)
+        .order("name")
+      return (data ?? []) as any[]
+    },
+    enabled: !!orgId,
+  })
 
   const form = useForm<InventoryForm>({
     resolver: zodResolver(inventorySchema),
-    defaultValues: { name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier: "" },
+    defaultValues: { name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "" },
   })
 
   const filtered = items.filter((i) =>
     i.name.toLowerCase().includes(search.toLowerCase()) ||
     i.category.toLowerCase().includes(search.toLowerCase()) ||
-    i.supplier.toLowerCase().includes(search.toLowerCase())
+    (i.suppliers?.name ?? "").toLowerCase().includes(search.toLowerCase())
   )
+
+  const upsertMutation = useMutation({
+    mutationFn: async (values: InventoryForm) => {
+      if (!orgId) throw new Error("No organization")
+      const payload: any = {
+        name: values.name,
+        category: values.category,
+        quantity: values.quantity,
+        unit: values.unit,
+        min_stock: values.min_stock,
+        price: values.price,
+        supplier_id: values.supplier_id || null,
+      }
+      if (editing) {
+        const { error } = await supabase.from("inventory").update(payload).eq("id", editing.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from("inventory").insert({ ...payload, organization_id: orgId })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
+      toast({ title: editing ? t("common.updated") : t("common.created") })
+      setDialogOpen(false)
+      setEditing(null)
+      form.reset()
+    },
+    onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("inventory").delete().eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
+      toast({ title: t("common.deleted") })
+      setDeleteOpen(false)
+      setDeleting(null)
+    },
+    onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),
+  })
 
   function openCreate() {
     setEditing(null)
-    form.reset({ name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier: "" })
+    form.reset({ name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "" })
     setDialogOpen(true)
   }
 
@@ -89,26 +149,13 @@ export default function InventoryPage() {
       unit: item.unit,
       min_stock: item.min_stock,
       price: item.price,
-      supplier: item.supplier,
+      supplier_id: item.supplier_id ?? "",
     })
     setDialogOpen(true)
   }
 
   function onSubmit(values: InventoryForm) {
-    if (editing) {
-      setItems((prev) => prev.map((i) => (i.id === editing.id ? { ...i, ...values } : i)))
-      toast({ title: t("common.updated"), description: t("inventory.updateSuccess") })
-    } else {
-      const newItem = { id: String(Date.now()), ...values } as InventoryItem
-      setItems((prev) => [...prev, newItem])
-      toast({ title: t("common.created"), description: t("inventory.createSuccess") })
-    }
-    setDialogOpen(false)
-  }
-
-  function remove(id: string) {
-    setItems((prev) => prev.filter((i) => i.id !== id))
-    toast({ title: t("common.deleted"), description: t("inventory.deleteSuccess") })
+    upsertMutation.mutate(values)
   }
 
   return (
@@ -150,14 +197,20 @@ export default function InventoryPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((item) => {
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            ) : filtered.map((item) => {
               const lowStock = item.quantity <= item.min_stock
               return (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
                       <Package className="h-4 w-4 text-muted-foreground" />
-                      {item.name}
+                      {toUpper(item.name)}
                       {lowStock && (
                         <Badge variant="destructive" className="gap-1">
                           <AlertTriangle className="h-3 w-3" /> {t("inventory.lowStock")}
@@ -165,18 +218,18 @@ export default function InventoryPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell><Badge variant="outline">{item.category}</Badge></TableCell>
+                  <TableCell><Badge variant="outline">{toUpper(item.category)}</Badge></TableCell>
                   <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell>{item.unit}</TableCell>
+                  <TableCell>{toUpper(item.unit)}</TableCell>
                   <TableCell className="text-right">{item.min_stock}</TableCell>
                   <TableCell className="text-right">{item.price.toLocaleString()} DA</TableCell>
-                  <TableCell>{item.supplier}</TableCell>
+                  <TableCell>{toUpper(item.suppliers?.name ?? "")}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => remove(item.id)}>
+                      <Button variant="ghost" size="icon" onClick={() => { setDeleting(item); setDeleteOpen(true) }}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -184,7 +237,7 @@ export default function InventoryPage() {
                 </TableRow>
               )
             })}
-            {filtered.length === 0 && (
+            {!isLoading && filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults")}
@@ -259,7 +312,7 @@ export default function InventoryPage() {
                   <FormMessage />
                 </FormItem>
               )} />
-              <FormField control={form.control} name="supplier" render={({ field }) => (
+              <FormField control={form.control} name="supplier_id" render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("inventory.supplier")}</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
@@ -267,11 +320,32 @@ export default function InventoryPage() {
                 </FormItem>
               )} />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
-                <Button type="submit">{t("common.save")}</Button>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={upsertMutation.isPending}>{t("common.cancel")}</Button>
+                <Button type="submit" disabled={upsertMutation.isPending}>
+                  {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {t("common.save")}
+                </Button>
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("inventory.confirmDelete") || "Confirm Delete"}</DialogTitle>
+            <DialogDescription>
+              {t("inventory.deleteWarning") || "Are you sure you want to delete"} <strong>{toUpper(deleting?.name)}</strong>? {t("inventory.deleteWarning2") || "This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteOpen(false); setDeleting(null) }}>{t("common.cancel") || "Cancel"}</Button>
+            <Button variant="destructive" onClick={() => deleting && deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("common.delete") || "Delete"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

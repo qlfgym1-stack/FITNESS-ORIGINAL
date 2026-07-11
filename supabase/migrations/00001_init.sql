@@ -83,6 +83,22 @@ CREATE TABLE payments (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Staff
+CREATE TABLE staff (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  role TEXT,
+  salary DECIMAL(10,2),
+  hire_date DATE,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Classes
 CREATE TABLE classes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -118,22 +134,6 @@ CREATE TABLE attendance (
   check_out TIMESTAMPTZ,
   type TEXT DEFAULT 'check-in' CHECK (type IN ('check-in', 'class')),
   class_id UUID REFERENCES classes(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Staff
-CREATE TABLE staff (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  first_name TEXT NOT NULL,
-  last_name TEXT NOT NULL,
-  email TEXT,
-  phone TEXT,
-  role TEXT,
-  salary DECIMAL(10,2),
-  hire_date DATE,
-  is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -191,6 +191,18 @@ CREATE TABLE equipment_reservations (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Suppliers
+CREATE TABLE suppliers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  contact_name TEXT,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Inventory
 CREATE TABLE inventory (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -213,18 +225,6 @@ CREATE TABLE stock_movements (
   type TEXT NOT NULL CHECK (type IN ('in', 'out')),
   quantity INT NOT NULL,
   notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Suppliers
-CREATE TABLE suppliers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  contact_name TEXT,
-  email TEXT,
-  phone TEXT,
-  address TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -326,7 +326,7 @@ CREATE TABLE access_logs (
 CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   body TEXT,
   type TEXT,
@@ -410,6 +410,24 @@ CREATE INDEX idx_payments_member ON payments(member_id);
 CREATE INDEX idx_classes_org ON classes(organization_id);
 CREATE INDEX idx_staff_org ON staff(organization_id);
 CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX idx_notifications_org ON notifications(organization_id);
+
+-- Auto-assign super_admin role when an organization is created
+CREATE OR REPLACE FUNCTION auto_assign_owner_role()
+RETURNS TRIGGER
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO user_roles (user_id, organization_id, role)
+  VALUES (auth.uid(), NEW.id, 'super_admin');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_organization_insert
+  AFTER INSERT ON organizations
+  FOR EACH ROW
+  EXECUTE FUNCTION auto_assign_owner_role();
 
 -- Enable Row Level Security
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
@@ -450,13 +468,471 @@ CREATE POLICY "Users can view their organization" ON organizations
     id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
   );
 
-CREATE POLICY "Users can view members in their org" ON members
+CREATE POLICY "Users can create organizations" ON organizations
+  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Admins can manage members" ON members
   FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = members.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view members" ON members
+  FOR SELECT USING (
     organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
   );
 
-CREATE POLICY "Users can view subscriptions in their org" ON member_subscriptions
+CREATE POLICY "Admins can manage member_subscriptions" ON member_subscriptions
   FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = member_subscriptions.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view member_subscriptions" ON member_subscriptions
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: user_roles — users see their own roles
+CREATE POLICY "Users can view their own roles" ON user_roles
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Users can insert staff role" ON user_roles
+  FOR INSERT WITH CHECK (user_id = auth.uid() AND role IN ('staff', 'coach'));
+
+-- RLS: subscription_types
+CREATE POLICY "Admins can manage subscription_types" ON subscription_types
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = subscription_types.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view subscription_types" ON subscription_types
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: payments
+CREATE POLICY "Admins can manage payments" ON payments
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = payments.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view payments" ON payments
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: classes
+CREATE POLICY "Admins can manage classes" ON classes
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = classes.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view classes" ON classes
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: class_enrollments (via classes)
+CREATE POLICY "Admins can manage class_enrollments" ON class_enrollments
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM classes
+        JOIN user_roles ON user_roles.organization_id = classes.organization_id
+        WHERE classes.id = class_enrollments.class_id
+          AND user_roles.user_id = auth.uid()
+          AND user_roles.role IN ('admin', 'super_admin')
+    )
+  );
+
+CREATE POLICY "Staff can view class_enrollments" ON class_enrollments
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM classes
+        JOIN user_roles ON user_roles.organization_id = classes.organization_id
+        WHERE classes.id = class_enrollments.class_id
+          AND user_roles.user_id = auth.uid()
+    )
+  );
+
+-- RLS: attendance
+CREATE POLICY "Admins can manage attendance" ON attendance
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = attendance.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view attendance" ON attendance
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: staff
+CREATE POLICY "Admins can manage staff" ON staff
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = staff.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view staff" ON staff
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: staff_timesheet
+CREATE POLICY "Admins can manage staff_timesheet" ON staff_timesheet
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = staff_timesheet.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view staff_timesheet" ON staff_timesheet
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: staff_leaves
+CREATE POLICY "Admins can manage staff_leaves" ON staff_leaves
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = staff_leaves.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view staff_leaves" ON staff_leaves
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: equipment
+CREATE POLICY "Admins can manage equipment" ON equipment
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = equipment.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view equipment" ON equipment
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: equipment_reservations
+CREATE POLICY "Admins can manage equipment_reservations" ON equipment_reservations
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = equipment_reservations.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view equipment_reservations" ON equipment_reservations
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: inventory
+CREATE POLICY "Admins can manage inventory" ON inventory
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = inventory.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view inventory" ON inventory
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: stock_movements
+CREATE POLICY "Admins can manage stock_movements" ON stock_movements
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = stock_movements.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view stock_movements" ON stock_movements
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: suppliers
+CREATE POLICY "Admins can manage suppliers" ON suppliers
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = suppliers.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view suppliers" ON suppliers
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: purchase_orders
+CREATE POLICY "Admins can manage purchase_orders" ON purchase_orders
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = purchase_orders.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view purchase_orders" ON purchase_orders
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: products
+CREATE POLICY "Admins can manage products" ON products
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = products.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view products" ON products
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: pos_sessions
+CREATE POLICY "Admins can manage pos_sessions" ON pos_sessions
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = pos_sessions.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view pos_sessions" ON pos_sessions
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: pos_transactions
+CREATE POLICY "Admins can manage pos_transactions" ON pos_transactions
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = pos_transactions.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view pos_transactions" ON pos_transactions
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: badges
+CREATE POLICY "Admins can manage badges" ON badges
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = badges.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view badges" ON badges
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: member_badges (via badges)
+CREATE POLICY "Admins can manage member_badges" ON member_badges
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM badges
+        JOIN user_roles ON user_roles.organization_id = badges.organization_id
+        WHERE badges.id = member_badges.badge_id
+          AND user_roles.user_id = auth.uid()
+          AND user_roles.role IN ('admin', 'super_admin')
+    )
+  );
+
+CREATE POLICY "Staff can view member_badges" ON member_badges
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM badges
+        JOIN user_roles ON user_roles.organization_id = badges.organization_id
+        WHERE badges.id = member_badges.badge_id
+          AND user_roles.user_id = auth.uid()
+    )
+  );
+
+-- RLS: access_control
+CREATE POLICY "Admins can manage access_control" ON access_control
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = access_control.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view access_control" ON access_control
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: access_logs (via access_control)
+CREATE POLICY "Users can view access_logs in their org" ON access_logs
+  FOR SELECT USING (
+    access_control_id IN (SELECT id FROM access_control WHERE organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid()))
+  );
+
+-- RLS: notifications — service_role can insert, users view their own
+CREATE POLICY "Service role can insert notifications" ON notifications
+  FOR INSERT WITH CHECK (auth.jwt() ->> 'role' = 'service_role');
+
+CREATE POLICY "Users can view their own notifications" ON notifications
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Users can update their own notifications" ON notifications
+  FOR UPDATE USING (user_id = auth.uid());
+
+-- RLS: licenses
+CREATE POLICY "Admins can manage licenses" ON licenses
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = licenses.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view licenses" ON licenses
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: settings
+CREATE POLICY "Admins can manage settings" ON settings
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = settings.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view settings" ON settings
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: corporate
+CREATE POLICY "Admins can manage corporate" ON corporate
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = corporate.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view corporate" ON corporate
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: student_verifications
+CREATE POLICY "Admins can manage student_verifications" ON student_verifications
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = student_verifications.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view student_verifications" ON student_verifications
+  FOR SELECT USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+  );
+
+-- RLS: wedding_programs
+CREATE POLICY "Admins can manage wedding_programs" ON wedding_programs
+  FOR ALL USING (
+    organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
+      AND EXISTS (
+        SELECT 1 FROM user_roles WHERE user_id = auth.uid()
+          AND organization_id = wedding_programs.organization_id
+          AND role IN ('admin', 'super_admin')
+      )
+  );
+
+CREATE POLICY "Staff can view wedding_programs" ON wedding_programs
+  FOR SELECT USING (
     organization_id IN (SELECT organization_id FROM user_roles WHERE user_id = auth.uid())
   );
 

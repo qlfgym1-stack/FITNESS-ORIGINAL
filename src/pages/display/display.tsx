@@ -110,7 +110,7 @@ export default function DisplayPage() {
                       <div className="h-2 rounded-full bg-muted overflow-hidden">
                         <div
                           className="h-full rounded-full bg-primary transition-all"
-                          style={{ width: `${(c.enrolled / c.capacity) * 100}%` }}
+                          style={{ width: `${c.capacity ? (c.enrolled / c.capacity) * 100 : 0}%` }}
                         />
                       </div>
                     </div>

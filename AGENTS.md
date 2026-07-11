@@ -1,0 +1,109 @@
+## Goal
+- Analyser et corriger les vulnérabilités sécurité, le fonctionnement hors-ligne et les performances  
+- Implémenter le workflow POS redirection après création d'un membre avec abonnement
+
+## Constraints & Preferences
+- Ne pas modifier les fonctionnalités ni l'UI
+- RLS basée sur les rôles (`admin`/`super_admin` pour les mutations, `staff`/`coach` en lecture seule)
+- Utiliser `service_role` pour les Edge Functions
+- SHA-256 pour les codes de récupération
+- Compatible Supabase Auth, RLS, React 18, TypeScript strict
+- Vérifier avec `npx tsc --noEmit` et `npx vitest --run` après chaque correction
+
+## Progress
+### Done
+- **Sécurité CRITIQUE** — `renew_subscription` : retrait de `SECURITY DEFINER` → RLS appliqué au caller, plus de contournement possible
+- **Sécurité CRITIQUE** — `user_roles` INSERT policy : restreinte à `role IN ('staff', 'coach')` ; trigger `after_organization_insert` auto-assigne `super_admin` ; client-side `user_roles.insert()` supprimé de `signUp`
+- **Sécurité MEDIUM** — Recovery Edge Function : validation `!code` déplacée dans les blocs `verify`/`reset` ; `send_code` fonctionne désormais sans code
+- **Sécurité MEDIUM** — POS stock decrement : nouveau RPC `decrement_product_stock` atomique (`WHERE stock >= p_qty`) ; migration `00008_atomic_stock_decrement.sql`
+- **Hors-ligne** — Cache TanStack Query persistant : `PersistQueryClientProvider` + `createSyncStoragePersister` (localStorage, clé `FITMANAGER_QUERY_CACHE`, maxAge 24h)
+- **Hors-ligne** — `networkMode: 'offlineFirst'` sur queries + mutations
+- **Hors-ligne** — `staleTime: 120s`, `gcTime: 24h`, `retry: 1`
+- **Hors-ligne** — Service Worker VitePWA : Workbox `NetworkFirst` pour `*.supabase.co/rest/v1/*`
+- **Hors-ligne** — `src/hooks/useNetworkStatus.ts` : hook `isOnline` / `recovering`
+- **Hors-ligne** — `src/components/ui/offline-banner.tsx` : bannière offline/online
+- **Perf** — `useMemo` sur 3 contextes critiques : `auth.tsx`, `i18n/index.tsx`, `theme.tsx`
+- **Perf** — Debug `console.log` supprimé de `navbar.tsx`
+- **Perf** — `xlsx` et `jspdf` en `await import()` dans payments, members, attendance, equipment/report
+- **Audit — Bug CRITIQUE** — Recovery EF `verify` ne retournait pas `userId` → fix : ajout de `userId` dans la réponse JSON
+- **Audit — Bug CRITIQUE** — Lien "Forgot password?" sans route → retiré de sign-in.tsx
+- **Audit — Bug MEDIUM** — Type `staff_shifts.day` incohérent avec colonne SQL `date` → renommé en `date` dans `supabase.ts` et `planning.tsx`
+- **Audit — Bug MEDIUM** — Résidus debug navbar (`<span>{locale}</span>`, `console.log('[LangSwitch]')`) → nettoyés
+- **Audit — Bug MEDIUM** — Avatar/User hardcodés dans navbar + sidebar → branchés sur `useAuth()`
+- **Audit — Bug MEDIUM** — Badge notification en dur (`3`) → retiré
+- **Audit — Bug MEDIUM** — Bouton logout sidebar sans onClick → lié à `signOut`
+- **Audit — Bug MEDIUM** — Imports inutilisés (`Badge` dans navbar, `CardDescription` dans dashboard) → supprimés
+- **Dashboard KPIs temps réel** — 7 requêtes Supabase remplaçant toutes les données mockées
+- **Migration 00009** — `supabase/migrations/00009_subscription_payment_flow.sql` : ajout `pending_payment` à `member_subscriptions.status`, RPC `create_member_with_pending_subscription` (création atomique membre + abonnement en attente), RPC `finalize_subscription_payment` (activation atomique avec verrouillage, enregistrement paiement)
+- **POS redirection workflow** — Dans `members.tsx` : sélecteur de type d'abonnement + date de début dans le formulaire d'ajout, appel au RPC `create_member_with_pending_subscription`, redirection vers `/pos` avec `location.state.pendingSubscription`
+- **POS redirection workflow** — Dans `pos.tsx` : détection du `pendingSubscription` dans `location.state`, ajout automatique dans le panier comme article virtuel (avec badge "Subscription" et icône `CreditCard`), sélection automatique du membre, finalisation via `finalize_subscription_payment` RPC après le checkout normal
+- **`npx tsc --noEmit`** ✅ zéro erreur
+- **`npx vitest --run`** ✅ 18/18 tests passent
+- **`npx vite build`** ✅ succès
+
+### In Progress
+- **(none)**
+
+### Blocked
+- **(none)**
+
+## Key Decisions
+- `SECURITY DEFINER` retiré au lieu d'ajouter un check explicite dans `renew_subscription` : RLS s'applique automatiquement au caller
+- Trigger `after_organization_insert` plutôt que client-side `user_roles.insert()` : garantit que le rôle `super_admin` est créé même si le client est modifié
+- `localStorage` plutôt qu'IndexedDB pour la persistance du cache : API synchrone, limite 5MB suffisante
+- `networkMode: 'offlineFirst'` plutôt que `'online'` : mutations automatiquement mises en pause et rejouées
+- VitePWA Workbox `NetworkFirst` plutôt que `CacheFirst` pour l'API Supabase
+- **Migration 00009** : les RPCs sont `SECURITY DEFINER` pour s'affranchir des contraintes RLS sur les tables membres/subscriptions/paiements ; le verrouillage `FOR UPDATE` dans `finalize_subscription_payment` empêche la double-activation
+- **POS redirection** : passage via `location.state` React Router plutôt que stockage local ou URL params — évite la persistance après refresh, pas de fuite dans l'URL
+- **Article virtuel** : préfixe `__subscription__` dans `product.id` pour distinguer les articles d'abonnement des produits physiques dans le panier
+
+## Next Steps
+- Déployer les 9 migrations (`00001`→`00009`) sur la base Supabase
+- Configurer les variables d'env Edge Functions (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
+- Remplacer `SUPABASE_PROJECT_REF` dans `00004_cron_jobs.sql` et activer les cron jobs
+- Ajouter un vrai système d'envoi d'email/SMS pour le recovery code
+- Upload photos membres (bucket Storage + UI)
+- Realtime Supabase `subscribe()` (attendances, notifications)
+- PDF facture pro structuré (logo, TVA, numéro séquentiel)
+- File d'attente UI pour mutations offline
+- Ajouter bouton "Encaisser l'abonnement" dans la fiche membre détail pour les subscriptions `pending_payment`
+
+## Critical Context
+- `npx tsc --noEmit` ✅ zéro erreur
+- `npx vitest --run` ✅ 18/18 tests (utils, recovery, auth)
+- `npx vite build` ✅ succès
+- 9 migrations (`00001`→`00009`) à exécuter dans l'ordre
+- 3 Edge Functions (recovery, send-subscription-reminder, send-payment-reminder)
+- Le bucket `photos` Supabase Storage doit exister pour l'upload des avatars
+- RLS role-based : `admin`/`super_admin` peuvent tout modifier, `coach`/`staff` sont en lecture seule
+- Le recovery code est affiché côté serveur (pas de canal email/SMS implémenté)
+- Cache offline : localStorage clé `FITMANAGER_QUERY_CACHE` (maxAge 24h)
+- Mutations offline : mises en pause automatiquement, rejouées au retour réseau
+- **Workflow POS redirection** : création membre → sélection abonnement → redirection `/pos` → checkout → activation abonnement + enregistrement paiement en une transaction atomique DB
+
+## Relevant Files
+- `supabase/migrations/00001_init.sql` → schéma initial (22 tables, RLS, trigger auto_assign_owner_role, user_roles INSERT policy restreinte)
+- `supabase/migrations/00002_recovery_codes.sql` → recovery + logs + RLS
+- `supabase/migrations/00003_indexes.sql` → 36 indexes FK
+- `supabase/migrations/00004_cron_jobs.sql` → pg_cron schedules
+- `supabase/migrations/00005_staff_shifts.sql` → table staff_shifts + RLS
+- `supabase/migrations/00006_payment_trigger.sql` → trigger amount_paid sync
+- `supabase/migrations/00007_renew_subscription.sql` → RPC renewal (SECURITY DEFINER retiré)
+- `supabase/migrations/00008_atomic_stock_decrement.sql` → RPC atomique POS
+- `supabase/migrations/00009_subscription_payment_flow.sql` → pending_payment status, RPCs create_member_with_pending_subscription / finalize_subscription_payment
+- `supabase/functions/recovery/index.ts` → Edge Function recovery
+- `supabase/functions/send-subscription-reminder/index.ts` → Edge Function rappel abonnement
+- `supabase/functions/send-payment-reminder/index.ts` → Edge Function rappel paiement
+- `src/main.tsx` → QueryClient config (offlineFirst), PersistQueryClientProvider, OfflineBanner
+- `src/vite.config.ts` → VitePWA Workbox runtime caching NetworkFirst
+- `src/stores/auth.tsx` → signUp, signOut, slug collision, useMemo ctxValue, user_roles.insert() supprimé
+- `src/stores/theme.tsx` → ThemeProvider avec useCallback/useMemo
+- `src/i18n/index.tsx` → I18nProvider avec useMemo ctxValue
+- `src/i18n/en.ts` → clés `pos.subscriptionRedirect`, `pos.pendingSubscription`, `pos.finalizeSubscription`, `pos.subscriptionPaymentDesc`
+- `src/hooks/useNetworkStatus.ts` → hook isOnline/recovering
+- `src/components/ui/offline-banner.tsx` → bannière offline/online
+- `src/components/layout/navbar.tsx` → avatar/user branchés sur useAuth, locale debug supprimé
+- `src/components/layout/sidebar.tsx` → avatar/user branchés sur useAuth, logout onClick signOut
+- `src/pages/members/members.tsx` → ajout sélecteur abonnement + date début dans le formulaire, RPC create_member_with_pending_subscription, redirection vers `/pos` avec state
+- `src/pages/pos/pos.tsx` → détection pendingSubscription, ajout article virtuel abonnement, finalize_subscription_payment RPC après checkout
+- `src/types/supabase.ts` → member_subscriptions.status inclut `pending_payment`

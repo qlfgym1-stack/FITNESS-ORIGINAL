@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,13 +9,15 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { useAuth } from "@/stores/auth"
-import { getInitials } from "@/lib/utils"
+import { useSupabase } from "@/hooks/useSupabase"
+import { getInitials, toUpper } from "@/lib/utils"
 import { User, Camera, Save, Lock, Mail } from "lucide-react"
 
 export default function ProfilePage() {
   const t = useT()
   const { toast } = useToast()
   const { profile } = useAuth()
+  const supabase = useSupabase()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -32,31 +34,60 @@ export default function ProfilePage() {
     fileInputRef.current?.click()
   }
 
-  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+  const handleAvatarChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (ev) => setAvatarPreview(ev.target?.result as string)
-      reader.readAsDataURL(file)
+    if (!file) return
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const filePath = `avatars/${user?.id}/${file.name}`
+      const { error } = await supabase.storage.from('photos').upload(filePath, file)
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(filePath)
+      setAvatarPreview(publicUrl)
+      toast({ title: 'Avatar uploaded' })
+    } catch (err: any) {
+      toast({ title: t('errors.generic'), description: err.message, variant: 'destructive' })
     }
-  }
+  }, [supabase, t])
 
-  function saveProfile() {
-    toast({ title: t("profile.updated"), description: t("profile.updateSuccess") })
-  }
+  const saveProfile = useCallback(async () => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { full_name: form.full_name },
+      })
+      if (error) throw error
+      toast({ title: t('profile.updated'), description: t('profile.updateSuccess') })
+    } catch (err: any) {
+      toast({ title: t('errors.generic'), description: err.message, variant: 'destructive' })
+    }
+  }, [supabase, form.full_name, t])
 
-  function changePassword() {
+  const changePassword = useCallback(async () => {
     if (passwords.new !== passwords.confirm) {
-      toast({ title: t("profile.passwordsNoMatch"), variant: "destructive" })
+      toast({ title: t('profile.passwordsNoMatch'), variant: 'destructive' })
       return
     }
     if (passwords.new.length < 6) {
-      toast({ title: t("profile.passwordTooShort"), variant: "destructive" })
+      toast({ title: t('profile.passwordTooShort'), variant: 'destructive' })
       return
     }
-    toast({ title: t("profile.passwordChanged"), description: t("profile.passwordSuccess") })
-    setPasswords({ current: "", new: "", confirm: "" })
-  }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: passwords.new })
+      if (error) throw error
+      toast({ title: 'Password updated' })
+      setPasswords({ current: '', new: '', confirm: '' })
+    } catch (err: any) {
+      toast({ title: t('errors.generic'), description: err.message, variant: 'destructive' })
+    }
+  }, [supabase, passwords, t])
+
+  useEffect(() => {
+    setForm(prev => ({
+      ...prev,
+      full_name: profile?.full_name || '',
+      email: profile?.email || '',
+    }))
+  }, [profile])
 
   return (
     <div>
@@ -93,7 +124,7 @@ export default function ProfilePage() {
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
               </div>
               <div>
-                <p className="font-medium text-lg">{form.full_name || t("profile.noName")}</p>
+                <p className="font-medium text-lg">{toUpper(form.full_name) || t("profile.noName")}</p>
                 <p className="text-sm text-muted-foreground">{form.email}</p>
               </div>
             </div>

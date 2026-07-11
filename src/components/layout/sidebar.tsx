@@ -42,6 +42,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { useT, useLocale } from "@/i18n"
+import { useAuth } from "@/stores/auth"
 
 interface NavItem {
   key: string
@@ -85,7 +86,7 @@ const navGroups: NavGroup[] = [
     groupKey: "equipment",
     items: [
       { key: "equipment", icon: Dumbbell, path: "/equipment" },
-      { key: "reservations", icon: Clock, path: "/reservations" },
+      { key: "reservations", icon: Clock, path: "/equipment/reservations" },
       { key: "reports", icon: BarChart3, path: "/reports" },
     ],
   },
@@ -94,14 +95,14 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "accessControl", icon: Shield, path: "/access-control" },
       { key: "badges", icon: Award, path: "/badges" },
-      { key: "checkInKiosk", icon: ScanQrCode, path: "/check-in" },
+      { key: "checkInKiosk", icon: ScanQrCode, path: "/check-in-kiosk" },
     ],
   },
   {
     groupKey: "portal",
     items: [
       { key: "memberPortal", icon: UserCircle, path: "/member-portal" },
-      { key: "coachMode", icon: GraduationCap, path: "/coach" },
+      { key: "coachMode", icon: GraduationCap, path: "/coach-mode" },
       { key: "display", icon: Monitor, path: "/display" },
     ],
   },
@@ -127,6 +128,10 @@ const navGroups: NavGroup[] = [
 function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collapsed?: boolean }) {
   const pathname = useLocation().pathname
   const t = useT()
+  const { user, profile, signOut } = useAuth()
+  const initials = profile?.full_name
+    ? profile.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : user?.email?.slice(0, 2).toUpperCase() || 'AD'
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const groups: Record<string, boolean> = {}
     navGroups.forEach((g) => { groups[g.groupKey] = true })
@@ -176,8 +181,8 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
         <Separator />
         <div className="p-2">
           <Avatar className="h-8 w-8">
-            <AvatarImage src="" />
-            <AvatarFallback>AD</AvatarFallback>
+            <AvatarImage src={profile?.avatar_url || ''} />
+            <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
         </div>
       </div>
@@ -249,14 +254,14 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
       <div className="p-3">
         <div className="flex items-center gap-3 rounded-md px-2 py-1.5">
           <Avatar className="h-8 w-8">
-            <AvatarImage src="" />
-            <AvatarFallback>AD</AvatarFallback>
+            <AvatarImage src={profile?.avatar_url || ''} />
+            <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
           <div className="flex-1 truncate">
-            <p className="text-sm font-medium">Admin</p>
-            <p className="text-xs text-muted-foreground">admin@fitmanager.pro</p>
+            <p className="text-sm font-medium">{profile?.full_name || 'Admin'}</p>
+            <p className="text-xs text-muted-foreground">{user?.email || 'admin@fitmanager.pro'}</p>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={signOut}>
             <LogOut className="h-4 w-4" />
           </Button>
         </div>

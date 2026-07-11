@@ -1,4 +1,7 @@
 import { useState } from "react"
+import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
+import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -17,7 +20,8 @@ import {
 } from "@/components/ui/form"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
-import { Building2, Plus, Search, Edit, Trash2, Phone, Mail, MapPin } from "lucide-react"
+import { toUpper } from "../../lib/utils"
+import { Building2, Plus, Search, Edit, Trash2, Phone, Mail, MapPin, Loader2 } from "lucide-react"
 
 interface Supplier {
   id: string
@@ -28,13 +32,6 @@ interface Supplier {
   address: string
   created_at: string
 }
-
-const defaultSuppliers: Supplier[] = [
-  { id: "1", name: "NutriSport", contact_name: "Ahmed Benali", email: "ahmed@nutrisport.dz", phone: "+213 555 123 456", address: "123 Rue Didouche, Alger", created_at: "2026-01-15" },
-  { id: "2", name: "FitGear", contact_name: "Fatima Zohra", email: "fatima@fitgear.dz", phone: "+213 770 987 654", address: "45 Boulevard Zighoud, Constantine", created_at: "2026-02-20" },
-  { id: "3", name: "TextilePro", contact_name: "Karim Ouali", email: "karim@textilepro.dz", phone: "+213 661 456 789", address: "Zone Industrielle, Oran", created_at: "2026-03-10" },
-  { id: "4", name: "SportSupply", contact_name: "Lamia Bensaid", email: "lamia@sportsupply.dz", phone: "+213 550 321 654", address: "Cité des Sports, Annaba", created_at: "2026-04-05" },
-]
 
 const supplierSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -49,10 +46,29 @@ type SupplierForm = z.infer<typeof supplierSchema>
 export default function SuppliersPage() {
   const t = useT()
   const { toast } = useToast()
-  const [suppliers, setSuppliers] = useState<Supplier[]>(defaultSuppliers)
+  const supabase = useSupabase()
+  const queryClient = useQueryClient()
+  const { organization } = useAuth()
+  const orgId = organization?.id
   const [search, setSearch] = useState("")
   const [editing, setEditing] = useState<Supplier | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState<Supplier | null>(null)
+
+  const { data: suppliers = [], isLoading } = useQuery({
+    queryKey: ["suppliers", orgId],
+    queryFn: async (): Promise<Supplier[]> => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("suppliers")
+        .select("*")
+        .eq("organization_id", orgId)
+        .order("name")
+      return (data ?? []) as any[]
+    },
+    enabled: !!orgId,
+  })
 
   const form = useForm<SupplierForm>({
     resolver: zodResolver(supplierSchema),
@@ -64,6 +80,48 @@ export default function SuppliersPage() {
     s.contact_name.toLowerCase().includes(search.toLowerCase()) ||
     s.email.toLowerCase().includes(search.toLowerCase())
   )
+
+  const upsertMutation = useMutation({
+    mutationFn: async (values: SupplierForm) => {
+      if (!orgId) throw new Error("No organization")
+      const payload: any = {
+        name: values.name,
+        contact_name: values.contact_name,
+        email: values.email || null,
+        phone: values.phone || null,
+        address: values.address || null,
+      }
+      if (editing) {
+        const { error } = await supabase.from("suppliers").update(payload).eq("id", editing.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from("suppliers").insert({ ...payload, organization_id: orgId })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["suppliers", orgId] })
+      toast({ title: editing ? t("common.updated") : t("common.created") })
+      setDialogOpen(false)
+      setEditing(null)
+      form.reset()
+    },
+    onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("suppliers").delete().eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["suppliers", orgId] })
+      toast({ title: t("common.deleted") })
+      setDeleteOpen(false)
+      setDeleting(null)
+    },
+    onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),
+  })
 
   function openCreate() {
     setEditing(null)
@@ -84,19 +142,7 @@ export default function SuppliersPage() {
   }
 
   function onSubmit(values: SupplierForm) {
-    if (editing) {
-      setSuppliers((prev) => prev.map((s) => (s.id === editing.id ? { ...s, ...values } : s)))
-      toast({ title: t("common.updated"), description: t("suppliers.updateSuccess") })
-    } else {
-      setSuppliers((prev) => [...prev, { id: String(Date.now()), ...values, created_at: new Date().toISOString().slice(0, 10) } as Supplier])
-      toast({ title: t("common.created"), description: t("suppliers.createSuccess") })
-    }
-    setDialogOpen(false)
-  }
-
-  function remove(id: string) {
-    setSuppliers((prev) => prev.filter((s) => s.id !== id))
-    toast({ title: t("common.deleted"), description: t("suppliers.deleteSuccess") })
+    upsertMutation.mutate(values)
   }
 
   return (
@@ -131,15 +177,21 @@ export default function SuppliersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((s) => (
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            ) : filtered.map((s) => (
               <TableRow key={s.id}>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
-                    {s.name}
+                    {toUpper(s.name)}
                   </div>
                 </TableCell>
-                <TableCell>{s.contact_name}</TableCell>
+                <TableCell>{toUpper(s.contact_name)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <Mail className="h-3 w-3 text-muted-foreground" />
@@ -149,13 +201,13 @@ export default function SuppliersPage() {
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <Phone className="h-3 w-3 text-muted-foreground" />
-                    {s.phone}
+                    {toUpper(s.phone)}
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <MapPin className="h-3 w-3 text-muted-foreground" />
-                    <span className="truncate max-w-[150px]">{s.address}</span>
+                    <span className="truncate max-w-[150px]">{toUpper(s.address)}</span>
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
@@ -163,14 +215,14 @@ export default function SuppliersPage() {
                     <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => remove(s.id)}>
+                    <Button variant="ghost" size="icon" onClick={() => { setDeleting(s); setDeleteOpen(true) }}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && (
+            {!isLoading && filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults")}
@@ -229,11 +281,32 @@ export default function SuppliersPage() {
                 </FormItem>
               )} />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
-                <Button type="submit">{t("common.save")}</Button>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={upsertMutation.isPending}>{t("common.cancel")}</Button>
+                <Button type="submit" disabled={upsertMutation.isPending}>
+                  {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {t("common.save")}
+                </Button>
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("suppliers.confirmDelete") || "Confirm Delete"}</DialogTitle>
+            <DialogDescription>
+              {t("suppliers.deleteWarning") || "Are you sure you want to delete"} <strong>{toUpper(deleting?.name)}</strong>? {t("suppliers.deleteWarning2") || "This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteOpen(false); setDeleting(null) }}>{t("common.cancel") || "Cancel"}</Button>
+            <Button variant="destructive" onClick={() => deleting && deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("common.delete") || "Delete"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

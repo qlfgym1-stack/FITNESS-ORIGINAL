@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react"
 import { useQuery } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
 import { format, startOfMonth, endOfMonth } from "date-fns"
 import { PageHeader } from "@/components/layout"
@@ -14,7 +15,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Loader2, Download } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts"
-import * as XLSX from "xlsx"
+
+import { toUpper } from "../../lib/utils"
 import type { Equipment, EquipmentReservation } from "@/types/supabase"
 
 const TABS = [
@@ -27,33 +29,40 @@ const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#FF6384"
 
 export default function ReportPage() {
   const supabase = useSupabase()
+  const { organization } = useAuth()
   const t = useT()
   const navigate = useNavigate()
   const location = useLocation()
+  const orgId = organization?.id
 
   const today = new Date()
   const [startDate, setStartDate] = useState(format(startOfMonth(today), "yyyy-MM-dd"))
   const [endDate, setEndDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"))
 
   const { data: equipmentList } = useQuery({
-    queryKey: ["equipment"],
+    queryKey: ["equipment", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("equipment").select("*").order("name")
+      if (!orgId) return []
+      const { data } = await supabase.from("equipment").select("*").eq("organization_id", orgId).order("name")
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
   const { data: reservations, isLoading } = useQuery({
-    queryKey: ["equipment_reservations_report", startDate, endDate],
+    queryKey: ["equipment_reservations_report", startDate, endDate, orgId],
     queryFn: async () => {
+      if (!orgId) return []
       const { data } = await supabase
         .from("equipment_reservations")
         .select("*")
+        .eq("organization_id", orgId)
         .gte("start_time", startDate)
         .lte("start_time", `${endDate}T23:59:59`)
         .order("created_at", { ascending: false })
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
   const equipmentMap = useMemo(() => {
@@ -83,7 +92,8 @@ export default function ReportPage() {
       .sort((a, b) => b.count - a.count)
   }, [reservations, equipmentMap])
 
-  function exportToExcel() {
+  async function exportToExcel() {
+    const XLSX = await import("xlsx")
     const data = usageData.map(d => ({
       "Equipment Name": d.name,
       "Usage Count": d.count,
@@ -184,7 +194,7 @@ export default function ReportPage() {
                       <TableRow key={item.name}>
                         <TableCell className="font-medium">
                           <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                          {item.name}
+                          {toUpper(item.name)}
                         </TableCell>
                         <TableCell className="text-right">{item.count}</TableCell>
                       </TableRow>

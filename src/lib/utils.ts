@@ -6,28 +6,28 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-DZ', {
+  return toUpper(new Intl.NumberFormat('fr-DZ', {
     style: 'currency',
     currency: 'DZD',
-  }).format(amount);
+  }).format(amount));
 }
 
 export function formatDate(date: string | Date): string {
-  return new Intl.DateTimeFormat('fr-DZ', {
+  return toUpper(new Intl.DateTimeFormat('fr-DZ', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-  }).format(new Date(date));
+  }).format(new Date(date)));
 }
 
 export function formatDateTime(date: string | Date): string {
-  return new Intl.DateTimeFormat('fr-DZ', {
+  return toUpper(new Intl.DateTimeFormat('fr-DZ', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(date));
+  }).format(new Date(date)));
 }
 
 export function getInitials(firstName: string, lastName: string): string {
@@ -40,7 +40,10 @@ export function getStatusColor(status: string): string {
     expired: 'bg-destructive/10 text-destructive',
     cancelled: 'bg-muted text-muted-foreground',
     pending: 'bg-warning/10 text-warning',
+    pending_payment: 'bg-warning/10 text-warning',
     completed: 'bg-success/10 text-success',
+    open: 'bg-primary/10 text-primary',
+    closed: 'bg-muted text-muted-foreground',
   };
   return colors[status] || 'bg-muted text-muted-foreground';
 }
@@ -49,4 +52,9 @@ export function getDaysRemaining(endDate: string): number {
   const end = new Date(endDate);
   const now = new Date();
   return Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function toUpper(str: string | null | undefined): string {
+  if (!str) return str ?? "";
+  return str.toUpperCase();
 }

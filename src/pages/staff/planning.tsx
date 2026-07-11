@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
 import { useNavigate, useLocation } from "react-router-dom"
 import { format, startOfWeek, addDays, parseISO } from "date-fns"
@@ -24,6 +25,8 @@ import { useToast } from "@/components/ui/toast"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { toUpper } from "../../lib/utils"
+import type { StaffShift } from "@/types/supabase"
 import { Loader2, Plus, ChevronLeft, ChevronRight } from "lucide-react"
 
 const TABS = [
@@ -45,15 +48,6 @@ type ShiftForm = z.infer<typeof shiftSchema>
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-interface Shift {
-  id: string
-  staff_id: string
-  day: string
-  start_time: string
-  end_time: string
-  notes: string | null
-}
-
 export default function PlanningPage() {
   const supabase = useSupabase()
   const queryClient = useQueryClient()
@@ -61,9 +55,13 @@ export default function PlanningPage() {
   const t = useT()
   const navigate = useNavigate()
   const location = useLocation()
+  const { organization } = useAuth()
+  const orgId = organization?.id
   const [weekOffset, setWeekOffset] = useState(0)
   const [open, setOpen] = useState(false)
   const [draggingStaff, setDraggingStaff] = useState<string | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
   const currentWeekStart = addDays(weekStart, weekOffset * 7)
@@ -74,23 +72,33 @@ export default function PlanningPage() {
   })
 
   const { data: staffList } = useQuery({
-    queryKey: ["staff"],
+    queryKey: ["staff", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("staff").select("*").eq("is_active", true).order("first_name")
+      if (!orgId) return []
+      const { data } = await supabase.from("staff").select("*").eq("organization_id", orgId).eq("is_active", true).order("first_name")
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
-  const { data: shifts, isLoading } = useQuery({
-    queryKey: ["staff_shifts", format(currentWeekStart, "yyyy-MM-dd")],
+  const { data: shifts, isLoading, isError: shiftsError, error: shiftsQueryError } = useQuery({
+    queryKey: ["staff_shifts", format(currentWeekStart, "yyyy-MM-dd"), orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("staff_shifts").select("*")
-      return (data ?? []) as Shift[]
+      if (!orgId) return []
+      const { data } = await (supabase.from("staff_shifts") as any).select("*").eq("organization_id", orgId)
+      return (data ?? []) as StaffShift[]
     },
+    enabled: !!orgId,
   })
+
+  useEffect(() => {
+    if (shiftsError && shiftsQueryError) {
+      toast({ title: t("errors.error") || "Error", description: shiftsQueryError.message, variant: "destructive" })
+    }
+  }, [shiftsError, shiftsQueryError])
 
   const shiftsByStaffAndDay = useMemo(() => {
-    const map = new Map<string, Shift[]>()
+    const map = new Map<string, StaffShift[]>()
     shifts?.forEach(s => {
       const key = `${s.staff_id}-${s.day}`
       if (!map.has(key)) map.set(key, [])
@@ -101,13 +109,13 @@ export default function PlanningPage() {
 
   const upsertMutation = useMutation({
     mutationFn: async (values: ShiftForm) => {
-      const { error } = await supabase.from("staff_shifts" as any).insert({
+      const { error } = await supabase.from("staff_shifts").insert({
         staff_id: values.staffId,
-        day: values.day,
+        date: values.day,
         start_time: values.startTime,
         end_time: values.endTime,
         notes: values.notes || null,
-        organization_id: (await supabase.auth.getUser()).data.user?.id ?? "",
+        organization_id: orgId ?? "",
       })
       if (error) throw error
     },
@@ -196,14 +204,13 @@ export default function PlanningPage() {
               <div key={day} className="bg-muted p-3 font-medium text-center text-sm">{day}</div>
             ))}
             {staffList?.map(staff => (
-              <>
+              <React.Fragment key={staff.id}>
                 <div
-                  key={staff.id}
                   className="bg-background p-3 text-sm font-medium flex items-center"
                   draggable
                   onDragStart={() => handleDragStart(staff.id)}
                 >
-                  {staff.first_name} {staff.last_name}
+                  {toUpper(staff.first_name)} {toUpper(staff.last_name)}
                 </div>
                 {DAYS.map(day => {
                   const staffShifts = shiftsByStaffAndDay.get(`${staff.id}-${day}`) || []
@@ -222,14 +229,14 @@ export default function PlanningPage() {
                           <span>{shift.start_time}-{shift.end_time}</span>
                           <button
                             className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 ml-1"
-                            onClick={() => deleteMutation.mutate(shift.id)}
+                            onClick={() => { setDeleteConfirmId(shift.id); setDeleteConfirmOpen(true) }}
                           >&times;</button>
                         </div>
                       ))}
                     </div>
                   )
                 })}
-              </>
+              </React.Fragment>
             ))}
           </div>
         </div>
@@ -252,7 +259,7 @@ export default function PlanningPage() {
                     </FormControl>
                     <SelectContent>
                       {staffList?.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.first_name} {s.last_name}</SelectItem>
+                        <SelectItem key={s.id} value={s.id}>{toUpper(s.first_name)} {toUpper(s.last_name)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -307,6 +314,21 @@ export default function PlanningPage() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("common.confirm") || "Confirm"}</DialogTitle>
+            <DialogDescription>{t("planning.confirmDelete") || "Are you sure you want to delete this shift?"}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteConfirmOpen(false); setDeleteConfirmId(null) }}>{t("common.cancel")}</Button>
+            <Button variant="destructive" onClick={() => { if (deleteConfirmId) deleteMutation.mutate(deleteConfirmId); setDeleteConfirmOpen(false); setDeleteConfirmId(null) }}>
+              {t("common.delete") || "Delete"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

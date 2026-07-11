@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
 import { useNavigate, useLocation } from "react-router-dom"
-import { formatDate } from "@/lib/utils"
+import { formatDate, toUpper } from "@/lib/utils"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -57,6 +58,8 @@ export default function EquipmentPage() {
   const t = useT()
   const navigate = useNavigate()
   const location = useLocation()
+  const { organization } = useAuth()
+  const orgId = organization?.id
   const [open, setOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [editing, setEditing] = useState<Equipment | null>(null)
@@ -67,39 +70,48 @@ export default function EquipmentPage() {
     defaultValues: { name: "", description: "", category: "", quantity: 0, status: "", purchaseDate: "" },
   })
 
-  const { data: equipmentList, isLoading } = useQuery({
-    queryKey: ["equipment"],
+  const { data: equipmentList, isLoading, isError: equipmentError, error: equipmentQueryError } = useQuery({
+    queryKey: ["equipment", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("equipment").select("*").order("name")
+      if (!orgId) return []
+      const { data } = await supabase.from("equipment").select("*").eq("organization_id", orgId).order("name")
       return data ?? []
     },
+    enabled: !!orgId,
   })
+
+  useEffect(() => {
+    if (equipmentError && equipmentQueryError) {
+      toast({ title: t("errors.error") || "Error", description: equipmentQueryError.message, variant: "destructive" })
+    }
+  }, [equipmentError, equipmentQueryError])
 
   const upsertMutation = useMutation({
     mutationFn: async (values: EquipmentForm) => {
       const orgId = (await supabase.auth.getUser()).data.user?.id
       if (!orgId) throw new Error("No org")
-      const payload = {
+      const quantityVal = Number(values.quantity)
+      const base = {
         name: values.name,
         description: values.description || null,
         category: values.category || null,
-        quantity: Number(values.quantity),
-        available_quantity: Number(values.quantity),
+        quantity: quantityVal,
         status: values.status || null,
         purchase_date: values.purchaseDate || null,
         organization_id: orgId,
       }
       if (editing) {
-        const { error } = await supabase.from("equipment").update(payload).eq("id", editing.id)
+        const { error } = await supabase.from("equipment").update({ ...base, available_quantity: editing.available_quantity }).eq("id", editing.id)
         if (error) throw error
       } else {
-        const { error } = await supabase.from("equipment").insert(payload)
+        const { error } = await supabase.from("equipment").insert({ ...base, available_quantity: quantityVal })
         if (error) throw error
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["equipment"] })
-      toast({ title: editing ? "Equipment updated" : "Equipment created" })
+      queryClient.invalidateQueries({ queryKey: ["equipment_reservations"] })
+      toast({ title: editing ? t("equipment.updated") : t("equipment.created") })
       setOpen(false)
       setEditing(null)
       form.reset()
@@ -114,11 +126,12 @@ export default function EquipmentPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["equipment"] })
-      toast({ title: "Equipment deleted" })
+      queryClient.invalidateQueries({ queryKey: ["equipment_reservations"] })
+      toast({ title: t("equipment.deleted") })
       setDeleteOpen(false)
       setDeleting(null)
     },
-    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),
   })
 
   function openEdit(equipment: Equipment) {
@@ -190,13 +203,13 @@ export default function EquipmentPage() {
               ) : (
                 equipmentList?.map(item => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="capitalize">{item.category || "-"}</TableCell>
+                    <TableCell className="font-medium">{toUpper(item.name)}</TableCell>
+                    <TableCell className="capitalize">{toUpper(item.category) || "-"}</TableCell>
                     <TableCell>{item.quantity}</TableCell>
                     <TableCell>{item.available_quantity}</TableCell>
                     <TableCell>
                       <Badge variant={item.status === "available" ? "default" : item.status === "maintenance" ? "destructive" : "secondary"} className="capitalize">
-                        {item.status || "available"}
+                        {toUpper(item.status) || "available"}
                       </Badge>
                     </TableCell>
                     <TableCell>{item.purchase_date ? formatDate(item.purchase_date) : "-"}</TableCell>
@@ -317,7 +330,7 @@ export default function EquipmentPage() {
           <DialogHeader>
             <DialogTitle>{t("equipment.confirmDelete") || "Confirm Delete"}</DialogTitle>
             <DialogDescription>
-              {t("equipment.deleteWarning") || "Are you sure you want to delete"} <strong>{deleting?.name}</strong>? {t("equipment.deleteWarning2") || "This action cannot be undone."}
+              {t("equipment.deleteWarning") || "Are you sure you want to delete"} <strong>{toUpper(deleting?.name)}</strong>? {t("equipment.deleteWarning2") || "This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

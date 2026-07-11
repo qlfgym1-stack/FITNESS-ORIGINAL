@@ -4,7 +4,6 @@ import { motion } from "framer-motion"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -50,8 +49,10 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const t = useT()
   const { locale, setLocale } = useLocale()
   const { theme, toggleTheme } = useTheme()
-  const { signOut } = useAuth()
-  console.log('[Navbar] locale:', locale, 't("dashboard.title"):', t('dashboard.title'))
+  const { signOut, user, profile, organization } = useAuth()
+  const initials = profile?.full_name
+    ? profile.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : user?.email?.slice(0, 2).toUpperCase() || 'AD'
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border/50 bg-background/80 backdrop-blur-lg px-4 lg:px-6">
@@ -79,9 +80,6 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
       <ClockDisplay />
 
-      {/* DEBUG: current locale indicator — remove after fixing */}
-      <span className="text-[10px] text-muted-foreground/50 mr-1">{locale}</span>
-
       <div className="flex items-center gap-2">
         {/* Language Switcher */}
         <DropdownMenu>
@@ -96,7 +94,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
             {locales.map((loc) => (
               <DropdownMenuItem
                 key={loc.code}
-                onClick={() => { console.log('[LangSwitch] clicking:', loc.code); setLocale(loc.code) }}
+                onClick={() => setLocale(loc.code)}
                 className={locale === loc.code ? "bg-accent" : ""}
               >
                 <span className="mr-2">{loc.flag}</span>
@@ -108,12 +106,6 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
-          <Badge
-            variant="destructive"
-            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px]"
-          >
-            3
-          </Badge>
         </Button>
 
         <Button variant="ghost" size="icon" onClick={toggleTheme}>
@@ -128,17 +120,17 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="" />
-                <AvatarFallback>AD</AvatarFallback>
+                <AvatarImage src={profile?.avatar_url || ''} />
+                <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">Admin</p>
+                <p className="text-sm font-medium leading-none">{profile?.full_name || organization?.name || 'Admin'}</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  admin@fitmanager.pro
+                  {user?.email || 'admin@fitmanager.pro'}
                 </p>
               </div>
             </DropdownMenuLabel>

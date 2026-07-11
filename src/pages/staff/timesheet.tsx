@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
 import { useNavigate, useLocation } from "react-router-dom"
 import { format, startOfWeek, endOfWeek, parseISO, differenceInMinutes } from "date-fns"
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/toast"
+import { toUpper } from "../../lib/utils"
 import { Loader2, Clock } from "lucide-react"
 import type { Staff, StaffTimesheet } from "@/types/supabase"
 
@@ -31,34 +33,48 @@ export default function TimesheetPage() {
   const t = useT()
   const navigate = useNavigate()
   const location = useLocation()
+  const { organization } = useAuth()
+  const orgId = organization?.id
   const today = format(new Date(), "yyyy-MM-dd")
   const [selectedDate, setSelectedDate] = useState(today)
 
   const { data: staffList } = useQuery({
-    queryKey: ["staff"],
+    queryKey: ["staff", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("staff").select("*").eq("is_active", true).order("first_name")
+      if (!orgId) return []
+      const { data } = await supabase.from("staff").select("*").eq("organization_id", orgId).eq("is_active", true).order("first_name")
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
-  const { data: timesheets, isLoading } = useQuery({
-    queryKey: ["staff_timesheet", selectedDate],
+  const { data: timesheets, isLoading, isError: timesheetError, error: timesheetQueryError } = useQuery({
+    queryKey: ["staff_timesheet", selectedDate, orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("staff_timesheet").select("*").eq("date", selectedDate)
+      if (!orgId) return []
+      const { data } = await supabase.from("staff_timesheet").select("*").eq("date", selectedDate).eq("organization_id", orgId)
       return data ?? []
     },
+    enabled: !!orgId,
   })
+
+  useEffect(() => {
+    if (timesheetError && timesheetQueryError) {
+      toast({ title: t("errors.error") || "Error", description: timesheetQueryError.message, variant: "destructive" })
+    }
+  }, [timesheetError, timesheetQueryError])
 
   const weekStart = format(startOfWeek(parseISO(selectedDate), { weekStartsOn: 1 }), "yyyy-MM-dd")
   const weekEnd = format(endOfWeek(parseISO(selectedDate), { weekStartsOn: 1 }), "yyyy-MM-dd")
 
   const { data: weeklyData } = useQuery({
-    queryKey: ["staff_timesheet_weekly", weekStart, weekEnd],
+    queryKey: ["staff_timesheet_weekly", weekStart, weekEnd, orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("staff_timesheet").select("*").gte("date", weekStart).lte("date", weekEnd)
+      if (!orgId) return []
+      const { data } = await supabase.from("staff_timesheet").select("*").gte("date", weekStart).lte("date", weekEnd).eq("organization_id", orgId)
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
   const timesheetMap = useMemo(() => {
@@ -94,23 +110,13 @@ export default function TimesheetPage() {
         } else if (type === "break_start") update.break_start = now
         else if (type === "break_end") {
           update.break_end = now
-          const breakStart = existing.break_start ? new Date(existing.break_start) : null
-          if (breakStart) {
-            const breakMinutes = differenceInMinutes(new Date(now), breakStart)
-            const existingBreakEnd = existing.break_end ? new Date(existing.break_end) : null
-            if (existingBreakEnd) {
-              const existingBreakMinutes = differenceInMinutes(existingBreakEnd, breakStart)
-              update.break_start = existing.break_start
-              update.break_end = null
-            }
-          }
         }
         const { error } = await supabase.from("staff_timesheet").update(update as any).eq("id", existing.id)
         if (error) throw error
       } else {
         const { error } = await supabase.from("staff_timesheet").insert({
           staff_id: staffId,
-          organization_id: (await supabase.auth.getUser()).data.user?.id ?? "",
+          organization_id: orgId ?? "",
           date: selectedDate,
           clock_in: type === "in" ? now : null,
         })
@@ -128,7 +134,7 @@ export default function TimesheetPage() {
   const currentTab = TABS.find(t => t.path === location.pathname)?.value ?? "timesheet"
 
   function getStaffName(staff: Staff) {
-    return `${staff.first_name} ${staff.last_name}`
+    return `${toUpper(staff.first_name)} ${toUpper(staff.last_name)}`
   }
 
   return (

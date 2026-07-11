@@ -4,9 +4,12 @@ import { AuthProvider } from '@/stores/auth'
 import { useAuth } from '@/stores/auth'
 import { lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { Button } from '@/components/ui/button'
 
 const SignIn = lazy(() => import('@/pages/auth/sign-in'))
 const SignUp = lazy(() => import('@/pages/auth/sign-up'))
+const Recovery = lazy(() => import('@/pages/auth/recovery'))
 const Dashboard = lazy(() => import('@/pages/dashboard/dashboard'))
 const Members = lazy(() => import('@/pages/members/members'))
 const Subscriptions = lazy(() => import('@/pages/subscriptions/subscriptions'))
@@ -45,6 +48,18 @@ function Loading() {
   return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
 }
 
+function NotFound() {
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="text-center space-y-4">
+        <h1 className="text-6xl font-bold text-muted-foreground">404</h1>
+        <p className="text-lg text-muted-foreground">Page not found</p>
+        <Button onClick={() => window.history.back()}>Go back</Button>
+      </div>
+    </div>
+  )
+}
+
 function PageTransition({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
@@ -77,11 +92,12 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <Suspense fallback={<Loading />}>
+      <ErrorBoundary>
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/auth" element={<PublicRoute><Suspense fallback={<Loading />}><SignIn /></Suspense></PublicRoute>} />
             <Route path="/auth/sign-up" element={<PublicRoute><Suspense fallback={<Loading />}><SignUp /></Suspense></PublicRoute>} />
+            <Route path="/auth/recovery" element={<PublicRoute><Suspense fallback={<Loading />}><Recovery /></Suspense></PublicRoute>} />
             <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<PageTransition><Suspense fallback={<Loading />}><Dashboard /></Suspense></PageTransition>} />
@@ -118,10 +134,10 @@ export default function App() {
               <Route path="display" element={<PageTransition><Suspense fallback={<Loading />}><Display /></Suspense></PageTransition>} />
               <Route path="install" element={<PageTransition><Suspense fallback={<Loading />}><Install /></Suspense></PageTransition>} />
             </Route>
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </AnimatePresence>
-      </Suspense>
+      </ErrorBoundary>
     </AuthProvider>
   )
 }

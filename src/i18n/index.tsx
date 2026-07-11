@@ -1,7 +1,26 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import fr from "./fr";
 import en from "./en";
 import ar from "./ar";
+import { toUpper } from "../lib/utils";
+
+/** Translation keys whose values should NOT be uppercased */
+const CASE_PRESERVE_KEYS = new Set([
+  "auth.email",
+  "auth.password",
+  "members.email",
+  "staff.email",
+  "suppliers.email",
+  "settings.email",
+  "profile.email",
+  "auth.login",
+  "auth.username",
+  "auth.pin",
+  "auth.otp",
+  "auth.token",
+  "settings.apiKey",
+  "settings.url",
+]);
 
 type TranslationValue = string | Record<string, unknown>;
 
@@ -51,8 +70,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const t = useCallback(
     (key: string): string => {
       const dict = translations[locale] as Record<string, TranslationValue> | undefined;
-      if (!dict) return key;
-      return resolveKey(dict, key);
+      if (!dict) return toUpper(key);
+      const value = resolveKey(dict, key);
+      return CASE_PRESERVE_KEYS.has(key) ? value : toUpper(value);
     },
     [locale],
   );
@@ -62,8 +82,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = locale;
   }, [locale]);
 
+  const ctxValue = useMemo(() => ({ locale, t, setLocale }), [locale, t, setLocale])
   return (
-    <I18nContext.Provider value={{ locale, t, setLocale }}>
+    <I18nContext.Provider value={ctxValue}>
       {children}
     </I18nContext.Provider>
   );

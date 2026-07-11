@@ -214,10 +214,11 @@ export default function SignIn() {
                       </FormItem>
                     )}
                   />
-                  <div className="flex items-center justify-end">
-                    <Link to="/auth/forgot-password" className="text-sm text-primary hover:underline font-medium">
-                      Forgot password?
+                  <div className="flex items-center justify-between">
+                    <Link to="/auth/recovery" className="text-sm text-muted-foreground hover:text-primary hover:underline font-medium">
+                      Use a recovery code
                     </Link>
+                    <span />
                   </div>
                   <Button type="submit" size="lg" className="w-full h-11 text-base font-semibold" disabled={form.formState.isSubmitting}>
                     {form.formState.isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}

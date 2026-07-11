@@ -16,9 +16,9 @@ export interface Database {
         Relationships: []
       }
       members: {
-        Row: { id: string; organization_id: string; first_name: string; last_name: string; email: string | null; phone: string | null; gender: string | null; birth_date: string | null; address: string | null; emergency_contact: string | null; emergency_phone: string | null; photo_url: string | null; status: 'active' | 'inactive'; last_visit: string | null; notes: string | null; created_at: string; updated_at: string }
-        Insert: { id?: string; organization_id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string }
-        Update: { id?: string; organization_id?: string; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string }
+        Row: { id: string; organization_id: string; first_name: string; last_name: string; email: string | null; phone: string | null; gender: string | null; birth_date: string | null; address: string | null; emergency_contact: string | null; emergency_phone: string | null; photo_url: string | null; status: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit: string | null; notes: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; organization_id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; organization_id?: string; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string }
         Relationships: []
       }
       subscription_types: {
@@ -28,9 +28,9 @@ export interface Database {
         Relationships: []
       }
       member_subscriptions: {
-        Row: { id: string; organization_id: string; member_id: string; subscription_type_id: string; start_date: string; end_date: string; total_amount: number; amount_paid: number; status: 'active' | 'expired' | 'cancelled'; created_at: string }
-        Insert: { id?: string; organization_id: string; member_id: string; subscription_type_id: string; start_date: string; end_date: string; total_amount: number; amount_paid?: number; status?: 'active' | 'expired' | 'cancelled'; created_at?: string }
-        Update: { id?: string; organization_id?: string; member_id?: string; subscription_type_id?: string; start_date?: string; end_date?: string; total_amount?: number; amount_paid?: number; status?: 'active' | 'expired' | 'cancelled'; created_at?: string }
+        Row: { id: string; organization_id: string; member_id: string; subscription_type_id: string; start_date: string; end_date: string; total_amount: number; amount_paid: number; status: 'active' | 'expired' | 'cancelled' | 'pending_payment'; created_at: string }
+        Insert: { id?: string; organization_id: string; member_id: string; subscription_type_id: string; start_date: string; end_date: string; total_amount: number; amount_paid?: number; status?: 'active' | 'expired' | 'cancelled' | 'pending_payment'; created_at?: string }
+        Update: { id?: string; organization_id?: string; member_id?: string; subscription_type_id?: string; start_date?: string; end_date?: string; total_amount?: number; amount_paid?: number; status?: 'active' | 'expired' | 'cancelled' | 'pending_payment'; created_at?: string }
         Relationships: []
       }
       payments: {
@@ -52,9 +52,33 @@ export interface Database {
         Relationships: []
       }
       attendance: {
-        Row: { id: string; organization_id: string; member_id: string; check_in: string | null; check_out: string | null; type: 'check-in' | 'class'; class_id: string | null; created_at: string }
-        Insert: { id?: string; organization_id: string; member_id: string; check_in?: string | null; check_out?: string | null; type: 'check-in' | 'class'; class_id?: string | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; member_id?: string; check_in?: string | null; check_out?: string | null; type?: 'check-in' | 'class'; class_id?: string | null; created_at?: string }
+        Row: { id: string; organization_id: string; member_id: string; check_in: string | null; check_out: string | null; type: 'check-in' | 'class'; class_id: string | null; source: 'rfid' | 'manual' | 'app'; access_control_id: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; member_id: string; check_in?: string | null; check_out?: string | null; type?: 'check-in' | 'class'; class_id?: string | null; source?: 'rfid' | 'manual' | 'app'; access_control_id?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; member_id?: string; check_in?: string | null; check_out?: string | null; type?: 'check-in' | 'class'; class_id?: string | null; source?: 'rfid' | 'manual' | 'app'; access_control_id?: string | null; created_at?: string }
+        Relationships: []
+      }
+      rfid_cards: {
+        Row: { id: string; member_id: string; card_uid: string; status: 'active' | 'inactive' | 'lost' | 'stolen' | 'expired'; issued_at: string; expires_at: string | null; created_at: string }
+        Insert: { id?: string; member_id: string; card_uid: string; status?: 'active' | 'inactive' | 'lost' | 'stolen' | 'expired'; issued_at?: string; expires_at?: string | null; created_at?: string }
+        Update: { id?: string; member_id?: string; card_uid?: string; status?: 'active' | 'inactive' | 'lost' | 'stolen' | 'expired'; issued_at?: string; expires_at?: string | null; created_at?: string }
+        Relationships: []
+      }
+      rfid_read_logs: {
+        Row: { id: string; card_uid: string; member_id: string | null; terminal: string; event_type: 'check-in' | 'check-out' | 'denied'; result: 'granted' | 'denied' | 'pending'; reason: string | null; user_id: string | null; read_at: string }
+        Insert: { id?: string; card_uid: string; member_id?: string | null; terminal: string; event_type: 'check-in' | 'check-out' | 'denied'; result: 'granted' | 'denied' | 'pending'; reason?: string | null; user_id?: string | null; read_at?: string }
+        Update: { id?: string; card_uid?: string; member_id?: string | null; terminal?: string; event_type?: 'check-in' | 'check-out' | 'denied'; result?: 'granted' | 'denied' | 'pending'; reason?: string | null; user_id?: string | null; read_at?: string }
+        Relationships: []
+      }
+      turnstile_status: {
+        Row: { id: string; organization_id: string; terminal: string; status: 'online' | 'offline' | 'fault'; last_heartbeat: string | null; updated_at: string }
+        Insert: { id?: string; organization_id: string; terminal: string; status?: 'online' | 'offline' | 'fault'; last_heartbeat?: string | null; updated_at?: string }
+        Update: { id?: string; organization_id?: string; terminal?: string; status?: 'online' | 'offline' | 'fault'; last_heartbeat?: string | null; updated_at?: string }
+        Relationships: []
+      }
+      manual_validations: {
+        Row: { id: string; organization_id: string; member_id: string; user_id: string; reason: 'breakdown' | 'maintenance' | 'emergency' | 'test' | 'other'; reason_detail: string | null; terminal: string | null; validated_at: string }
+        Insert: { id?: string; organization_id: string; member_id: string; user_id: string; reason: 'breakdown' | 'maintenance' | 'emergency' | 'test' | 'other'; reason_detail?: string | null; terminal?: string | null; validated_at?: string }
+        Update: { id?: string; organization_id?: string; member_id?: string; user_id?: string; reason?: 'breakdown' | 'maintenance' | 'emergency' | 'test' | 'other'; reason_detail?: string | null; terminal?: string | null; validated_at?: string }
         Relationships: []
       }
       staff: {
@@ -67,6 +91,12 @@ export interface Database {
         Row: { id: string; staff_id: string; organization_id: string; date: string; clock_in: string | null; clock_out: string | null; break_start: string | null; break_end: string | null; total_hours: number | null; notes: string | null }
         Insert: { id?: string; staff_id: string; organization_id: string; date: string; clock_in?: string | null; clock_out?: string | null; break_start?: string | null; break_end?: string | null; total_hours?: number | null; notes?: string | null }
         Update: { id?: string; staff_id?: string; organization_id?: string; date?: string; clock_in?: string | null; clock_out?: string | null; break_start?: string | null; break_end?: string | null; total_hours?: number | null; notes?: string | null }
+        Relationships: []
+      }
+      staff_shifts: {
+        Row: { id: string; staff_id: string; organization_id: string; date: string; start_time: string; end_time: string; notes: string | null; created_at: string }
+        Insert: { id?: string; staff_id: string; organization_id: string; date: string; start_time: string; end_time: string; notes?: string | null; created_at?: string }
+        Update: { id?: string; staff_id?: string; organization_id?: string; date?: string; start_time?: string; end_time?: string; notes?: string | null; created_at?: string }
         Relationships: []
       }
       staff_leaves: {
@@ -183,6 +213,18 @@ export interface Database {
         Update: { id?: string; organization_id?: string; member_id?: string; school_name?: string; student_id?: string | null; document_url?: string | null; verified?: boolean; verified_at?: string | null; created_at?: string }
         Relationships: []
       }
+      recovery_codes: {
+        Row: { user_id: string; code_hash: string; created_at: string; last_used_at: string | null }
+        Insert: { user_id: string; code_hash: string; created_at?: string; last_used_at?: string | null }
+        Update: { user_id?: string; code_hash?: string; created_at?: string; last_used_at?: string | null }
+        Relationships: []
+      }
+      recovery_code_logs: {
+        Row: { id: string; user_id: string; attempted_at: string; success: boolean; ip_address: string | null; user_agent: string | null }
+        Insert: { id?: string; user_id: string; attempted_at?: string; success: boolean; ip_address?: string | null; user_agent?: string | null }
+        Update: { id?: string; user_id?: string; attempted_at?: string; success?: boolean; ip_address?: string | null; user_agent?: string | null }
+        Relationships: []
+      }
       wedding_programs: {
         Row: { id: string; organization_id: string; name: string; description: string | null; duration_days: number; price: number; max_participants: number | null; is_active: boolean; created_at: string }
         Insert: { id?: string; organization_id: string; name: string; description?: string | null; duration_days: number; price: number; max_participants?: number | null; is_active?: boolean; created_at?: string }
@@ -207,6 +249,7 @@ export type Class = Tables<'classes'>
 export type Attendance = Tables<'attendance'>
 export type Staff = Tables<'staff'>
 export type StaffTimesheet = Tables<'staff_timesheet'>
+export type StaffShift = Tables<'staff_shifts'>
 export type StaffLeave = Tables<'staff_leaves'>
 export type Equipment = Tables<'equipment'>
 export type EquipmentReservation = Tables<'equipment_reservations'>
@@ -222,3 +265,7 @@ export type Notification = Tables<'notifications'>
 export type License = Tables<'licenses'>
 export type Setting = Tables<'settings'>
 export type Corporate = Tables<'corporate'>
+export type RfidCard = Tables<'rfid_cards'>
+export type RfidReadLog = Tables<'rfid_read_logs'>
+export type TurnstileStatus = Tables<'turnstile_status'>
+export type ManualValidation = Tables<'manual_validations'>

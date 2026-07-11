@@ -1,100 +1,192 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
+import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
+import { useT } from "@/i18n"
+import { z } from "zod"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from "@/components/ui/table"
 import {
-  Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
-import { useT } from "@/i18n"
-import { formatDateTime } from "@/lib/utils"
-import { Plus, Search, Edit, Trash2, ArrowUpRight, ArrowDownLeft } from "lucide-react"
+import { formatDateTime, toUpper } from "@/lib/utils"
+import { Plus, Edit, Trash2, ArrowUpRight, ArrowDownLeft, Loader2 } from "lucide-react"
+import type { Inventory } from "@/types/supabase"
 
 interface StockMovement {
   id: string
-  product: string
+  inventory_id: string
+  organization_id: string
   type: "in" | "out"
   quantity: number
-  date: string
-  notes: string
+  notes: string | null
+  created_at: string
+  inventory?: { name: string } | null
 }
 
-const defaultMovements: StockMovement[] = [
-  { id: "1", product: "Protein Powder", type: "in", quantity: 20, date: "2026-07-03T10:00:00", notes: "Restock from supplier" },
-  { id: "2", product: "Yoga Mats", type: "out", quantity: 5, date: "2026-07-02T14:30:00", notes: "Damaged" },
-  { id: "3", product: "Resistance Bands", type: "in", quantity: 50, date: "2026-07-01T09:15:00", notes: "New batch" },
-  { id: "4", product: "Towels", type: "out", quantity: 10, date: "2026-06-30T16:00:00", notes: "Laundry损耗" },
-  { id: "5", product: "Water Bottles", type: "in", quantity: 100, date: "2026-06-28T11:45:00", notes: "Seasonal stock" },
-]
+const stockSchema = z.object({
+  inventory_id: z.string().min(1, "Product is required"),
+  type: z.enum(["in", "out"]),
+  quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
+  notes: z.string().optional().or(z.literal("")),
+})
+
+type StockForm = z.infer<typeof stockSchema>
 
 export default function StockMovementsPage() {
   const t = useT()
   const { toast } = useToast()
-  const [movements, setMovements] = useState<StockMovement[]>(defaultMovements)
+  const supabase = useSupabase()
+  const queryClient = useQueryClient()
+  const { organization } = useAuth()
+  const orgId = organization?.id
   const [search, setSearch] = useState("")
   const [editing, setEditing] = useState<StockMovement | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [form, setForm] = useState<Omit<StockMovement, "id">>({
-    product: "", type: "in", quantity: 0, date: new Date().toISOString().slice(0, 16), notes: "",
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState<StockMovement | null>(null)
+  const [form, setForm] = useState<StockForm>({
+    inventory_id: "", type: "in", quantity: 1, notes: "",
   })
 
-  const filtered = movements.filter((m) =>
-    m.product.toLowerCase().includes(search.toLowerCase()) || m.notes.toLowerCase().includes(search.toLowerCase())
-  )
+  const { data: inventoryItems } = useQuery({
+    queryKey: ["inventory", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase.from("inventory").select("id, name").eq("organization_id", orgId).order("name")
+      return (data ?? []) as Pick<Inventory, "id" | "name">[]
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: movements, isLoading, isError: movementsError, error: movementsQueryError } = useQuery({
+    queryKey: ["stock_movements", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("stock_movements")
+        .select("*, inventory(name)")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+      return (data ?? []) as StockMovement[]
+    },
+    enabled: !!orgId,
+  })
+
+  useEffect(() => {
+    if (movementsError && movementsQueryError) {
+      toast({ title: t("errors.error") || "Error", description: movementsQueryError.message, variant: "destructive" })
+    }
+  }, [movementsError, movementsQueryError])
+
+  const upsertMutation = useMutation({
+    mutationFn: async (values: StockForm) => {
+      if (!orgId) throw new Error("No organization")
+      const payload = {
+        inventory_id: values.inventory_id,
+        organization_id: orgId,
+        type: values.type,
+        quantity: Number(values.quantity),
+        notes: values.notes || null,
+      }
+      if (editing) {
+        const { error } = await supabase.from("stock_movements").update(payload).eq("id", editing.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from("stock_movements").insert(payload)
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock_movements"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory"] })
+      toast({ title: editing ? t("common.updated") || "Updated" : t("common.created") || "Created" })
+      setDialogOpen(false)
+      setEditing(null)
+      setForm({ inventory_id: "", type: "in", quantity: 1, notes: "" })
+    },
+    onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("stock_movements").delete().eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock_movements"] })
+      toast({ title: t("common.deleted") || "Deleted" })
+      setDeleteOpen(false)
+      setDeleting(null)
+    },
+    onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
+  })
+
+  const filtered = movements?.filter((m) => {
+    const name = m.inventory?.name ?? ""
+    const notes = m.notes ?? ""
+    return name.toLowerCase().includes(search.toLowerCase()) || notes.toLowerCase().includes(search.toLowerCase())
+  }) ?? []
 
   function openCreate() {
     setEditing(null)
-    setForm({ product: "", type: "in", quantity: 0, date: new Date().toISOString().slice(0, 16), notes: "" })
+    setForm({ inventory_id: "", type: "in", quantity: 1, notes: "" })
     setDialogOpen(true)
   }
 
   function openEdit(m: StockMovement) {
     setEditing(m)
-    setForm({ product: m.product, type: m.type, quantity: m.quantity, date: m.date.slice(0, 16), notes: m.notes })
+    setForm({ inventory_id: m.inventory_id, type: m.type, quantity: m.quantity, notes: m.notes ?? "" })
     setDialogOpen(true)
   }
 
-  function save() {
-    if (editing) {
-      setMovements((prev) => prev.map((m) => (m.id === editing.id ? { ...m, ...form } : m)))
-      toast({ title: t("common.updated"), description: t("stock.updateSuccess") })
-    } else {
-      setMovements((prev) => [...prev, { id: String(Date.now()), ...form }])
-      toast({ title: t("common.created"), description: t("stock.createSuccess") })
+  function handleSave() {
+    const parsed = stockSchema.safeParse(form)
+    if (!parsed.success) {
+      parsed.error.issues.forEach((issue) => {
+        toast({ title: t("errors.error") || "Error", description: issue.message, variant: "destructive" })
+      })
+      return
     }
-    setDialogOpen(false)
+    upsertMutation.mutate(parsed.data)
   }
 
-  function remove(id: string) {
-    setMovements((prev) => prev.filter((m) => m.id !== id))
-    toast({ title: t("common.deleted"), description: t("stock.deleteSuccess") })
-  }
+  const inventoryName = (m: StockMovement) => m.inventory?.name ?? "-"
 
   return (
     <div>
       <PageHeader
-        title={t("stock.title")}
-        description={t("stock.description")}
+        title={t("stock.title") || "Stock Movements"}
+        description={t("stock.description") || "Track inventory movements"}
         actions={
           <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" /> {t("stock.add")}
+            <Plus className="mr-2 h-4 w-4" /> {t("stock.add") || "Add Movement"}
           </Button>
         }
       />
 
       <div className="mb-4 flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <input
+            type="text"
+            placeholder={t("common.search") || "Search..."}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-9 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          />
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
         </div>
       </div>
 
@@ -102,89 +194,126 @@ export default function StockMovementsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("stock.product")}</TableHead>
-              <TableHead>{t("stock.type")}</TableHead>
-              <TableHead className="text-right">{t("stock.quantity")}</TableHead>
-              <TableHead>{t("stock.date")}</TableHead>
-              <TableHead>{t("stock.notes")}</TableHead>
-              <TableHead className="text-right">{t("common.actions")}</TableHead>
+              <TableHead>{t("stock.product") || "Product"}</TableHead>
+              <TableHead>{t("stock.type") || "Type"}</TableHead>
+              <TableHead className="text-right">{t("stock.quantity") || "Quantity"}</TableHead>
+              <TableHead>{t("stock.date") || "Date"}</TableHead>
+              <TableHead>{t("stock.notes") || "Notes"}</TableHead>
+              <TableHead className="text-right">{t("common.actions") || "Actions"}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((m) => (
-              <TableRow key={m.id}>
-                <TableCell className="font-medium">{m.product}</TableCell>
-                <TableCell>
-                  <Badge variant={m.type === "in" ? "default" : "destructive"} className="gap-1">
-                    {m.type === "in" ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
-                    {m.type === "in" ? t("stock.in") : t("stock.out")}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right font-mono">{m.quantity}</TableCell>
-                <TableCell>{formatDateTime(m.date)}</TableCell>
-                <TableCell className="max-w-[200px] truncate text-muted-foreground">{m.notes}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(m)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => remove(m.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
-            ))}
-            {filtered.length === 0 && (
+            ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  {t("common.noResults")}
+                  {t("common.noResults") || "No results"}
                 </TableCell>
               </TableRow>
+            ) : (
+              filtered.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-medium">{toUpper(inventoryName(m))}</TableCell>
+                  <TableCell>
+                    <Badge variant={m.type === "in" ? "default" : "destructive"} className="gap-1">
+                      {m.type === "in" ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
+                      {m.type === "in" ? t("stock.in") || "In" : t("stock.out") || "Out"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-mono">{m.quantity}</TableCell>
+                  <TableCell>{formatDateTime(m.created_at)}</TableCell>
+                  <TableCell className="max-w-[200px] truncate text-muted-foreground">{toUpper(m.notes ?? "")}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(m)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => { setDeleting(m); setDeleteOpen(true) }}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditing(null); setForm({ inventory_id: "", type: "in", quantity: 1, notes: "" }) } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? t("stock.edit") : t("stock.add")}</DialogTitle>
-            <DialogDescription>{t("stock.formDescription")}</DialogDescription>
+            <DialogTitle>{editing ? t("stock.edit") || "Edit Movement" : t("stock.add") || "Add Movement"}</DialogTitle>
+            <DialogDescription>{t("stock.formDescription") || "Record a stock movement"}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label>{t("stock.product")}</Label>
-              <Input value={form.product} onChange={(e) => setForm((f) => ({ ...f, product: e.target.value }))} />
+              <Label>{t("stock.product") || "Product"}</Label>
+              <Select value={form.inventory_id} onValueChange={(v) => setForm((f) => ({ ...f, inventory_id: v }))}>
+                <SelectTrigger><SelectValue placeholder={t("stock.selectProduct") || "Select product"} /></SelectTrigger>
+                <SelectContent>
+                  {inventoryItems?.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>{toUpper(item.name)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label>{t("stock.type")}</Label>
+                <Label>{t("stock.type") || "Type"}</Label>
                 <Select value={form.type} onValueChange={(v: "in" | "out") => setForm((f) => ({ ...f, type: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="in">{t("stock.in")}</SelectItem>
-                    <SelectItem value="out">{t("stock.out")}</SelectItem>
+                    <SelectItem value="in">{t("stock.in") || "In"}</SelectItem>
+                    <SelectItem value="out">{t("stock.out") || "Out"}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>{t("stock.quantity")}</Label>
-                <Input type="number" value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: Number(e.target.value) }))} />
+                <Label>{t("stock.quantity") || "Quantity"}</Label>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.quantity}
+                  onChange={(e) => setForm((f) => ({ ...f, quantity: Number(e.target.value) }))}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
               </div>
             </div>
             <div className="grid gap-2">
-              <Label>{t("stock.date")}</Label>
-              <Input type="datetime-local" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("stock.notes")}</Label>
-              <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+              <Label>{t("stock.notes") || "Notes"}</Label>
+              <Textarea value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
-            <Button onClick={save}>{t("common.save")}</Button>
+            <Button variant="outline" onClick={() => { setDialogOpen(false); setEditing(null) }}>{t("common.cancel") || "Cancel"}</Button>
+            <Button onClick={handleSave} disabled={upsertMutation.isPending}>
+              {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("common.save") || "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("common.confirm") || "Confirm Delete"}</DialogTitle>
+            <DialogDescription>
+              {t("stock.confirmDelete") || "Are you sure you want to delete this stock movement?"} <strong>{toUpper(deleting?.inventory?.name ?? "")}</strong>? {t("common.cannotUndo") || "This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteOpen(false); setDeleting(null) }}>{t("common.cancel") || "Cancel"}</Button>
+            <Button variant="destructive" onClick={() => deleting && deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("common.delete") || "Delete"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

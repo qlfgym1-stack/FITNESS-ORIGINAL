@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -32,13 +32,9 @@ import { Separator } from "@/components/ui/separator"
 import {
   Plus, Download, Upload, FileText, Printer, Search, Eye, Loader2,
 } from "lucide-react"
-import { formatDate, formatCurrency } from "@/lib/utils"
+import { formatDate, formatCurrency, toUpper } from "@/lib/utils"
 import type { Payment, Member, SubscriptionType } from "@/types/supabase"
 import { format } from "date-fns"
-import jsPDF from "jspdf"
-import "jspdf-autotable"
-import * as XLSX from "xlsx"
-
 const paymentSchema = z.object({
   member_id: z.string().min(1, "Member is required"),
   subscription_id: z.string().optional(),
@@ -56,12 +52,7 @@ const statusBadge: Record<string, "default" | "secondary" | "destructive" | "out
   cancelled: "destructive",
 }
 
-const methodLabels: Record<string, string> = {
-  cash: "Espèces",
-  card: "Carte",
-  transfer: "Virement",
-  other: "Autre",
-}
+
 
 interface ImportRow {
   member_name: string
@@ -73,6 +64,15 @@ interface ImportRow {
 
 export default function PaymentsPage() {
   const t = useT()
+  const getMethodLabel = useCallback((method: string) => {
+    const map: Record<string, string> = {
+      cash: t("payments.cash"),
+      card: t("payments.card"),
+      transfer: t("payments.transfer"),
+      other: t("payments.other"),
+    }
+    return map[method] || method
+  }, [t])
   const supabase = useSupabase()
   const queryClient = useQueryClient()
   const { organization } = useAuth()
@@ -102,19 +102,25 @@ export default function PaymentsPage() {
     },
   })
 
-  const { data: payments, isLoading } = useQuery({
+  const { data: payments, isLoading, isError: paymentsError, error: paymentsQueryError } = useQuery({
     queryKey: ["payments", orgId],
     queryFn: async () => {
       if (!orgId) return []
       const { data } = await supabase
         .from("payments")
-        .select("*, members!inner(first_name, last_name), member_subscriptions!inner(subscription_types(name))")
+        .select("*, members!inner(first_name, last_name), member_subscriptions(subscription_types(name))")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
       return data as (Payment & { members: { first_name: string; last_name: string }; member_subscriptions: { subscription_types: { name: string } } | null })[]
     },
     enabled: !!orgId,
   })
+
+  useEffect(() => {
+    if (paymentsError && paymentsQueryError) {
+      toast({ title: t("common.error") || "Error", description: paymentsQueryError.message, variant: "destructive" })
+    }
+  }, [paymentsError, paymentsQueryError])
 
   const { data: members } = useQuery({
     queryKey: ["members-list", orgId],
@@ -152,7 +158,7 @@ export default function PaymentsPage() {
       const { error } = await supabase.from("payments").insert({
         organization_id: orgId,
         member_id: values.member_id,
-        subscription_id: values.subscription_id || null,
+        subscription_id: values.subscription_id && values.subscription_id !== "none" ? values.subscription_id : null,
         amount: values.amount,
         payment_method: values.payment_method,
         payment_date: values.payment_date,
@@ -163,22 +169,28 @@ export default function PaymentsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payments"] })
+      queryClient.invalidateQueries({ queryKey: ["recent-payments"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
+      queryClient.invalidateQueries({ queryKey: ["member-subscriptions", orgId] })
+      queryClient.invalidateQueries({ queryKey: ["payments", orgId] })
       setAddDialogOpen(false)
       form.reset()
-      toast({ title: "Paiement ajouté" })
+      toast({ title: t("payments.paymentAdded") })
     },
     onError: (err) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" })
+      toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
 
-  const filteredPayments = payments?.filter((p) => {
-    const name = `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`.toLowerCase()
-    const matchesSearch = name.includes(search.toLowerCase()) || p.notes?.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus = statusFilter === "all" || p.status === statusFilter
-    const matchesMethod = methodFilter === "all" || p.payment_method === methodFilter
-    return matchesSearch && matchesStatus && matchesMethod
-  })
+  const filteredPayments = useMemo(() => {
+    return payments?.filter((p) => {
+      const name = `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`.toLowerCase()
+      const matchesSearch = name.includes(search.toLowerCase()) || p.notes?.toLowerCase().includes(search.toLowerCase())
+      const matchesStatus = statusFilter === "all" || p.status === statusFilter
+      const matchesMethod = methodFilter === "all" || p.payment_method === methodFilter
+      return matchesSearch && matchesStatus && matchesMethod
+    })
+  }, [payments, search, statusFilter, methodFilter])
 
   const handleGenerateInvoice = useCallback((payment: Payment) => {
     setSelectedPayment(payment)
@@ -189,10 +201,12 @@ export default function PaymentsPage() {
     window.print()
   }, [])
 
-  const handleDownloadInvoice = useCallback(() => {
+  const handleDownloadInvoice = useCallback(async () => {
     if (!selectedPayment) return
+    const jspdf = await import("jspdf")
+    await import("jspdf-autotable")
     const member = payments?.find((p) => p.id === selectedPayment.id)?.members
-    const doc = new jsPDF()
+    const doc = new jspdf.default()
     doc.setFontSize(20)
     doc.text("FACTURE", 105, 20, { align: "center" })
     doc.setFontSize(10)
@@ -218,19 +232,23 @@ export default function PaymentsPage() {
   const handleImportExcel = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    const XLSX = await import("xlsx")
     const reader = new FileReader()
     reader.onload = (ev) => {
       const data = new Uint8Array(ev.target?.result as ArrayBuffer)
       const workbook = XLSX.read(data, { type: "array" })
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
       const json = XLSX.utils.sheet_to_json(sheet) as Record<string, string>[]
-      const rows: ImportRow[] = json.map((r) => ({
-        member_name: String(r.member_name || r.Member || ""),
-        amount: Number(r.amount || r.Amount || 0),
-        payment_method: String(r.payment_method || r.Method || "cash"),
-        payment_date: String(r.payment_date || r.Date || format(new Date(), "yyyy-MM-dd")),
-        notes: String(r.notes || r.Notes || ""),
-      }))
+      const rows: ImportRow[] = json.map((r) => {
+        const rawAmount = Number(r.amount ?? r.Amount ?? 0)
+        return {
+          member_name: String(r.member_name || r.Member || ""),
+          amount: Number.isNaN(rawAmount) ? 0 : rawAmount,
+          payment_method: String(r.payment_method || r.Method || "cash"),
+          payment_date: String(r.payment_date || r.Date || format(new Date(), "yyyy-MM-dd")),
+          notes: String(r.notes || r.Notes || ""),
+        }
+      })
       setImportData(rows)
     }
     reader.readAsArrayBuffer(file)
@@ -239,38 +257,43 @@ export default function PaymentsPage() {
 
   const handleConfirmImport = useCallback(async () => {
     if (!orgId) return
+    let imported = 0
+    let errors = 0
     for (const row of importData) {
-      const { data: member } = await supabase
+      const memberResult = await supabase
         .from("members")
         .select("id")
         .eq("organization_id", orgId)
         .or(`first_name.ilike.%${row.member_name}%,last_name.ilike.%${row.member_name}%`)
         .maybeSingle()
-      if (member) {
-        await supabase.from("payments").insert({
-          organization_id: orgId,
-          member_id: member.id,
-          amount: row.amount,
-          payment_method: (["cash", "card", "transfer", "other"].includes(row.payment_method) ? row.payment_method : "cash") as Payment["payment_method"],
-          payment_date: row.payment_date,
-          status: "completed",
-          notes: row.notes || null,
-        })
-      }
+      if (!memberResult.data) { errors++; continue }
+      const { error: insertError } = await supabase.from("payments").insert({
+        organization_id: orgId,
+        member_id: memberResult.data.id,
+        amount: row.amount,
+        payment_method: (["cash", "card", "transfer", "other"].includes(row.payment_method) ? row.payment_method : "cash") as Payment["payment_method"],
+        payment_date: row.payment_date,
+        status: "completed",
+        notes: row.notes || null,
+      })
+      if (insertError) { errors++ } else { imported++ }
     }
     queryClient.invalidateQueries({ queryKey: ["payments"] })
+    queryClient.invalidateQueries({ queryKey: ["recent-payments"] })
+    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
     setImportData([])
     setImportDialogOpen(false)
-    toast({ title: t("payments.importSuccess") })
+    toast({ title: errors > 0 ? `${imported} importé(s), ${errors} erreur(s)` : t("payments.importSuccess") })
   }, [importData, orgId, supabase, queryClient, toast, t])
 
-  const handleExportExcel = useCallback(() => {
+  const handleExportExcel = useCallback(async () => {
     if (!payments) return
+    const XLSX = await import("xlsx")
     const data = payments.map((p) => ({
       Membre: `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`,
       Montant: p.amount,
       Date: formatDate(p.payment_date),
-      Méthode: methodLabels[p.payment_method] || p.payment_method,
+      Méthode: getMethodLabel(p.payment_method),
       Statut: p.status,
       Notes: p.notes || "",
     }))
@@ -335,7 +358,7 @@ export default function PaymentsPage() {
                                   <ScrollArea className="h-48">
                                     {filteredMembers?.map((m) => (
                                       <SelectItem key={m.id} value={m.id}>
-                                        {m.first_name} {m.last_name}
+                                        {toUpper(m.first_name)} {toUpper(m.last_name)}
                                       </SelectItem>
                                     ))}
                                     {filteredMembers?.length === 0 && (
@@ -356,15 +379,15 @@ export default function PaymentsPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Abonnement</FormLabel>
-                          <Select value={field.value || ""} onValueChange={field.onChange}>
+                          <Select value={field.value || "none"} onValueChange={field.onChange}>
                             <SelectTrigger>
                               <SelectValue placeholder="Aucun" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">Aucun</SelectItem>
+                              <SelectItem value="none">Aucun</SelectItem>
                               {subscriptions?.map((s) => (
                                 <SelectItem key={s.id} value={s.id}>
-                                  {s.name} - {s.price.toLocaleString()} DZD
+                                  {toUpper(s.name)} - {s.price.toLocaleString()} DZD
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -522,13 +545,13 @@ export default function PaymentsPage() {
                 filteredPayments?.map((payment) => (
                   <TableRow key={payment.id}>
                     <TableCell className="font-medium">
-                      {payment.members?.first_name} {payment.members?.last_name}
+                      {toUpper(payment.members?.first_name)} {toUpper(payment.members?.last_name)}
                     </TableCell>
                     <TableCell>{formatCurrency(payment.amount)}</TableCell>
                     <TableCell>{formatDate(payment.payment_date)}</TableCell>
                     <TableCell>
                       <Badge variant={payment.payment_method === "cash" ? "secondary" : payment.payment_method === "card" ? "default" : "outline"}>
-                        {methodLabels[payment.payment_method] || payment.payment_method}
+                        {getMethodLabel(payment.payment_method)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -536,7 +559,7 @@ export default function PaymentsPage() {
                         {payment.status === "completed" ? t("payments.completed") : payment.status === "pending" ? t("common.pending") : t("payments.cancelled")}
                       </Badge>
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate">{payment.notes || "-"}</TableCell>
+                    <TableCell className="max-w-[200px] truncate">{toUpper(payment.notes) || "-"}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => handleGenerateInvoice(payment)}>
                         <FileText className="h-4 w-4" />
@@ -645,10 +668,10 @@ export default function PaymentsPage() {
                   <TableBody>
                     {importData.map((row, i) => (
                       <TableRow key={i}>
-                        <TableCell>{row.member_name}</TableCell>
+                        <TableCell>{toUpper(row.member_name)}</TableCell>
                         <TableCell>{row.amount}</TableCell>
-                        <TableCell>{row.payment_method}</TableCell>
-                        <TableCell>{row.payment_date}</TableCell>
+                        <TableCell>{toUpper(row.payment_method)}</TableCell>
+                        <TableCell>{toUpper(row.payment_date)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

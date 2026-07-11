@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
 import { useNavigate, useLocation } from "react-router-dom"
-import { formatDate } from "@/lib/utils"
+import { formatDate, toUpper } from "@/lib/utils"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -60,7 +61,11 @@ export default function LeavesPage() {
   const t = useT()
   const navigate = useNavigate()
   const location = useLocation()
+  const { organization } = useAuth()
+  const orgId = organization?.id
   const [open, setOpen] = useState(false)
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
+  const [statusConfirmData, setStatusConfirmData] = useState<{ id: string; status: "approved" | "rejected" } | null>(null)
 
   const form = useForm<LeaveForm>({
     resolver: zodResolver(leaveSchema),
@@ -68,20 +73,30 @@ export default function LeavesPage() {
   })
 
   const { data: staffList } = useQuery({
-    queryKey: ["staff"],
+    queryKey: ["staff", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("staff").select("*").order("first_name")
+      if (!orgId) return []
+      const { data } = await supabase.from("staff").select("*").eq("organization_id", orgId).order("first_name")
       return data ?? []
     },
+    enabled: !!orgId,
   })
 
-  const { data: leaves, isLoading } = useQuery({
-    queryKey: ["staff_leaves"],
+  const { data: leaves, isLoading, isError: leavesError, error: leavesQueryError } = useQuery({
+    queryKey: ["staff_leaves", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("staff_leaves").select("*").order("created_at", { ascending: false })
+      if (!orgId) return []
+      const { data } = await supabase.from("staff_leaves").select("*").eq("organization_id", orgId).order("created_at", { ascending: false })
       return data ?? []
     },
+    enabled: !!orgId,
   })
+
+  useEffect(() => {
+    if (leavesError && leavesQueryError) {
+      toast({ title: t("errors.error") || "Error", description: leavesQueryError.message, variant: "destructive" })
+    }
+  }, [leavesError, leavesQueryError])
 
   const staffMap = new Map<string, Staff>()
   staffList?.forEach(s => staffMap.set(s.id, s))
@@ -90,7 +105,7 @@ export default function LeavesPage() {
     mutationFn: async (values: LeaveForm) => {
       const { error } = await supabase.from("staff_leaves").insert({
         staff_id: values.staffId,
-        organization_id: (await supabase.auth.getUser()).data.user?.id ?? "",
+        organization_id: orgId ?? "",
         type: values.type,
         start_date: values.startDate,
         end_date: values.endDate,
@@ -170,28 +185,28 @@ export default function LeavesPage() {
                   const staff = staffMap.get(leave.staff_id)
                   return (
                     <TableRow key={leave.id}>
-                      <TableCell className="font-medium">{staff ? `${staff.first_name} ${staff.last_name}` : "-"}</TableCell>
+                      <TableCell className="font-medium">{staff ? `${toUpper(staff.first_name)} ${toUpper(staff.last_name)}` : "-"}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="capitalize">{leave.type}</Badge>
+                        <Badge variant="outline" className="capitalize">{toUpper(leave.type)}</Badge>
                       </TableCell>
                       <TableCell>{formatDate(leave.start_date)}</TableCell>
                       <TableCell>{formatDate(leave.end_date)}</TableCell>
                       <TableCell>
-                        <Badge variant={STATUS_VARIANTS[leave.status]} className="capitalize">{leave.status}</Badge>
+                        <Badge variant={STATUS_VARIANTS[leave.status]} className="capitalize">{toUpper(leave.status)}</Badge>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate">{leave.reason || "-"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{toUpper(leave.reason) || "-"}</TableCell>
                       <TableCell>
                         {leave.status === "pending" ? (
                           <div className="flex gap-1">
-                            <Button size="sm" variant="default" onClick={() => statusMutation.mutate({ id: leave.id, status: "approved" })} disabled={statusMutation.isPending}>
+                            <Button size="sm" variant="default" onClick={() => { setStatusConfirmData({ id: leave.id, status: "approved" }); setStatusConfirmOpen(true) }} disabled={statusMutation.isPending}>
                               <Check className="h-3 w-3 mr-1" /> Approve
                             </Button>
-                            <Button size="sm" variant="destructive" onClick={() => statusMutation.mutate({ id: leave.id, status: "rejected" })} disabled={statusMutation.isPending}>
+                            <Button size="sm" variant="destructive" onClick={() => { setStatusConfirmData({ id: leave.id, status: "rejected" }); setStatusConfirmOpen(true) }} disabled={statusMutation.isPending}>
                               <X className="h-3 w-3 mr-1" /> Reject
                             </Button>
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground capitalize">{leave.status}</span>
+                          <span className="text-xs text-muted-foreground capitalize">{toUpper(leave.status)}</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -220,7 +235,7 @@ export default function LeavesPage() {
                     </FormControl>
                     <SelectContent>
                       {staffList?.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.first_name} {s.last_name}</SelectItem>
+                        <SelectItem key={s.id} value={s.id}>{toUpper(s.first_name)} {toUpper(s.last_name)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -275,6 +290,23 @@ export default function LeavesPage() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={statusConfirmOpen} onOpenChange={setStatusConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("common.confirm") || "Confirm"}</DialogTitle>
+            <DialogDescription>
+              {statusConfirmData?.status === "approved" ? (t("leaves.confirmApprove") || "Are you sure you want to approve this leave request?") : (t("leaves.confirmReject") || "Are you sure you want to reject this leave request?")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setStatusConfirmOpen(false); setStatusConfirmData(null) }}>{t("common.cancel")}</Button>
+            <Button variant={statusConfirmData?.status === "approved" ? "default" : "destructive"} onClick={() => { if (statusConfirmData) statusMutation.mutate(statusConfirmData); setStatusConfirmOpen(false); setStatusConfirmData(null) }}>
+              {statusConfirmData?.status === "approved" ? "Approve" : "Reject"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

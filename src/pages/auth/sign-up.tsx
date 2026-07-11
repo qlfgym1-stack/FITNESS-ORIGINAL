@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
-import { Dumbbell, Eye, EyeOff, Loader2, Shield, Zap, Users, BarChart3 } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dumbbell, Eye, EyeOff, Loader2, Shield, Zap, Users, BarChart3, Copy, CheckCircle2 } from 'lucide-react'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 
@@ -32,6 +33,9 @@ export default function SignUp() {
   const { toast } = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null)
+  const [showCode, setShowCode] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const form = useForm<SignUpForm>({
     resolver: zodResolver(signUpSchema),
@@ -40,13 +44,29 @@ export default function SignUp() {
 
   async function onSubmit(values: SignUpForm) {
     const slug = values.gymName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    const { error } = await signUp(values.email, values.password, { name: values.gymName, slug })
+    const { error, recoveryCode: code } = await signUp(values.email, values.password, { name: values.gymName, slug })
     if (error) {
       toast({ variant: 'destructive', title: 'Error', description: error.message })
       return
     }
-    toast({ title: 'Account created', description: 'Welcome to FitManager Pro!' })
+    if (code) {
+      setRecoveryCode(code)
+    } else {
+      toast({ title: 'Account created', description: 'Welcome to FitManager Pro!' })
+      navigate('/dashboard', { replace: true })
+    }
+  }
+
+  function onDismissRecoveryCode() {
     navigate('/dashboard', { replace: true })
+  }
+
+  function copyCode() {
+    if (recoveryCode) {
+      navigator.clipboard.writeText(recoveryCode)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   return (
@@ -269,6 +289,44 @@ export default function SignUp() {
           </Card>
         </motion.div>
       </div>
+
+      <Dialog open={!!recoveryCode} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="text-center space-y-4 pt-6">
+            <div className="flex justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
+                <CheckCircle2 className="h-8 w-8 text-success" />
+              </div>
+            </div>
+            <DialogTitle className="text-2xl font-bold">Account Created Successfully</DialogTitle>
+            <DialogDescription className="text-base">
+              Your recovery code is shown below. Save it in a safe place. You will need it to recover your account if you forget your password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-6 pb-6 space-y-5">
+            <div className="bg-muted rounded-lg p-4 text-center">
+              <code className={`text-lg font-mono tracking-widest ${showCode ? "text-foreground" : "text-muted"}`}>
+                {showCode ? recoveryCode : recoveryCode?.replace(/./g, "•")}
+              </code>
+            </div>
+            <div className="flex justify-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setShowCode(!showCode)}>
+                {showCode ? "Hide" : "Show"}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={copyCode}>
+                <Copy className="h-4 w-4 mr-1" />
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              This code will not be shown again. If you lose it, you will need to generate a new one.
+            </p>
+            <Button onClick={onDismissRecoveryCode} size="lg" className="w-full h-11 text-base font-semibold">
+              I&#39;ve saved my recovery code
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

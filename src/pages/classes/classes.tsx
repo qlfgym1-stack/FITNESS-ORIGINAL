@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -33,13 +33,12 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Plus, CalendarDays, List, Users, Clock, Loader2, Trash2, UserPlus, UserMinus,
+  Plus, CalendarDays, List, Users, Clock, Loader2, Trash2, UserPlus, UserMinus, Pencil,
 } from "lucide-react"
 import { format } from "date-fns"
-import { cn } from "@/lib/utils"
+import { cn, toUpper } from "@/lib/utils"
 import type { Class, Staff, Member } from "@/types/supabase"
 
-const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 const HOURS = Array.from({ length: 14 }, (_, i) => `${String(i + 7).padStart(2, "0")}:00`)
 
 const classSchema = z.object({
@@ -62,6 +61,15 @@ const colorOptions = [
 
 export default function ClassesPage() {
   const t = useT()
+  const DAYS = [
+    t("classes.dayMonday"),
+    t("classes.dayTuesday"),
+    t("classes.dayWednesday"),
+    t("classes.dayThursday"),
+    t("classes.dayFriday"),
+    t("classes.daySaturday"),
+    t("classes.daySunday"),
+  ]
   const supabase = useSupabase()
   const queryClient = useQueryClient()
   const { organization } = useAuth()
@@ -74,6 +82,7 @@ export default function ClassesPage() {
   const [selectedClass, setSelectedClass] = useState<Class | null>(null)
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState("")
+  const [editingClass, setEditingClass] = useState<Class | null>(null)
 
   const form = useForm<ClassFormValues>({
     resolver: zodResolver(classSchema),
@@ -90,7 +99,7 @@ export default function ClassesPage() {
     },
   })
 
-  const { data: classes, isLoading } = useQuery({
+  const { data: classes, isLoading, isError: classesError, error: classesQueryError } = useQuery({
     queryKey: ["classes", orgId],
     queryFn: async () => {
       if (!orgId) return []
@@ -103,6 +112,12 @@ export default function ClassesPage() {
     },
     enabled: !!orgId,
   })
+
+  useEffect(() => {
+    if (classesError && classesQueryError) {
+      toast({ title: t("classes.errorToast") || "Error", description: classesQueryError.message, variant: "destructive" })
+    }
+  }, [classesError, classesQueryError])
 
   const { data: coaches } = useQuery({
     queryKey: ["coaches-list", orgId],
@@ -140,9 +155,10 @@ export default function ClassesPage() {
       if (!orgId) return []
       const { data } = await supabase
         .from("class_enrollments")
-        .select("*, members(first_name, last_name)")
+        .select("*, members!inner(first_name, last_name), classes!inner(organization_id)")
+        .eq("classes.organization_id", orgId)
         .eq("status", "confirmed")
-      return data as ({ id: string; class_id: string; member_id: string; members: { first_name: string; last_name: string } })[]
+      return data as ({ id: string; class_id: string; member_id: string; members: { first_name: string; last_name: string }; classes: { organization_id: string } })[]
     },
     enabled: !!orgId,
   })
@@ -150,7 +166,7 @@ export default function ClassesPage() {
   const addMutation = useMutation({
     mutationFn: async (values: ClassFormValues) => {
       if (!orgId) throw new Error("No organization")
-      const { error } = await supabase.from("classes").insert({
+      const payload = {
         organization_id: orgId,
         name: values.name,
         description: values.description || null,
@@ -161,17 +177,51 @@ export default function ClassesPage() {
         color: values.color || null,
         recurring: values.recurring,
         day_of_week: values.recurring ? values.day_of_week ?? null : null,
-      })
-      if (error) throw error
+      }
+      if (editingClass) {
+        const { error } = await supabase.from("classes").update(payload).eq("id", editingClass.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from("classes").insert(payload)
+        if (error) throw error
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classes"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
       setAddDialogOpen(false)
+      setEditingClass(null)
       form.reset()
-      toast({ title: "Cours ajouté" })
+      toast({ title: editingClass ? t("classes.classUpdated") || "Class updated" : t("classes.classAdded") })
     },
     onError: (err) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" })
+      toast({ title: t("classes.errorToast"), description: err.message, variant: "destructive" })
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, ...values }: any) => {
+      if (!orgId) throw new Error('No organization')
+      const { error } = await supabase.from('classes').update({
+        name: values.name,
+        description: values.description || null,
+        coach_id: values.coach_id || null,
+        start_time: values.start_time,
+        end_time: values.end_time,
+        max_capacity: values.max_capacity ? Number(values.max_capacity) : null,
+        color: values.color || '#6366f1',
+        recurring: values.recurring || false,
+        day_of_week: values.recurring ? (values.day_of_week !== undefined ? Number(values.day_of_week) : null) : null,
+      }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classes'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      toast({ title: t('classes.classUpdated') })
+    },
+    onError: (err) => {
+      toast({ title: t('classes.errorToast'), description: err.message, variant: 'destructive' })
     },
   })
 
@@ -182,8 +232,12 @@ export default function ClassesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classes"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
       setDetailDialogOpen(false)
-      toast({ title: "Cours supprimé" })
+      toast({ title: t("classes.classDeleted") })
+    },
+    onError: (err) => {
+      toast({ title: t("classes.errorToast"), description: err.message, variant: "destructive" })
     },
   })
 
@@ -200,10 +254,10 @@ export default function ClassesPage() {
       queryClient.invalidateQueries({ queryKey: ["class-enrollments"] })
       setEnrollDialogOpen(false)
       setSelectedMemberId("")
-      toast({ title: "Membre inscrit" })
+      toast({ title: t("classes.memberEnrolled") })
     },
     onError: (err) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" })
+      toast({ title: t("classes.errorToast"), description: err.message, variant: "destructive" })
     },
   })
 
@@ -214,7 +268,10 @@ export default function ClassesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["class-enrollments"] })
-      toast({ title: "Membre désinscrit" })
+      toast({ title: t("classes.memberUnenrolled") })
+    },
+    onError: (err) => {
+      toast({ title: t("classes.errorToast"), description: err.message, variant: "destructive" })
     },
   })
 
@@ -238,7 +295,7 @@ export default function ClassesPage() {
         title={t("classes.title")}
         description={t("classes.description")}
         actions={
-          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+          <Dialog open={addDialogOpen} onOpenChange={(v) => { setAddDialogOpen(v); if (!v) { setEditingClass(null); form.reset() } }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -247,8 +304,8 @@ export default function ClassesPage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>{t("classes.add")}</DialogTitle>
-                <DialogDescription>Ajouter un nouveau cours</DialogDescription>
+                <DialogTitle>{editingClass ? (t("classes.edit") || "Edit Class") : t("classes.add")}</DialogTitle>
+                <DialogDescription>{t("classes.dialogDescription")}</DialogDescription>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit((v) => addMutation.mutate(v))} className="space-y-4">
@@ -270,7 +327,7 @@ export default function ClassesPage() {
                     name="description"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Description</FormLabel>
+                        <FormLabel>{t("classes.descriptionLabel")}</FormLabel>
                         <FormControl>
                           <Textarea {...field} />
                         </FormControl>
@@ -286,13 +343,13 @@ export default function ClassesPage() {
                         <FormLabel>{t("classes.coach")}</FormLabel>
                         <Select value={field.value || ""} onValueChange={field.onChange}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un coach" />
+                            <SelectValue placeholder={t("classes.selectCoach")} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Aucun</SelectItem>
+                            <SelectItem value="">{t("classes.noCoach")}</SelectItem>
                             {coaches?.map((c) => (
                               <SelectItem key={c.id} value={c.id}>
-                                {c.first_name} {c.last_name}
+                                {toUpper(c.first_name)} {toUpper(c.last_name)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -423,11 +480,11 @@ export default function ClassesPage() {
         <TabsList>
           <TabsTrigger value="calendar">
             <CalendarDays className="mr-2 h-4 w-4" />
-            Planning
+            {t("classes.planningTab")}
           </TabsTrigger>
           <TabsTrigger value="list">
             <List className="mr-2 h-4 w-4" />
-            Liste
+            {t("classes.listTab")}
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -467,9 +524,9 @@ export default function ClassesPage() {
                               style={{ backgroundColor: cls.color || "#3b82f6" }}
                               onClick={() => handleViewDetails(cls)}
                             >
-                              <div className="truncate">{cls.name}</div>
+                              <div className="truncate">{toUpper(cls.name)}</div>
                               <div className="opacity-80">
-                                {cls.start_time}-{cls.end_time}
+                                {toUpper(cls.start_time)}-{toUpper(cls.end_time)}
                               </div>
                             </button>
                           ))}
@@ -508,7 +565,7 @@ export default function ClassesPage() {
                 ) : classes?.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      Aucun cours
+                      {t("classes.noClasses")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -517,14 +574,14 @@ export default function ClassesPage() {
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cls.color || "#3b82f6" }} />
-                          {cls.name}
+                          {toUpper(cls.name)}
                         </div>
                       </TableCell>
                       <TableCell>
-                        {cls.staff ? `${cls.staff.first_name} ${cls.staff.last_name}` : "-"}
+                        {cls.staff ? toUpper(`${cls.staff.first_name} ${cls.staff.last_name}`) : "-"}
                       </TableCell>
-                      <TableCell>{cls.start_time}</TableCell>
-                      <TableCell>{cls.end_time}</TableCell>
+                      <TableCell>{toUpper(cls.start_time)}</TableCell>
+                      <TableCell>{toUpper(cls.end_time)}</TableCell>
                       <TableCell>{cls.max_capacity || "-"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary">
@@ -535,13 +592,13 @@ export default function ClassesPage() {
                         {cls.recurring ? (
                           <Badge>{DAYS[cls.day_of_week ?? 0]}</Badge>
                         ) : (
-                          <Badge variant="outline">Non</Badge>
+                          <Badge variant="outline">{t("common.no")}</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewDetails(cls) }}>
                           <Users className="h-4 w-4 mr-1" />
-                          Détails
+                          {t("classes.details")}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -556,35 +613,35 @@ export default function ClassesPage() {
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>{selectedClass?.name}</DialogTitle>
-            <DialogDescription>Détails du cours et membres inscrits</DialogDescription>
+            <DialogTitle>{toUpper(selectedClass?.name)}</DialogTitle>
+            <DialogDescription>{t("classes.detailDialogDescription")}</DialogDescription>
           </DialogHeader>
           {selectedClass && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-muted-foreground">Description</p>
-                  <p>{selectedClass.description || "Aucune description"}</p>
+                  <p className="text-muted-foreground">{t("classes.descriptionLabel")}</p>
+                  <p>{toUpper(selectedClass.description) || t("classes.noDescription")}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">{t("classes.coach")}</p>
                   <p>
                     {classes?.find((c) => c.id === selectedClass.id)?.staff
-                      ? `${classes.find((c) => c.id === selectedClass.id)!.staff!.first_name} ${classes.find((c) => c.id === selectedClass.id)!.staff!.last_name}`
-                      : "Non assigné"}
+                      ? toUpper(`${classes.find((c) => c.id === selectedClass.id)!.staff!.first_name} ${classes.find((c) => c.id === selectedClass.id)!.staff!.last_name}`)
+                      : t("classes.noCoachAssigned")}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Horaire</p>
-                  <p>{selectedClass.start_time} - {selectedClass.end_time}</p>
+                  <p className="text-muted-foreground">{t("classes.scheduleLabel")}</p>
+                  <p>{toUpper(selectedClass.start_time)} - {toUpper(selectedClass.end_time)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">{t("classes.recurring")}</p>
-                  <p>{selectedClass.recurring ? DAYS[selectedClass.day_of_week ?? 0] : "Non récurrent"}</p>
+                  <p>{selectedClass.recurring ? DAYS[selectedClass.day_of_week ?? 0] : t("classes.nonRecurring")}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">{t("classes.maxCapacity")}</p>
-                  <p>{selectedClass.max_capacity || "Illimité"}</p>
+                  <p>{selectedClass.max_capacity || t("classes.unlimited")}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">{t("classes.enrolled")}</p>
@@ -594,21 +651,21 @@ export default function ClassesPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-medium">Membres inscrits</h4>
+                  <h4 className="text-sm font-medium">{t("classes.enrolledMembers")}</h4>
                   <Button size="sm" variant="outline" onClick={() => setEnrollDialogOpen(true)}>
                     <UserPlus className="h-4 w-4 mr-1" />
-                    Inscrire
+                    {t("classes.enroll")}
                   </Button>
                 </div>
                 <ScrollArea className="h-48">
                   {classEnrollments(selectedClass.id).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Aucun membre inscrit</p>
+                    <p className="text-sm text-muted-foreground">{t("classes.noEnrolledMembers")}</p>
                   ) : (
                     <div className="space-y-1">
                       {classEnrollments(selectedClass.id).map((enr) => (
                         <div key={enr.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                           <span className="text-sm">
-                            {enr.members?.first_name} {enr.members?.last_name}
+                            {toUpper(enr.members?.first_name)} {toUpper(enr.members?.last_name)}
                           </span>
                           <Button
                             variant="ghost"
@@ -626,6 +683,27 @@ export default function ClassesPage() {
               </div>
 
               <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => {
+                  if (selectedClass) {
+                    setEditingClass(selectedClass)
+                    form.reset({
+                      name: selectedClass.name,
+                      description: selectedClass.description ?? "",
+                      coach_id: selectedClass.coach_id ?? "",
+                      start_time: selectedClass.start_time,
+                      end_time: selectedClass.end_time,
+                      max_capacity: selectedClass.max_capacity ?? 20,
+                      color: selectedClass.color ?? "#3b82f6",
+                      recurring: selectedClass.recurring,
+                      day_of_week: selectedClass.day_of_week ?? 0,
+                    })
+                    setDetailDialogOpen(false)
+                    setAddDialogOpen(true)
+                  }
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t("common.edit") || "Edit"}
+                </Button>
                 <Button variant="destructive" onClick={() => deleteMutation.mutate(selectedClass.id)}>
                   <Trash2 className="mr-2 h-4 w-4" />
                   {t("common.delete")}
@@ -642,13 +720,13 @@ export default function ClassesPage() {
       <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Inscrire un membre</DialogTitle>
-            <DialogDescription>Ajouter un membre à {selectedClass?.name}</DialogDescription>
+            <DialogTitle>{t("classes.enrollTitle")}</DialogTitle>
+            <DialogDescription>{t("classes.enrollDescription")} {toUpper(selectedClass?.name)}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
               <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un membre" />
+                <SelectValue placeholder={t("classes.selectMember")} />
               </SelectTrigger>
               <SelectContent>
                 <ScrollArea className="h-48">
@@ -656,7 +734,7 @@ export default function ClassesPage() {
                     ?.filter((m) => !enrolledMemberIds(selectedClass?.id ?? "").includes(m.id))
                     .map((m) => (
                       <SelectItem key={m.id} value={m.id}>
-                        {m.first_name} {m.last_name}
+                        {toUpper(m.first_name)} {toUpper(m.last_name)}
                       </SelectItem>
                     ))}
                 </ScrollArea>

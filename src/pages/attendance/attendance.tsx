@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useT } from "@/i18n"
@@ -16,14 +16,17 @@ import {
 import {
   Tabs, TabsList, TabsTrigger, TabsContent,
 } from "@/components/ui/tabs"
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
 import { useToast } from "@/components/ui/toast"
 import {
   Search, LogIn, LogOut, Download, Clock, UserCheck, UserX, AlertTriangle, Loader2,
 } from "lucide-react"
-import { formatDate, formatDateTime, cn } from "@/lib/utils"
+import { formatDate, formatDateTime, cn, toUpper } from "@/lib/utils"
 import type { Member, Attendance } from "@/types/supabase"
 import { format, startOfDay, endOfDay, differenceInMinutes } from "date-fns"
-import * as XLSX from "xlsx"
+
 
 interface MemberWithAttendance extends Pick<Member, "id" | "first_name" | "last_name" | "photo_url"> {
   attendance: Attendance | null
@@ -40,11 +43,12 @@ export default function AttendancePage() {
   const [search, setSearch] = useState("")
   const [historyDateFrom, setHistoryDateFrom] = useState(format(new Date(), "yyyy-MM-dd"))
   const [historyDateTo, setHistoryDateTo] = useState(format(new Date(), "yyyy-MM-dd"))
+  const [sourceFilter, setSourceFilter] = useState<"all" | "rfid" | "manual" | "app">("all")
 
   const todayStart = startOfDay(new Date()).toISOString()
   const todayEnd = endOfDay(new Date()).toISOString()
 
-  const { data: activeMembers } = useQuery({
+  const { data: activeMembers, isError: activeMembersError, error: activeMembersQueryError } = useQuery({
     queryKey: ["active-members", orgId],
     queryFn: async () => {
       if (!orgId) return []
@@ -59,7 +63,13 @@ export default function AttendancePage() {
     enabled: !!orgId,
   })
 
-  const { data: todayAttendance } = useQuery({
+  useEffect(() => {
+    if (activeMembersError && activeMembersQueryError) {
+      toast({ title: t("common.error") || "Error", description: activeMembersQueryError.message, variant: "destructive" })
+    }
+  }, [activeMembersError, activeMembersQueryError])
+
+  const { data: todayAttendance, isError: todayError, error: todayQueryError } = useQuery({
     queryKey: ["attendance-today", orgId],
     queryFn: async () => {
       if (!orgId) return []
@@ -74,6 +84,12 @@ export default function AttendancePage() {
     },
     enabled: !!orgId,
   })
+
+  useEffect(() => {
+    if (todayError && todayQueryError) {
+      toast({ title: t("common.error") || "Error", description: todayQueryError.message, variant: "destructive" })
+    }
+  }, [todayError, todayQueryError])
 
   const { data: history } = useQuery({
     queryKey: ["attendance-history", orgId, historyDateFrom, historyDateTo],
@@ -101,15 +117,17 @@ export default function AttendancePage() {
         member_id: memberId,
         check_in: new Date().toISOString(),
         type: "check-in",
+        source: "app",
       })
       if (error) throw error
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["attendance-today"] })
-      toast({ title: "Check-in enregistré" })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
+      toast({ title: t("attendance.toastCheckIn") })
     },
     onError: (err) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" })
+      toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
 
@@ -123,20 +141,24 @@ export default function AttendancePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["attendance-today"] })
-      toast({ title: "Check-out enregistré" })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
+      toast({ title: t("attendance.toastCheckOut") })
     },
     onError: (err) => {
-      toast({ title: "Erreur", description: err.message, variant: "destructive" })
+      toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
 
   const membersWithAttendance: MemberWithAttendance[] = useMemo(() => {
     if (!activeMembers || !todayAttendance) return []
+    const filteredAttendance = sourceFilter === "all"
+      ? todayAttendance
+      : todayAttendance.filter((a) => a.source === sourceFilter)
     return activeMembers.map((m) => {
-      const att = todayAttendance.find((a) => a.member_id === m.id)
+      const att = filteredAttendance.find((a) => a.member_id === m.id)
       return { ...m, attendance: att ?? null }
     })
-  }, [activeMembers, todayAttendance])
+  }, [activeMembers, todayAttendance, sourceFilter])
 
   const checkedInCount = membersWithAttendance.filter((m) => m.attendance && !m.attendance.check_out).length
   const totalToday = todayAttendance?.length ?? 0
@@ -146,21 +168,23 @@ export default function AttendancePage() {
     return name.includes(search.toLowerCase())
   })
 
-  const handleExportHistory = () => {
+  const handleExportHistory = async () => {
     if (!history) return
+    const XLSX = await import("xlsx")
     const data = history.map((h) => ({
-      Membre: `${h.members?.first_name ?? ""} ${h.members?.last_name ?? ""}`,
-      "Check-in": h.check_in ? format(new Date(h.check_in), "HH:mm") : "-",
-      "Check-out": h.check_out ? format(new Date(h.check_out), "HH:mm") : "-",
-      Durée: h.check_in && h.check_out
-        ? `${differenceInMinutes(new Date(h.check_out), new Date(h.check_in))} min`
+      [t("attendance.member")]: `${h.members?.first_name ?? ""} ${h.members?.last_name ?? ""}`,
+      [t("attendance.checkIn")]: h.check_in ? format(new Date(h.check_in), "HH:mm") : "-",
+      [t("attendance.checkOut")]: h.check_out ? format(new Date(h.check_out), "HH:mm") : "-",
+      [t("attendance.duration")]: h.check_in && h.check_out
+        ? `${differenceInMinutes(new Date(h.check_out), new Date(h.check_in))} ${t("attendance.min")}`
         : "-",
-      Statut: h.check_out ? "Terminé" : "En cours",
+      [t("attendance.source") || "Source"]: h.source,
+      [t("common.status")]: h.check_out ? t("attendance.completed") : t("attendance.inProgress"),
     }))
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Présence")
-    XLSX.writeFile(wb, `presence-${historyDateFrom}-${historyDateTo}.xlsx`)
+    XLSX.utils.book_append_sheet(wb, ws, t("attendance.title"))
+    XLSX.writeFile(wb, `${t("attendance.exportFileName")}-${historyDateFrom}-${historyDateTo}.xlsx`)
   }
 
   const presentToday = membersWithAttendance.filter((m) => m.attendance).length
@@ -181,32 +205,32 @@ export default function AttendancePage() {
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Présents aujourd'hui</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("attendance.presentToday")}</CardTitle>
             <UserCheck className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{presentToday}</div>
-            <p className="text-xs text-muted-foreground">{checkedInCount} actuellement dans la salle</p>
+            <p className="text-xs text-muted-foreground">{checkedInCount} {t("attendance.currentlyInRoom")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">En retard</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("attendance.late")}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{lateToday}</div>
-            <p className="text-xs text-muted-foreground">Check-in après 10h</p>
+            <p className="text-xs text-muted-foreground">{t("attendance.lateDescription")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Absents</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("attendance.absentMembers")}</CardTitle>
             <UserX className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{absentToday}</div>
-            <p className="text-xs text-muted-foreground">Membres actifs sans check-in</p>
+            <p className="text-xs text-muted-foreground">{t("attendance.absentNoCheckIn")}</p>
           </CardContent>
         </Card>
       </div>
@@ -220,14 +244,27 @@ export default function AttendancePage() {
         <TabsContent value="today" className="mt-4">
           <Card>
             <CardContent className="pt-6">
-              <div className="relative mb-4 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={t("common.search")}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                />
+              <div className="flex items-center gap-2 mb-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={t("common.search")}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Select value={sourceFilter} onValueChange={(v: "all" | "rfid" | "manual" | "app") => setSourceFilter(v)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("attendance.all") || "Toutes"}</SelectItem>
+                    <SelectItem value="rfid">RFID</SelectItem>
+                    <SelectItem value="manual">{t("attendance.manual") || "Manuel"}</SelectItem>
+                    <SelectItem value="app">{t("attendance.app") || "App"}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-3">
                 {filteredMembers.length === 0 ? (
@@ -250,13 +287,13 @@ export default function AttendancePage() {
                             "w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium",
                             isActive ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
                           )}>
-                            {member.first_name.charAt(0)}{member.last_name.charAt(0)}
+                            {toUpper(member.first_name.charAt(0))}{toUpper(member.last_name.charAt(0))}
                           </div>
                           <div>
-                            <p className="font-medium">{member.first_name} {member.last_name}</p>
+                            <p className="font-medium">{toUpper(member.first_name)} {toUpper(member.last_name)}</p>
                             {member.attendance?.check_in && (
                               <p className="text-xs text-muted-foreground">
-                                Check-in: {format(new Date(member.attendance.check_in), "HH:mm")}
+                                {t("attendance.checkInLabel")}{format(new Date(member.attendance.check_in), "HH:mm")}
                               </p>
                             )}
                           </div>
@@ -283,7 +320,7 @@ export default function AttendancePage() {
                               {t("attendance.checkIn")}
                             </Button>
                           ) : (
-                            <Badge variant="secondary">Check-out effectué</Badge>
+                            <Badge variant="secondary">{t("attendance.checkOutDone")}</Badge>
                           )}
                         </div>
                       </div>
@@ -300,7 +337,7 @@ export default function AttendancePage() {
             <CardContent className="pt-6">
               <div className="flex flex-wrap items-end gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Du</label>
+                  <label className="text-sm font-medium mb-1 block">{t("attendance.from")}</label>
                   <Input
                     type="date"
                     value={historyDateFrom}
@@ -308,7 +345,7 @@ export default function AttendancePage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Au</label>
+                  <label className="text-sm font-medium mb-1 block">{t("attendance.to")}</label>
                   <Input
                     type="date"
                     value={historyDateTo}
@@ -328,16 +365,17 @@ export default function AttendancePage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t("attendance.member")}</TableHead>
-                    <TableHead>Check-in</TableHead>
-                    <TableHead>Check-out</TableHead>
-                    <TableHead>Durée</TableHead>
+                    <TableHead>{t("attendance.checkIn")}</TableHead>
+                    <TableHead>{t("attendance.checkOut")}</TableHead>
+                    <TableHead>{t("attendance.duration")}</TableHead>
+                    <TableHead>{t("attendance.source") || "Source"}</TableHead>
                     <TableHead>{t("common.status")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {history?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         {t("common.noData")}
                       </TableCell>
                     </TableRow>
@@ -346,10 +384,11 @@ export default function AttendancePage() {
                       const checkIn = entry.check_in ? new Date(entry.check_in) : null
                       const checkOut = entry.check_out ? new Date(entry.check_out) : null
                       const duration = checkIn && checkOut ? differenceInMinutes(checkOut, checkIn) : null
+                      const sourceVariant = entry.source === "rfid" ? "default" : entry.source === "manual" ? "secondary" : "outline"
                       return (
                         <TableRow key={entry.id}>
                           <TableCell className="font-medium">
-                            {entry.members?.first_name} {entry.members?.last_name}
+                            {toUpper(entry.members?.first_name)} {toUpper(entry.members?.last_name)}
                           </TableCell>
                           <TableCell>
                             {checkIn ? format(checkIn, "HH:mm") : "-"}
@@ -358,13 +397,24 @@ export default function AttendancePage() {
                             {checkOut ? format(checkOut, "HH:mm") : "-"}
                           </TableCell>
                           <TableCell>
-                            {duration !== null ? `${duration} min` : "-"}
+                            {duration !== null ? `${duration} ${t("attendance.min")}` : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={sourceVariant} className={
+                              entry.source === "rfid" ? "bg-blue-500/10 text-blue-500 border-blue-500/30" :
+                              entry.source === "manual" ? "bg-orange-500/10 text-orange-500 border-orange-500/30" :
+                              "bg-green-500/10 text-green-500 border-green-500/30"
+                            }>
+                              {entry.source === "rfid" ? "RFID" :
+                               entry.source === "manual" ? (t("attendance.manual") || "Manuel") :
+                               (t("attendance.app") || "App")}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             {checkOut ? (
                               <Badge variant="default">{t("attendance.present")}</Badge>
                             ) : checkIn ? (
-                              <Badge variant="secondary">En cours</Badge>
+                              <Badge variant="secondary">{t("attendance.inProgress")}</Badge>
                             ) : (
                               <Badge variant="destructive">{t("attendance.absent")}</Badge>
                             )}
