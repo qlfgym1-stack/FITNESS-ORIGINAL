@@ -48,7 +48,6 @@ const ar = {
     reservations: "الحجوزات",
     accessControl: "التحكم في الدخول",
     badges: "الشارات",
-    checkInKiosk: "محطة تسجيل الدخول",
     memberPortal: "بوابة الأعضاء",
     coachMode: "وضع المدرب",
     display: "العرض",
@@ -60,6 +59,7 @@ const ar = {
     licenses: "التراخيص",
     corporate: "الشركات",
     reports: "التقارير",
+    pointage: "الحضور والانصراف",
     groups: {
       main: "الرئيسية",
       planning: "التخطيط",
@@ -88,6 +88,10 @@ const ar = {
     hasAccount: "لديك حساب بالفعل؟",
     welcome: "مرحباً",
     welcomeDescription: "سجل الدخول للوصول إلى مساحتك",
+    recoveryCode: "رمز الاسترداد",
+    recoveryCodePlaceholder: "استخدم هذا الرمز إذا نسيت كلمة المرور",
+    recoveryCodeUpdated: "تم تحديث رمز الاسترداد",
+    recoveryCodeUpdatedDesc: "تم إلغاء رمزك القديم. الرمز الجديد: {code} — احفظه!",
   },
   dashboard: {
     title: "لوحة التحكم",
@@ -194,6 +198,8 @@ const ar = {
     saveChanges: "حفظ التغييرات",
     showing: "عرض {from}-{to} من {total}",
     photoUploaded: "تم رفع الصورة",
+    collectSubscription: "تحصيل الاشتراك",
+    pendingPayment: "في انتظار الدفع",
   },
   subscriptions: {
     title: "الاشتراكات",

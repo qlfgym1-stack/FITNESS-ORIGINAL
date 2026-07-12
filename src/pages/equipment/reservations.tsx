@@ -27,8 +27,11 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/toast"
-import { Loader2, Plus, Check, X } from "lucide-react"
+import { Loader2, Plus, Check, X, Download } from "lucide-react"
 import type { EquipmentReservation, Equipment } from "@/types/supabase"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
 
 const TABS = [
   { value: "list", label: "Equipment", path: "/equipment" },
@@ -179,6 +182,30 @@ export default function ReservationsPage() {
     createMutation.mutate(values)
   }
 
+  const { page, setPage, totalPages, paginatedData: paginatedReservations } = usePagination(reservations, 20)
+
+  const { exportCsv } = useExportCsv(
+    (reservations ?? []).map(res => {
+      const equipment = equipmentMap.get(res.equipment_id)
+      const member = memberMap.get(res.member_id)
+      return {
+        equipment: equipment?.name ?? '-',
+        member: member ? `${member.first_name} ${member.last_name}` : '-',
+        start_time: res.start_time,
+        end_time: res.end_time,
+        status: res.status,
+      }
+    }),
+    'reservations',
+    [
+      { key: 'equipment', label: t('reservations.equipment') || 'Equipment' },
+      { key: 'member', label: t('reservations.member') || 'Member' },
+      { key: 'start_time', label: t('reservations.startTime') || 'Start Time' },
+      { key: 'end_time', label: t('reservations.endTime') || 'End Time' },
+      { key: 'status', label: t('reservations.status') || 'Status' },
+    ]
+  )
+
   const currentTab = TABS.find(t => t.path === location.pathname)?.value ?? "reservations"
 
   return (
@@ -187,9 +214,15 @@ export default function ReservationsPage() {
         title={t("reservations.title") || "Equipment Reservations"}
         description={t("reservations.description") || "Manage equipment reservations"}
         actions={
-          <Button onClick={() => { form.reset(); setOpen(true) }}>
-            <Plus className="mr-2 h-4 w-4" /> {t("reservations.new") || "New Reservation"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
+            <Button onClick={() => { form.reset(); setOpen(true) }}>
+              <Plus className="mr-2 h-4 w-4" /> {t("reservations.new") || "New Reservation"}
+            </Button>
+          </div>
         }
       />
 
@@ -203,6 +236,7 @@ export default function ReservationsPage() {
 
       <Card>
         <CardContent className="p-0">
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -217,10 +251,10 @@ export default function ReservationsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={6} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-              ) : reservations?.length === 0 ? (
+              ) : paginatedReservations?.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t("reservations.noData") || "No reservations found"}</TableCell></TableRow>
               ) : (
-                reservations?.map(res => {
+                paginatedReservations?.map(res => {
                   const equipment = equipmentMap.get(res.equipment_id)
                   const member = memberMap.get(res.member_id)
                   return (
@@ -252,8 +286,42 @@ export default function ReservationsPage() {
               )}
             </TableBody>
           </Table>
+          </div>
+          <div className="md:hidden space-y-3 p-4">
+            {isLoading ? (
+              <div className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>
+            ) : paginatedReservations?.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">{t("common.noResults")}</p>
+            ) : (
+              paginatedReservations?.map(res => {
+                const equipment = equipmentMap.get(res.equipment_id)
+                const member = memberMap.get(res.member_id)
+                return (
+                  <Card key={res.id} className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-medium">{toUpper(equipment?.name) || "-"}</span>
+                      <Badge variant={STATUS_VARIANTS[res.status]} className="ml-auto capitalize">{toUpper(res.status)}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{member ? `${toUpper(member.first_name)} ${toUpper(member.last_name)}` : "-"}</p>
+                    <p className="text-sm text-muted-foreground">{formatDateTime(res.start_time)} → {formatDateTime(res.end_time)}</p>
+                    {res.status === "confirmed" && (
+                      <div className="flex gap-1 mt-2 justify-end">
+                        <Button size="sm" variant="default" onClick={() => statusMutation.mutate({ id: res.id, status: "completed", equipmentId: res.equipment_id })} disabled={statusMutation.isPending}>
+                          <Check className="h-3 w-3 mr-1" /> Complete
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => statusMutation.mutate({ id: res.id, status: "cancelled", equipmentId: res.equipment_id })} disabled={statusMutation.isPending}>
+                          <X className="h-3 w-3 mr-1" /> Cancel
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+                )
+              })
+            )}
+          </div>
         </CardContent>
       </Card>
+      <Pagination page={page} totalPages={totalPages} totalItems={reservations?.length ?? 0} pageSize={20} onPageChange={setPage} />
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) form.reset() }}>
         <DialogContent>

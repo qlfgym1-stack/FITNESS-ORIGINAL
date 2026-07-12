@@ -23,8 +23,12 @@ import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { formatDate, cn } from "@/lib/utils"
 import {
-  Award, Plus, Search, Edit, Trash2, UserCheck,
+  Award, Plus, Search, Edit, Trash2, UserCheck, Download,
 } from "lucide-react"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
+import { Card } from "@/components/ui/card"
 
 interface BadgeType {
   id: string
@@ -99,6 +103,20 @@ export default function BadgesPage() {
     b.name.toLowerCase().includes(search.toLowerCase())
   )
 
+  const { page, setPage, totalPages, paginatedData: paginatedBadges } = usePagination(filtered, 20)
+
+  const { exportCsv } = useExportCsv(
+    filtered.map(b => ({ name: b.name, description: b.description, color: b.color, icon: b.icon, active: b.is_active ? 'Yes' : 'No' })),
+    'badges',
+    [
+      { key: 'name', label: t('badges.name') },
+      { key: 'description', label: t('badges.description') },
+      { key: 'color', label: t('badges.color') },
+      { key: 'icon', label: t('badges.icon') },
+      { key: 'active', label: t('badges.active') },
+    ]
+  )
+
   function openCreate() {
     setEditing(null)
     badgeForm.reset({ name: "", description: "", color: "#FFD700", icon: "star", is_active: true })
@@ -151,6 +169,10 @@ export default function BadgesPage() {
         description={t("badges.description")}
         actions={
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
             <Button variant="outline" onClick={() => { assignForm.reset(); setAssignOpen(true) }}>
               <UserCheck className="mr-2 h-4 w-4" /> {t("badges.assign")}
             </Button>
@@ -169,62 +191,96 @@ export default function BadgesPage() {
       </div>
 
       {tab === "types" && (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("badges.name")}</TableHead>
-                <TableHead>{t("badges.description")}</TableHead>
-                <TableHead>{t("badges.color")}</TableHead>
-                <TableHead>{t("badges.icon")}</TableHead>
-                <TableHead>{t("badges.active")}</TableHead>
-                <TableHead className="text-right">{t("common.actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((b) => (
-                <TableRow key={b.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <Award className="h-4 w-4" style={{ color: b.color }} />
-                      {b.name}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{b.description}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="h-5 w-5 rounded-full border" style={{ backgroundColor: b.color }} />
-                      <span className="text-xs font-mono">{b.color}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell><Badge variant="secondary">{b.icon}</Badge></TableCell>
-                  <TableCell>
-                    <Badge variant={b.is_active ? "default" : "secondary"}>
+        <>
+          <div className="hidden md:block rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("badges.name")}</TableHead>
+                  <TableHead>{t("badges.description")}</TableHead>
+                  <TableHead>{t("badges.color")}</TableHead>
+                  <TableHead>{t("badges.icon")}</TableHead>
+                  <TableHead>{t("badges.active")}</TableHead>
+                  <TableHead className="text-right">{t("common.actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedBadges.map((b) => (
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <Award className="h-4 w-4" style={{ color: b.color }} />
+                        {b.name}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{b.description}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="h-5 w-5 rounded-full border" style={{ backgroundColor: b.color }} />
+                        <span className="text-xs font-mono">{b.color}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell><Badge variant="secondary">{b.icon}</Badge></TableCell>
+                    <TableCell>
+                      <Badge variant={b.is_active ? "default" : "secondary"}>
+                        {b.is_active ? t("common.yes") : t("common.no")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(b)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => remove(b.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {paginatedBadges.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      {t("common.noResults")}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="md:hidden space-y-3 p-4">
+            {paginatedBadges.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">{t("common.noResults")}</p>
+            ) : (
+              paginatedBadges.map(b => (
+                <Card key={b.id} className="p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award className="h-4 w-4" style={{ color: b.color }} />
+                    <span className="font-medium">{b.name}</span>
+                    <Badge variant={b.is_active ? "default" : "secondary"} className="ml-auto">
                       {b.is_active ? t("common.yes") : t("common.no")}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(b)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => remove(b.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    {t("common.noResults")}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">{b.description}</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-4 w-4 rounded-full border" style={{ backgroundColor: b.color }} />
+                    <span className="text-xs font-mono">{b.color}</span>
+                    <Badge variant="secondary" className="ml-2">{b.icon}</Badge>
+                  </div>
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(b)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => remove(b.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+          <Pagination page={page} totalPages={totalPages} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
+        </>
       )}
 
       <div className="mt-6">

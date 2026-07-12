@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
-import { formatCurrency, toUpper, getInitials } from "@/lib/utils"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { formatCurrency, toUpper, getInitials, displayPhone, formatPhone } from "@/lib/utils"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,10 +24,12 @@ import {
   Sheet, SheetTrigger, SheetContent,
 } from "@/components/ui/sheet"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { Pagination } from "@/components/ui/pagination"
 import { useToast } from "@/components/ui/toast"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X } from "lucide-react"
+import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, ArrowUpDown } from "lucide-react"
 import type { Product, Member } from "@/types/supabase"
+import { IS_MOCK } from "@/lib/config"
 
 interface CartItem {
   product: Product
@@ -62,10 +66,12 @@ export default function POSPage() {
   const [qrInput, setQrInput] = useState("")
   const [panelProductSearch, setPanelProductSearch] = useState("")
   const [mobileCartOpen, setMobileCartOpen] = useState(false)
+  const [sortBy, setSortBy] = useState<string>("name")
 
   const { data: products, isLoading, isError: productsError, error: productsQueryError } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
+      if (IS_MOCK) return []
       const { data } = await supabase.from("products").select("*").eq("is_active", true).order("name")
       return data ?? []
     },
@@ -104,7 +110,8 @@ export default function POSPage() {
   const { data: members } = useQuery({
     queryKey: ["members_minimal"],
     queryFn: async () => {
-      const { data } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url").eq("status", "active").order("first_name")
+      if (IS_MOCK) return []
+      const { data } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url, member_number").eq("status", "active").order("first_name")
       return data ?? []
     },
   })
@@ -112,13 +119,14 @@ export default function POSPage() {
   const { data: selectedMemberDetails } = useQuery({
     queryKey: ["member_details_pos", selectedMemberId],
     queryFn: async () => {
+      if (IS_MOCK) return null
       if (!selectedMemberId) return null
-      const { data: member } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url").eq("id", selectedMemberId).single()
+      const { data: member } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url, member_number").eq("id", selectedMemberId).single()
       if (!member) return null
       const { data: sub } = await supabase.from("member_subscriptions").select("status, start_date, end_date, subscription_types(name)").eq("member_id", selectedMemberId).eq("status", "active").maybeSingle()
       return { ...member, subscription: sub as { status: string; start_date: string; end_date: string; subscription_types: { name: string } | null } | null ?? null }
     },
-    enabled: !!selectedMemberId,
+    enabled: !IS_MOCK && !!selectedMemberId,
   })
 
   const filteredProducts = useMemo(() => {
@@ -127,8 +135,27 @@ export default function POSPage() {
       const matchesCategory = p.category === category || (!p.category && category === "snacks")
       const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
       return matchesCategory && matchesSearch
+    }).sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name)
+      if (sortBy === "price_asc") return (a.price || 0) - (b.price || 0)
+      if (sortBy === "price_desc") return (b.price || 0) - (a.price || 0)
+      return 0
     })
-  }, [products, category, search])
+  }, [products, category, search, sortBy])
+
+  const { page, setPage, totalPages, paginatedData: paginatedProducts } = usePagination(filteredProducts, 20)
+
+  const { exportCsv } = useExportCsv(
+    filteredProducts.map(p => ({ name: p.name, category: p.category ?? '', price: p.price, stock: p.stock ?? 0, barcode: p.barcode ?? '' })),
+    'products',
+    [
+      { key: 'name', label: t('pos.productName') || 'Product' },
+      { key: 'category', label: t('pos.category') || 'Category' },
+      { key: 'price', label: t('pos.price') || 'Price' },
+      { key: 'stock', label: t('pos.stock') || 'Stock' },
+      { key: 'barcode', label: t('pos.barcode') || 'Barcode' },
+    ]
+  )
 
   const panelFilteredProducts = useMemo(() => {
     if (!panelProductSearch || !products) return []
@@ -200,7 +227,7 @@ export default function POSPage() {
       return
     }
     // Try member phone or id
-    const member = members?.find(m => m.phone && m.phone.toLowerCase() === trimmed)
+    const member = members?.find(m => m.phone && formatPhone(m.phone) === formatPhone(trimmed))
     if (member) {
       setSelectedMemberId(member.id)
       setMemberSearch(`${toUpper(member.first_name)} ${toUpper(member.last_name)}`)
@@ -215,6 +242,8 @@ export default function POSPage() {
     mutationFn: async () => {
       const orgId = organization?.id
       if (!orgId) throw new Error("No organization")
+
+      if (IS_MOCK) return
 
       // First: decrement stock for physical items (atomic)
       for (const item of cart) {
@@ -402,7 +431,8 @@ export default function POSPage() {
                   onClick={() => { setSelectedMemberId(m.id); setMemberSearch(`${toUpper(m.first_name)} ${toUpper(m.last_name)}`) }}
                 >
                   {toUpper(m.first_name)} {toUpper(m.last_name)}
-                  {m.phone && <span className="text-muted-foreground ml-1">{m.phone}</span>}
+                  <span className="text-muted-foreground ml-1">{displayPhone(m.phone)}</span>
+                  {m.member_number && <span className="text-muted-foreground ml-1 text-[10px]">({m.member_number})</span>}
                 </div>
               ))}
             </div>
@@ -424,7 +454,16 @@ export default function POSPage() {
 
   return (
     <div>
-      <PageHeader title={t("pos.title")} description={t("pos.description")} />
+      <PageHeader
+        title={t("pos.title")}
+        description={t("pos.description")}
+        actions={
+          <Button variant="outline" onClick={() => exportCsv()}>
+            <Download className="mr-2 h-4 w-4" />
+            {t("common.export") || "Export"}
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
@@ -449,6 +488,23 @@ export default function POSPage() {
             />
           </div>
 
+          <div className="flex items-center gap-2 mb-4">
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[140px]">
+                <ArrowUpDown className="mr-2 h-4 w-4" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">{t("common.name") || "Name"}</SelectItem>
+                <SelectItem value="price_asc">{t("common.priceAsc") || "Prix ↑"}</SelectItem>
+                <SelectItem value="price_desc">{t("common.priceDesc") || "Prix ↓"}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="icon" onClick={() => { setSearch(""); setCategory("snacks"); setSortBy("name"); setPage(1) }} title="Reset">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
           <Tabs value={category} onValueChange={setCategory}>
             <TabsList className="mb-4 flex-wrap h-auto">
               {CATEGORIES.map(cat => (
@@ -460,8 +516,9 @@ export default function POSPage() {
           {isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
           ) : (
+            <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {filteredProducts.map(product => (
+              {paginatedProducts.map(product => (
                 <Card
                   key={product.id}
                   className="cursor-pointer hover:border-primary transition-colors"
@@ -481,6 +538,8 @@ export default function POSPage() {
                 </Card>
               ))}
             </div>
+            <Pagination page={page} totalPages={totalPages} totalItems={filteredProducts.length} pageSize={20} onPageChange={setPage} />
+            </>
           )}
         </div>
 

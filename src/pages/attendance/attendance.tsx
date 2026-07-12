@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
+import { useRealtime } from "@/hooks/useRealtime"
 import { useT } from "@/i18n"
 import { useAuth } from "@/stores/auth"
 import { PageHeader } from "@/components/layout/page-header"
@@ -23,6 +24,9 @@ import { useToast } from "@/components/ui/toast"
 import {
   Search, LogIn, LogOut, Download, Clock, UserCheck, UserX, AlertTriangle, Loader2,
 } from "lucide-react"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
 import { formatDate, formatDateTime, cn, toUpper } from "@/lib/utils"
 import type { Member, Attendance } from "@/types/supabase"
 import { format, startOfDay, endOfDay, differenceInMinutes } from "date-fns"
@@ -39,6 +43,8 @@ export default function AttendancePage() {
   const { organization } = useAuth()
   const { toast } = useToast()
   const orgId = organization?.id
+
+  useRealtime({ table: "attendance", queryKey: ["attendance-today", orgId ?? ""], filter: orgId ? `organization_id=eq.${orgId}` : undefined })
 
   const [search, setSearch] = useState("")
   const [historyDateFrom, setHistoryDateFrom] = useState(format(new Date(), "yyyy-MM-dd"))
@@ -167,6 +173,30 @@ export default function AttendancePage() {
     const name = `${m.first_name} ${m.last_name}`.toLowerCase()
     return name.includes(search.toLowerCase())
   })
+
+  const { page: historyPage, setPage: setHistoryPage, totalPages: historyTotalPages, paginatedData: paginatedHistory } = usePagination(history, 20)
+
+  const { exportCsv: exportHistoryCsv } = useExportCsv(
+    (history ?? []).map((h) => ({
+      member_name: `${h.members?.first_name ?? ""} ${h.members?.last_name ?? ""}`,
+      check_in: h.check_in ? format(new Date(h.check_in), "HH:mm") : "-",
+      check_out: h.check_out ? format(new Date(h.check_out), "HH:mm") : "-",
+      duration: h.check_in && h.check_out
+        ? `${differenceInMinutes(new Date(h.check_out), new Date(h.check_in))} ${t("attendance.min")}`
+        : "-",
+      source: h.source,
+      status: h.check_out ? t("attendance.completed") : t("attendance.inProgress"),
+    })),
+    `attendance-${historyDateFrom}-${historyDateTo}`,
+    [
+      { key: 'member_name', label: t("attendance.member") },
+      { key: 'check_in', label: t("attendance.checkIn") },
+      { key: 'check_out', label: t("attendance.checkOut") },
+      { key: 'duration', label: t("attendance.duration") },
+      { key: 'source', label: t("attendance.source") || "Source" },
+      { key: 'status', label: t("common.status") },
+    ]
+  )
 
   const handleExportHistory = async () => {
     if (!history) return
@@ -352,7 +382,7 @@ export default function AttendancePage() {
                     onChange={(e) => setHistoryDateTo(e.target.value)}
                   />
                 </div>
-                <Button variant="outline" onClick={handleExportHistory}>
+                <Button variant="outline" onClick={exportHistoryCsv}>
                   <Download className="mr-2 h-4 w-4" />
                   {t("common.export")}
                 </Button>
@@ -361,70 +391,123 @@ export default function AttendancePage() {
           </Card>
           <Card>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("attendance.member")}</TableHead>
-                    <TableHead>{t("attendance.checkIn")}</TableHead>
-                    <TableHead>{t("attendance.checkOut")}</TableHead>
-                    <TableHead>{t("attendance.duration")}</TableHead>
-                    <TableHead>{t("attendance.source") || "Source"}</TableHead>
-                    <TableHead>{t("common.status")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {history?.length === 0 ? (
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        {t("common.noData")}
-                      </TableCell>
+                      <TableHead>{t("attendance.member")}</TableHead>
+                      <TableHead>{t("attendance.checkIn")}</TableHead>
+                      <TableHead>{t("attendance.checkOut")}</TableHead>
+                      <TableHead>{t("attendance.duration")}</TableHead>
+                      <TableHead>{t("attendance.source") || "Source"}</TableHead>
+                      <TableHead>{t("common.status")}</TableHead>
                     </TableRow>
-                  ) : (
-                    history?.map((entry) => {
-                      const checkIn = entry.check_in ? new Date(entry.check_in) : null
-                      const checkOut = entry.check_out ? new Date(entry.check_out) : null
-                      const duration = checkIn && checkOut ? differenceInMinutes(checkOut, checkIn) : null
-                      const sourceVariant = entry.source === "rfid" ? "default" : entry.source === "manual" ? "secondary" : "outline"
-                      return (
-                        <TableRow key={entry.id}>
-                          <TableCell className="font-medium">
-                            {toUpper(entry.members?.first_name)} {toUpper(entry.members?.last_name)}
-                          </TableCell>
-                          <TableCell>
-                            {checkIn ? format(checkIn, "HH:mm") : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {checkOut ? format(checkOut, "HH:mm") : "-"}
-                          </TableCell>
-                          <TableCell>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedHistory.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          {t("common.noData")}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedHistory.map((entry) => {
+                        const checkIn = entry.check_in ? new Date(entry.check_in) : null
+                        const checkOut = entry.check_out ? new Date(entry.check_out) : null
+                        const duration = checkIn && checkOut ? differenceInMinutes(checkOut, checkIn) : null
+                        const sourceVariant = entry.source === "rfid" ? "default" : entry.source === "manual" ? "secondary" : "outline"
+                        return (
+                          <TableRow key={entry.id}>
+                            <TableCell className="font-medium">
+                              {toUpper(entry.members?.first_name)} {toUpper(entry.members?.last_name)}
+                            </TableCell>
+                            <TableCell>
+                              {checkIn ? format(checkIn, "HH:mm") : "-"}
+                            </TableCell>
+                            <TableCell>
+                              {checkOut ? format(checkOut, "HH:mm") : "-"}
+                            </TableCell>
+                            <TableCell>
+                              {duration !== null ? `${duration} ${t("attendance.min")}` : "-"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={sourceVariant} className={
+                                entry.source === "rfid" ? "bg-primary/10 text-primary border-primary/30" :
+                                entry.source === "manual" ? "bg-accent/10 text-accent border-accent/30" :
+                                "bg-success/10 text-success border-success/30"
+                              }>
+                                {entry.source === "rfid" ? "RFID" :
+                                 entry.source === "manual" ? (t("attendance.manual") || "Manuel") :
+                                 (t("attendance.app") || "App")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {checkOut ? (
+                                <Badge variant="default">{t("attendance.present")}</Badge>
+                              ) : checkIn ? (
+                                <Badge variant="secondary">{t("attendance.inProgress")}</Badge>
+                              ) : (
+                                <Badge variant="destructive">{t("attendance.absent")}</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="md:hidden space-y-3 p-4">
+                {paginatedHistory.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">{t("common.noData")}</p>
+                ) : (
+                  paginatedHistory.map((entry) => {
+                    const checkIn = entry.check_in ? new Date(entry.check_in) : null
+                    const checkOut = entry.check_out ? new Date(entry.check_out) : null
+                    const duration = checkIn && checkOut ? differenceInMinutes(checkOut, checkIn) : null
+                    const sourceVariant = entry.source === "rfid" ? "default" : entry.source === "manual" ? "secondary" : "outline"
+                    return (
+                      <Card key={entry.id} className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-medium">{toUpper(entry.members?.first_name)} {toUpper(entry.members?.last_name)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {checkIn ? format(checkIn, "HH:mm") : "-"}
+                              {checkOut ? ` → ${format(checkOut, "HH:mm")}` : ""}
+                            </p>
+                          </div>
+                          <Badge variant={sourceVariant} className={
+                            entry.source === "rfid" ? "bg-primary/10 text-primary border-primary/30" :
+                            entry.source === "manual" ? "bg-accent/10 text-accent border-accent/30" :
+                            "bg-success/10 text-success border-success/30"
+                          }>
+                            {entry.source === "rfid" ? "RFID" :
+                             entry.source === "manual" ? (t("attendance.manual") || "Manuel") :
+                             (t("attendance.app") || "App")}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">
                             {duration !== null ? `${duration} ${t("attendance.min")}` : "-"}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={sourceVariant} className={
-                              entry.source === "rfid" ? "bg-blue-500/10 text-blue-500 border-blue-500/30" :
-                              entry.source === "manual" ? "bg-orange-500/10 text-orange-500 border-orange-500/30" :
-                              "bg-green-500/10 text-green-500 border-green-500/30"
-                            }>
-                              {entry.source === "rfid" ? "RFID" :
-                               entry.source === "manual" ? (t("attendance.manual") || "Manuel") :
-                               (t("attendance.app") || "App")}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {checkOut ? (
-                              <Badge variant="default">{t("attendance.present")}</Badge>
-                            ) : checkIn ? (
-                              <Badge variant="secondary">{t("attendance.inProgress")}</Badge>
-                            ) : (
-                              <Badge variant="destructive">{t("attendance.absent")}</Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  )}
-                </TableBody>
-              </Table>
+                          </span>
+                          {checkOut ? (
+                            <Badge variant="default">{t("attendance.present")}</Badge>
+                          ) : checkIn ? (
+                            <Badge variant="secondary">{t("attendance.inProgress")}</Badge>
+                          ) : (
+                            <Badge variant="destructive">{t("attendance.absent")}</Badge>
+                          )}
+                        </div>
+                      </Card>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="px-4 pb-4">
+                <Pagination page={historyPage} totalPages={historyTotalPages} totalItems={history?.length ?? 0} pageSize={20} onPageChange={setHistoryPage} />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

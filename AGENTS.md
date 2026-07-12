@@ -37,8 +37,20 @@
 - **Migration 00009** — `supabase/migrations/00009_subscription_payment_flow.sql` : ajout `pending_payment` à `member_subscriptions.status`, RPC `create_member_with_pending_subscription` (création atomique membre + abonnement en attente), RPC `finalize_subscription_payment` (activation atomique avec verrouillage, enregistrement paiement)
 - **POS redirection workflow** — Dans `members.tsx` : sélecteur de type d'abonnement + date de début dans le formulaire d'ajout, appel au RPC `create_member_with_pending_subscription`, redirection vers `/pos` avec `location.state.pendingSubscription`
 - **POS redirection workflow** — Dans `pos.tsx` : détection du `pendingSubscription` dans `location.state`, ajout automatique dans le panier comme article virtuel (avec badge "Subscription" et icône `CreditCard`), sélection automatique du membre, finalisation via `finalize_subscription_payment` RPC après le checkout normal
+- **Page login finalisée** : layout 50/50, logos QLG_3D + LOGO QLForiginal, tout en français, fond photo avec overlay, pas de scroll vertical, description en blanc, logo gauche h-32 avec mt-16, "BIENVENUE SUR FITMANAGER PRO" sous le logo, grille features 3×2, footer "SIMPLE • RAPIDE • SÉCURISÉ"
+- **Formulaire simplifié** : champs email + mot de passe seulement, lien "Obtenir mon code de récupération" avec dialog de génération, lien "Réinitialiser" pour mot de passe oublié
+- **Migration 00011** : RPC `verify_recovery_code` — SHA-256, rate limiting 5/15min, comparaison en temps constant, logging dans `recovery_code_logs`
+- **Edge Function** `sign-in-with-recovery/index.ts` : vérifie le code via RPC, génère un magic link token via `admin.generateLink`, retourne `{ token, newCode }`
+- **Edge Function** `recovery/index.ts` : `send_code` modifié pour retourner le `newCode` en clair dans la réponse
+- **Auth store** : `signIn` accepte désormais `recoveryCode?` optionnel — si fourni, appelle l'EF puis `verifyOtp`
+- **Export All supprimé** de la page membres (`handleExportAll` + bouton retirés)
+- **Téléphone formaté** : 3 nouvelles fonctions dans `src/lib/utils.ts` (`formatPhone`, `isValidDzPhone`, `displayPhone`) — appliquées dans 7 pages (members, staff, suppliers, gyms, corporate, pos) avec onBlur, display, import/export, mock data
+- **Migration 00012** : `rfid_cards` recréée avec nouveau schéma (`rfid_uid` UNIQUE, status avec 7 états, `replaced_at`, `replaced_by`, `reason`, `notes`, `created_by`, `updated_at`), table `rfid_audit_log` créée, RLS policies, 6 RPCs (`assign_rfid_card`, `replace_rfid_card`, `deactivate_rfid_card`, `reactivate_rfid_card`, `check_rfid_available`, `get_member_rfid_history`), `rfid_check_in`/`rfid_check_out` recréés avec `rfid_uid`
+- **Types TypeScript** : `RfidCard` mis à jour avec nouveau schéma, `RfidCardAudit` ajouté, `rfid_audit_log` dans Database
+- **Composant RFID** : `src/pages/members/rfid-management.tsx` avec `RfidManagementDialog` (badge actuel avec status badge coloré, historique des badges, journal d'audit, boutons Remplacer/Désactiver/Réactiver, dialog de remplacement avec motif + vérification) et `RfidCreateSection` (section RFID dans formulaire création)
+- **Intégration RFID dans members.tsx** : colonne RFID dans le tableau avec badge UID, bouton `Shield` dans les actions pour ouvrir `RfidManagementDialog`, `RfidCreateSection` dans le formulaire d'ajout, assignation RFID atomique (RPC `assign_rfid_card`) après création membre/subscription
 - **`npx tsc --noEmit`** ✅ zéro erreur
-- **`npx vitest --run`** ✅ 18/18 tests passent
+- **`npx vitest --run`** ✅ 38/38 tests (20 tests phone, 4 recovery, 1 auth, 13 utils legacy)
 - **`npx vite build`** ✅ succès
 
 ### In Progress

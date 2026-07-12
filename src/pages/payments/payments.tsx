@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -24,17 +24,23 @@ import {
   Form, FormField, FormItem, FormLabel, FormControl, FormMessage,
 } from "@/components/ui/form"
 import {
-  Card, CardContent, CardHeader, CardTitle,
+  Card, CardContent,
 } from "@/components/ui/card"
 import { useToast } from "@/components/ui/toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import {
-  Plus, Download, Upload, FileText, Printer, Search, Eye, Loader2,
+  Plus, Download, Upload, FileText, Search, Loader2,
 } from "lucide-react"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
 import { formatDate, formatCurrency, toUpper } from "@/lib/utils"
+import { getNextInvoiceNumber } from "@/lib/invoice"
+import { InvoiceDialog } from "@/components/ui/invoice-dialog"
 import type { Payment, Member, SubscriptionType } from "@/types/supabase"
+import { IS_MOCK } from '@/lib/config'
 import { format } from "date-fns"
+
 const paymentSchema = z.object({
   member_id: z.string().min(1, "Member is required"),
   subscription_id: z.string().optional(),
@@ -52,7 +58,10 @@ const statusBadge: Record<string, "default" | "secondary" | "destructive" | "out
   cancelled: "destructive",
 }
 
-
+type PaymentWithRelations = Payment & {
+  members: { first_name: string; last_name: string; member_number?: string | null }
+  member_subscriptions: { subscription_types: { name: string } } | null
+}
 
 interface ImportRow {
   member_name: string
@@ -84,11 +93,11 @@ export default function PaymentsPage() {
   const [methodFilter, setMethodFilter] = useState<string>("all")
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false)
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
+  const [selectedPayment, setSelectedPayment] = useState<PaymentWithRelations | null>(null)
+  const [invoiceNumber, setInvoiceNumber] = useState("")
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [importData, setImportData] = useState<ImportRow[]>([])
   const [memberSearch, setMemberSearch] = useState("")
-  const invoiceRef = useRef<HTMLDivElement>(null)
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
@@ -105,15 +114,15 @@ export default function PaymentsPage() {
   const { data: payments, isLoading, isError: paymentsError, error: paymentsQueryError } = useQuery({
     queryKey: ["payments", orgId],
     queryFn: async () => {
-      if (!orgId) return []
+      if (!orgId || IS_MOCK) return []
       const { data } = await supabase
         .from("payments")
-        .select("*, members!inner(first_name, last_name), member_subscriptions(subscription_types(name))")
+        .select("*, members!inner(first_name, last_name, member_number), member_subscriptions(subscription_types(name))")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
-      return data as (Payment & { members: { first_name: string; last_name: string }; member_subscriptions: { subscription_types: { name: string } } | null })[]
+      return data as PaymentWithRelations[]
     },
-    enabled: !!orgId,
+    enabled: !!orgId && !IS_MOCK,
   })
 
   useEffect(() => {
@@ -125,7 +134,7 @@ export default function PaymentsPage() {
   const { data: members } = useQuery({
     queryKey: ["members-list", orgId],
     queryFn: async () => {
-      if (!orgId) return []
+      if (!orgId || IS_MOCK) return []
       const { data } = await supabase
         .from("members")
         .select("id, first_name, last_name")
@@ -134,13 +143,13 @@ export default function PaymentsPage() {
         .order("first_name")
       return data as Pick<Member, "id" | "first_name" | "last_name">[]
     },
-    enabled: !!orgId,
+    enabled: !!orgId && !IS_MOCK,
   })
 
   const { data: subscriptions } = useQuery({
     queryKey: ["subscriptions-list", orgId],
     queryFn: async () => {
-      if (!orgId) return []
+      if (!orgId || IS_MOCK) return []
       const { data } = await supabase
         .from("subscription_types")
         .select("id, name, price")
@@ -149,12 +158,13 @@ export default function PaymentsPage() {
         .order("name")
       return data as Pick<SubscriptionType, "id" | "name" | "price">[]
     },
-    enabled: !!orgId,
+    enabled: !!orgId && !IS_MOCK,
   })
 
   const addMutation = useMutation({
     mutationFn: async (values: PaymentFormValues) => {
       if (!orgId) throw new Error("No organization")
+      if (IS_MOCK) return
       const { error } = await supabase.from("payments").insert({
         organization_id: orgId,
         member_id: values.member_id,
@@ -192,42 +202,35 @@ export default function PaymentsPage() {
     })
   }, [payments, search, statusFilter, methodFilter])
 
-  const handleGenerateInvoice = useCallback((payment: Payment) => {
+  const { page, setPage, totalPages, paginatedData: paginatedPayments } = usePagination(filteredPayments, 20)
+
+  const { exportCsv, isExporting } = useExportCsv(
+    (filteredPayments ?? []).map((p) => ({
+      member_name: `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`,
+      amount: p.amount,
+      payment_date: p.payment_date,
+      payment_method: p.payment_method,
+      status: p.status,
+      notes: p.notes || "",
+    })),
+    'paiements',
+    [
+      { key: 'member_name', label: 'Membre' },
+      { key: 'amount', label: 'Montant' },
+      { key: 'payment_date', label: 'Date' },
+      { key: 'payment_method', label: 'Méthode' },
+      { key: 'status', label: 'Statut' },
+      { key: 'notes', label: 'Notes' },
+    ]
+  )
+
+  const handleGenerateInvoice = useCallback(async (payment: PaymentWithRelations) => {
+    if (!orgId) return
+    const num = await getNextInvoiceNumber(orgId)
+    setInvoiceNumber(num)
     setSelectedPayment(payment)
     setInvoiceDialogOpen(true)
-  }, [])
-
-  const handlePrintInvoice = useCallback(() => {
-    window.print()
-  }, [])
-
-  const handleDownloadInvoice = useCallback(async () => {
-    if (!selectedPayment) return
-    const jspdf = await import("jspdf")
-    await import("jspdf-autotable")
-    const member = payments?.find((p) => p.id === selectedPayment.id)?.members
-    const doc = new jspdf.default()
-    doc.setFontSize(20)
-    doc.text("FACTURE", 105, 20, { align: "center" })
-    doc.setFontSize(10)
-    doc.text(`N°: ${selectedPayment.id.slice(0, 8).toUpperCase()}`, 20, 35)
-    doc.text(`Date: ${formatDate(selectedPayment.payment_date)}`, 20, 42)
-    if (member) doc.text(`Client: ${member.first_name} ${member.last_name}`, 20, 49)
-    doc.line(20, 55, 190, 55)
-    ;(doc as any).autoTable({
-      startY: 60,
-      head: [["Description", "Montant"]],
-      body: [[
-        selectedPayment.notes || "Paiement",
-        `${selectedPayment.amount.toLocaleString()} DZD`,
-      ]],
-      theme: "grid",
-    })
-    const finalY = (doc as any).lastAutoTable.finalY + 10
-    doc.setFontSize(12)
-    doc.text(`Total: ${selectedPayment.amount.toLocaleString()} DZD`, 190, finalY, { align: "right" })
-    doc.save(`facture-${selectedPayment.id.slice(0, 8)}.pdf`)
-  }, [selectedPayment, payments])
+  }, [orgId])
 
   const handleImportExcel = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -260,6 +263,7 @@ export default function PaymentsPage() {
     let imported = 0
     let errors = 0
     for (const row of importData) {
+      if (IS_MOCK) { imported++; continue }
       const memberResult = await supabase
         .from("members")
         .select("id")
@@ -301,7 +305,7 @@ export default function PaymentsPage() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Paiements")
     XLSX.writeFile(wb, "paiements.xlsx")
-  }, [payments])
+  }, [payments, getMethodLabel])
 
   const filteredMembers = members?.filter((m) =>
     `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase())
@@ -329,144 +333,146 @@ export default function PaymentsPage() {
                   {t("payments.add")}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
+              <DialogContent className="sm:max-w-[500px] flex flex-col max-h-[85vh]">
+                <DialogHeader className="shrink-0">
                   <DialogTitle>{t("payments.add")}</DialogTitle>
                   <DialogDescription>Ajouter un nouveau paiement</DialogDescription>
                 </DialogHeader>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit((v) => addMutation.mutate(v))} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="member_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Membre</FormLabel>
-                          <FormControl>
-                            <div>
-                              <Input
-                                placeholder="Rechercher un membre..."
-                                value={memberSearch}
-                                onChange={(e) => setMemberSearch(e.target.value)}
-                                className="mb-2"
-                              />
-                              <Select value={field.value} onValueChange={field.onChange}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Sélectionner un membre" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <ScrollArea className="h-48">
-                                    {filteredMembers?.map((m) => (
-                                      <SelectItem key={m.id} value={m.id}>
-                                        {toUpper(m.first_name)} {toUpper(m.last_name)}
-                                      </SelectItem>
-                                    ))}
-                                    {filteredMembers?.length === 0 && (
-                                      <div className="p-2 text-sm text-muted-foreground">Aucun membre trouvé</div>
-                                    )}
-                                  </ScrollArea>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="subscription_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Abonnement</FormLabel>
-                          <Select value={field.value || "none"} onValueChange={field.onChange}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Aucun" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Aucun</SelectItem>
-                              {subscriptions?.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>
-                                  {toUpper(s.name)} - {s.price.toLocaleString()} DZD
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="amount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("payments.amount")}</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="payment_method"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("payments.method")}</FormLabel>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="cash">{t("payments.cash")}</SelectItem>
-                              <SelectItem value="card">{t("payments.card")}</SelectItem>
-                              <SelectItem value="transfer">{t("payments.transfer")}</SelectItem>
-                              <SelectItem value="other">Autre</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="payment_date"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("payments.date")}</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("payments.notes")}</FormLabel>
-                          <FormControl>
-                            <Textarea {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button type="button" variant="outline">{t("common.cancel")}</Button>
-                      </DialogClose>
-                      <Button type="submit" disabled={addMutation.isPending}>
-                        {addMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {t("common.save")}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </Form>
+                <div className="overflow-y-auto flex-1 -mx-6 px-6">
+                  <Form {...form}>
+                    <form id="payment-form" onSubmit={form.handleSubmit((v) => addMutation.mutate(v))} className="space-y-4 py-1">
+                      <FormField
+                        control={form.control}
+                        name="member_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Membre</FormLabel>
+                            <FormControl>
+                              <div>
+                                <Input
+                                  placeholder="Rechercher un membre..."
+                                  value={memberSearch}
+                                  onChange={(e) => setMemberSearch(e.target.value)}
+                                  className="mb-2"
+                                />
+                                <Select value={field.value} onValueChange={field.onChange}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Sélectionner un membre" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <ScrollArea className="h-48">
+                                      {filteredMembers?.map((m) => (
+                                        <SelectItem key={m.id} value={m.id}>
+                                          {toUpper(m.first_name)} {toUpper(m.last_name)}
+                                        </SelectItem>
+                                      ))}
+                                      {filteredMembers?.length === 0 && (
+                                        <div className="p-2 text-sm text-muted-foreground">Aucun membre trouvé</div>
+                                      )}
+                                    </ScrollArea>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="subscription_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Abonnement</FormLabel>
+                            <Select value={field.value || "none"} onValueChange={field.onChange}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Aucun" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Aucun</SelectItem>
+                                {subscriptions?.map((s) => (
+                                  <SelectItem key={s.id} value={s.id}>
+                                    {toUpper(s.name)} - {s.price.toLocaleString()} DZD
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("payments.amount")}</FormLabel>
+                            <FormControl>
+                              <Input type="number" step="0.01" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="payment_method"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("payments.method")}</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="cash">{t("payments.cash")}</SelectItem>
+                                <SelectItem value="card">{t("payments.card")}</SelectItem>
+                                <SelectItem value="transfer">{t("payments.transfer")}</SelectItem>
+                                <SelectItem value="other">Autre</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="payment_date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("payments.date")}</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="notes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("payments.notes")}</FormLabel>
+                            <FormControl>
+                              <Textarea {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </form>
+                  </Form>
+                </div>
+                <DialogFooter className="shrink-0">
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">{t("common.cancel")}</Button>
+                  </DialogClose>
+                  <Button type="submit" form="payment-form" disabled={addMutation.isPending}>
+                    {addMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {t("common.save")}
+                  </Button>
+                </DialogFooter>
               </DialogContent>
             </Dialog>
           </>
@@ -516,123 +522,117 @@ export default function PaymentsPage() {
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Membre</TableHead>
-                <TableHead>{t("payments.amount")}</TableHead>
-                <TableHead>{t("payments.date")}</TableHead>
-                <TableHead>{t("payments.method")}</TableHead>
-                <TableHead>{t("common.status")}</TableHead>
-                <TableHead>{t("payments.notes")}</TableHead>
-                <TableHead className="text-right">{t("common.actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                  </TableCell>
+                  <TableHead>Membre</TableHead>
+                  <TableHead>{t("payments.amount")}</TableHead>
+                  <TableHead>{t("payments.date")}</TableHead>
+                  <TableHead>{t("payments.method")}</TableHead>
+                  <TableHead>{t("common.status")}</TableHead>
+                  <TableHead>{t("payments.notes")}</TableHead>
+                  <TableHead className="text-right">{t("common.actions")}</TableHead>
                 </TableRow>
-              ) : filteredPayments?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    {t("payments.noData")}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredPayments?.map((payment) => (
-                  <TableRow key={payment.id}>
-                    <TableCell className="font-medium">
-                      {toUpper(payment.members?.first_name)} {toUpper(payment.members?.last_name)}
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                     </TableCell>
-                    <TableCell>{formatCurrency(payment.amount)}</TableCell>
-                    <TableCell>{formatDate(payment.payment_date)}</TableCell>
-                    <TableCell>
+                  </TableRow>
+                ) : paginatedPayments.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      {t("payments.noData")}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedPayments.map((payment) => (
+                    <TableRow key={payment.id}>
+                      <TableCell className="font-medium">
+                        {toUpper(payment.members?.first_name)} {toUpper(payment.members?.last_name)}
+                        {payment.members?.member_number && <span className="ml-2 text-xs text-muted-foreground">({payment.members.member_number})</span>}
+                      </TableCell>
+                      <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                      <TableCell>{formatDate(payment.payment_date)}</TableCell>
+                      <TableCell>
+                        <Badge variant={payment.payment_method === "cash" ? "secondary" : payment.payment_method === "card" ? "default" : "outline"}>
+                          {getMethodLabel(payment.payment_method)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusBadge[payment.status] || "outline"}>
+                          {payment.status === "completed" ? t("payments.completed") : payment.status === "pending" ? t("common.pending") : t("payments.cancelled")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">{toUpper(payment.notes) || "-"}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleGenerateInvoice(payment)}>
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="md:hidden space-y-3 p-4">
+            {isLoading ? (
+              <div className="text-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+              </div>
+            ) : paginatedPayments.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">{t("payments.noData")}</p>
+            ) : (
+              paginatedPayments.map((payment) => (
+                <Card key={payment.id} className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium">{toUpper(payment.members?.first_name)} {toUpper(payment.members?.last_name)}</p>
+                      <p className="text-sm text-muted-foreground">{formatDate(payment.payment_date)}</p>
+                    </div>
+                    <Badge variant={statusBadge[payment.status] || "outline"}>
+                      {payment.status === "completed" ? t("payments.completed") : payment.status === "pending" ? t("common.pending") : t("payments.cancelled")}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{formatCurrency(payment.amount)}</span>
                       <Badge variant={payment.payment_method === "cash" ? "secondary" : payment.payment_method === "card" ? "default" : "outline"}>
                         {getMethodLabel(payment.payment_method)}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusBadge[payment.status] || "outline"}>
-                        {payment.status === "completed" ? t("payments.completed") : payment.status === "pending" ? t("common.pending") : t("payments.cancelled")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">{toUpper(payment.notes) || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleGenerateInvoice(payment)}>
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleGenerateInvoice(payment)}>
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {payment.notes && <p className="mt-2 text-xs text-muted-foreground truncate">{toUpper(payment.notes)}</p>}
+                </Card>
+              ))
+            )}
+          </div>
+
+          <div className="px-4 pb-4">
+            <Pagination page={page} totalPages={totalPages} totalItems={filteredPayments?.length ?? 0} pageSize={20} onPageChange={setPage} />
+          </div>
         </CardContent>
       </Card>
 
-      <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>{t("payments.invoice")}</DialogTitle>
-            <DialogDescription>{t("payments.generateInvoice")}</DialogDescription>
-          </DialogHeader>
-          <div ref={invoiceRef} className="p-6 border rounded-lg">
-            {selectedPayment && (
-              <div className="space-y-4">
-                <div className="text-center">
-                  <h2 className="text-xl font-bold">FACTURE</h2>
-                  <p className="text-sm text-muted-foreground">N°: {selectedPayment.id.slice(0, 8).toUpperCase()}</p>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="font-medium">Date:</p>
-                    <p>{formatDate(selectedPayment.payment_date)}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Client:</p>
-                    <p>
-                      {payments?.find((p) => p.id === selectedPayment.id)?.members?.first_name}{" "}
-                      {payments?.find((p) => p.id === selectedPayment.id)?.members?.last_name}
-                    </p>
-                  </div>
-                </div>
-                <Separator />
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Montant</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>{selectedPayment.notes || "Paiement"}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(selectedPayment.amount)}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-                <div className="flex justify-end">
-                  <p className="text-lg font-bold">Total: {formatCurrency(selectedPayment.amount)}</p>
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handlePrintInvoice}>
-              <Printer className="mr-2 h-4 w-4" />
-              {t("payments.printInvoice")}
-            </Button>
-            <Button onClick={handleDownloadInvoice}>
-              <Download className="mr-2 h-4 w-4" />
-              Télécharger PDF
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {selectedPayment && orgId && (
+        <InvoiceDialog
+          open={invoiceDialogOpen}
+          onOpenChange={setInvoiceDialogOpen}
+          payment={selectedPayment}
+          invoiceNumber={invoiceNumber}
+          organizationName={organization?.name ?? ""}
+          organizationAddress={organization?.address}
+          organizationPhone={organization?.phone}
+        />
+      )}
 
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">

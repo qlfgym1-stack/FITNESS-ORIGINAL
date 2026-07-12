@@ -28,11 +28,14 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/toast"
-import { Loader2, Plus, Pencil, Trash2, MoreHorizontal } from "lucide-react"
+import { Loader2, Plus, Pencil, Trash2, MoreHorizontal, Download } from "lucide-react"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { Equipment } from "@/types/supabase"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
 
 const equipmentSchema = z.object({
   name: z.string().min(1, "Required"),
@@ -157,6 +160,21 @@ export default function EquipmentPage() {
     upsertMutation.mutate(values)
   }
 
+  const { page, setPage, totalPages, paginatedData: paginatedEquipment } = usePagination(equipmentList, 20)
+
+  const { exportCsv } = useExportCsv(
+    (equipmentList ?? []).map(item => ({ name: item.name, category: item.category ?? '-', quantity: item.quantity, available_quantity: item.available_quantity, status: item.status ?? 'available', purchase_date: item.purchase_date ?? '-', last_maintenance: item.last_maintenance ?? '-' })),
+    'equipment',
+    [
+      { key: 'name', label: t('equipment.name') || 'Name' },
+      { key: 'category', label: t('equipment.category') || 'Category' },
+      { key: 'quantity', label: t('equipment.totalQty') || 'Total Qty' },
+      { key: 'available_quantity', label: t('equipment.availableQty') || 'Available Qty' },
+      { key: 'status', label: t('equipment.status') || 'Status' },
+      { key: 'purchase_date', label: t('equipment.purchaseDate') || 'Purchase Date' },
+    ]
+  )
+
   const currentTab = TABS.find(t => t.path === location.pathname)?.value ?? "list"
 
   return (
@@ -165,10 +183,16 @@ export default function EquipmentPage() {
         title={t("equipment.title") || "Equipment"}
         description={t("equipment.description") || "Manage gym equipment"}
         actions={
-          <Button onClick={openAdd}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("equipment.add") || "Add Equipment"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
+            <Button onClick={openAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("equipment.add") || "Add Equipment"}
+            </Button>
+          </div>
         }
       />
 
@@ -182,6 +206,7 @@ export default function EquipmentPage() {
 
       <Card>
         <CardContent className="p-0">
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -198,10 +223,10 @@ export default function EquipmentPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-              ) : equipmentList?.length === 0 ? (
+              ) : paginatedEquipment?.length === 0 ? (
                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">{t("equipment.noData") || "No equipment found"}</TableCell></TableRow>
               ) : (
-                equipmentList?.map(item => (
+                paginatedEquipment?.map(item => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{toUpper(item.name)}</TableCell>
                     <TableCell className="capitalize">{toUpper(item.category) || "-"}</TableCell>
@@ -234,8 +259,38 @@ export default function EquipmentPage() {
               )}
             </TableBody>
           </Table>
+          </div>
+          <div className="md:hidden space-y-3 p-4">
+            {isLoading ? (
+              <div className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>
+            ) : paginatedEquipment?.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">{t("common.noResults")}</p>
+            ) : (
+              paginatedEquipment?.map(item => (
+                <Card key={item.id} className="p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-medium">{toUpper(item.name)}</span>
+                    <Badge variant={item.status === "available" ? "default" : item.status === "maintenance" ? "destructive" : "secondary"} className="ml-auto capitalize">
+                      {toUpper(item.status) || "available"}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{t("equipment.category") || "Category"}: {toUpper(item.category) || "-"}</p>
+                  <p className="text-sm text-muted-foreground">{t("equipment.totalQty") || "Total"}: {item.quantity} | {t("equipment.availableQty") || "Available"}: {item.available_quantity}</p>
+                  <div className="flex justify-end gap-1 mt-2">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => { setDeleting(item); setDeleteOpen(true) }}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
+      <Pagination page={page} totalPages={totalPages} totalItems={equipmentList?.length ?? 0} pageSize={20} onPageChange={setPage} />
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); form.reset() } }}>
         <DialogContent className="sm:max-w-[500px]">

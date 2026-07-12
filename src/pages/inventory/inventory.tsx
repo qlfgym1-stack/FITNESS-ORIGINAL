@@ -25,8 +25,12 @@ import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { toUpper } from "../../lib/utils"
 import {
-  Package, Plus, Search, Edit, Trash2, AlertTriangle, Loader2,
+  Package, Plus, Search, Edit, Trash2, AlertTriangle, Loader2, Download,
 } from "lucide-react"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
+import { Card } from "@/components/ui/card"
 
 interface InventoryItem {
   id: string
@@ -88,6 +92,22 @@ export default function InventoryPage() {
     i.name.toLowerCase().includes(search.toLowerCase()) ||
     i.category.toLowerCase().includes(search.toLowerCase()) ||
     (i.suppliers?.name ?? "").toLowerCase().includes(search.toLowerCase())
+  )
+
+  const { page, setPage, totalPages, paginatedData: paginatedItems } = usePagination(filtered, 20)
+
+  const { exportCsv } = useExportCsv(
+    filtered.map(i => ({ name: i.name, category: i.category, quantity: i.quantity, unit: i.unit, min_stock: i.min_stock, price: i.price, supplier: i.suppliers?.name ?? '' })),
+    'inventory',
+    [
+      { key: 'name', label: t('inventory.name') },
+      { key: 'category', label: t('inventory.category') },
+      { key: 'quantity', label: t('inventory.quantity') },
+      { key: 'unit', label: t('inventory.unit') },
+      { key: 'min_stock', label: t('inventory.minStock') },
+      { key: 'price', label: t('inventory.price') },
+      { key: 'supplier', label: t('inventory.supplier') },
+    ]
   )
 
   const upsertMutation = useMutation({
@@ -164,9 +184,15 @@ export default function InventoryPage() {
         title={t("inventory.title")}
         description={t("inventory.description")}
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" /> {t("inventory.add")}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" /> {t("inventory.add")}
+            </Button>
+          </div>
         }
       />
 
@@ -182,7 +208,7 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -203,7 +229,7 @@ export default function InventoryPage() {
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
-            ) : filtered.map((item) => {
+            ) : paginatedItems.map((item) => {
               const lowStock = item.quantity <= item.min_stock
               return (
                 <TableRow key={item.id}>
@@ -237,7 +263,7 @@ export default function InventoryPage() {
                 </TableRow>
               )
             })}
-            {!isLoading && filtered.length === 0 && (
+            {!isLoading && paginatedItems.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults")}
@@ -247,6 +273,39 @@ export default function InventoryPage() {
           </TableBody>
         </Table>
       </div>
+      <div className="md:hidden space-y-3 p-4">
+        {!isLoading && paginatedItems.length === 0 ? (
+          <p className="text-center py-8 text-muted-foreground">{t("common.noResults")}</p>
+        ) : (
+          paginatedItems.map(item => {
+            const lowStock = item.quantity <= item.min_stock
+            return (
+              <Card key={item.id} className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">{toUpper(item.name)}</span>
+                  {lowStock && (
+                    <Badge variant="destructive" className="gap-1 ml-auto">
+                      <AlertTriangle className="h-3 w-3" /> {t("inventory.lowStock")}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground"><Badge variant="outline">{toUpper(item.category)}</Badge></p>
+                <p className="text-sm text-muted-foreground mt-1">{t("inventory.quantity")}: {item.quantity} {toUpper(item.unit)} | {t("inventory.price")}: {item.price.toLocaleString()} DA</p>
+                <div className="flex justify-end gap-1 mt-2">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => { setDeleting(item); setDeleteOpen(true) }}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </Card>
+            )
+          })
+        )}
+      </div>
+      <Pagination page={page} totalPages={totalPages} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

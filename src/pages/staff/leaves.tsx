@@ -28,7 +28,9 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/toast"
-import { Loader2, Plus, Check, X } from "lucide-react"
+import { Loader2, Plus, Check, X, Search } from "lucide-react"
+import { usePagination } from "@/hooks/usePagination"
+import { Pagination } from "@/components/ui/pagination"
 import type { StaffLeave, Staff } from "@/types/supabase"
 
 const TABS = [
@@ -66,6 +68,8 @@ export default function LeavesPage() {
   const [open, setOpen] = useState(false)
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
   const [statusConfirmData, setStatusConfirmData] = useState<{ id: string; status: "approved" | "rejected" } | null>(null)
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
 
   const form = useForm<LeaveForm>({
     resolver: zodResolver(leaveSchema),
@@ -100,6 +104,15 @@ export default function LeavesPage() {
 
   const staffMap = new Map<string, Staff>()
   staffList?.forEach(s => staffMap.set(s.id, s))
+
+  const filtered = (leaves ?? []).filter(l => {
+    const staff = staffMap.get(l.staff_id)
+    const name = staff ? `${staff.first_name} ${staff.last_name}`.toLowerCase() : ""
+    const matchesSearch = !search || name.includes(search.toLowerCase()) || l.reason?.toLowerCase().includes(search.toLowerCase())
+    const matchesStatus = statusFilter === "all" || l.status === statusFilter
+    return matchesSearch && matchesStatus
+  })
+  const { page, setPage, totalPages, paginatedData: paginatedLeaves } = usePagination(filtered, 20)
 
   const createMutation = useMutation({
     mutationFn: async (values: LeaveForm) => {
@@ -161,6 +174,32 @@ export default function LeavesPage() {
         </TabsList>
       </Tabs>
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={t("common.search")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder={t("common.status")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("common.all") || "All"}</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="icon" onClick={() => { setSearch(""); setStatusFilter("all"); setPage(1) }} title="Reset filters">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -178,10 +217,10 @@ export default function LeavesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-              ) : leaves?.length === 0 ? (
+              ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t("leaves.noData") || "No leave requests found"}</TableCell></TableRow>
               ) : (
-                leaves?.map(leave => {
+                paginatedLeaves.map(leave => {
                   const staff = staffMap.get(leave.staff_id)
                   return (
                     <TableRow key={leave.id}>
@@ -217,6 +256,10 @@ export default function LeavesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <div className="mt-4">
+        <Pagination page={page} totalPages={totalPages} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
+      </div>
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) form.reset() }}>
         <DialogContent>

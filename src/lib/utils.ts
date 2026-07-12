@@ -58,3 +58,24 @@ export function toUpper(str: string | null | undefined): string {
   if (!str) return str ?? "";
   return str.toUpperCase();
 }
+
+const DZ_PHONE_REGEX = /^(05|06|07)\d{8}$/;
+
+export function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return ''
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('213') && digits.length === 12) return '0' + digits.slice(3)
+  if (digits.startsWith('00213') && digits.length === 14) return '0' + digits.slice(5)
+  if (digits.startsWith('0') && digits.length === 10) return digits
+  return phone
+}
+
+export function isValidDzPhone(phone: string): boolean {
+  return DZ_PHONE_REGEX.test(formatPhone(phone))
+}
+
+export function displayPhone(phone: string | null | undefined): string {
+  const f = formatPhone(phone)
+  if (!f) return '-'
+  return `${f.slice(0, 2)} ${f.slice(2, 4)} ${f.slice(4, 6)} ${f.slice(6, 8)} ${f.slice(8)}`
+}

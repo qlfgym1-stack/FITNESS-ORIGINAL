@@ -25,7 +25,11 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { formatDate, formatCurrency, getStatusColor, toUpper } from "@/lib/utils"
-import { ShoppingCart, Plus, Search, Edit, Trash2, Loader2 } from "lucide-react"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
+import { Card } from "@/components/ui/card"
+import { ShoppingCart, Plus, Search, Edit, Trash2, Loader2, Download } from "lucide-react"
 
 interface PurchaseOrder {
   id: string
@@ -82,6 +86,20 @@ export default function PurchaseOrdersPage() {
   const filtered = orders.filter((o) =>
     (o.suppliers?.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
     o.notes.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const { page, setPage, totalPages, paginatedData: paginatedOrders } = usePagination(filtered, 20)
+
+  const { exportCsv } = useExportCsv(
+    filtered.map(o => ({ supplier: o.suppliers?.name ?? "", date: o.order_date, status: o.status, total: o.total_amount, notes: o.notes })),
+    'purchase-orders',
+    [
+      { key: 'supplier', label: t('purchaseOrders.supplier') },
+      { key: 'date', label: t('purchaseOrders.date') },
+      { key: 'status', label: t('purchaseOrders.status') },
+      { key: 'total', label: t('purchaseOrders.total') },
+      { key: 'notes', label: t('purchaseOrders.notes') },
+    ]
   )
 
   const upsertMutation = useMutation({
@@ -154,9 +172,15 @@ export default function PurchaseOrdersPage() {
         title={t("purchaseOrders.title")}
         description={t("purchaseOrders.description")}
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" /> {t("purchaseOrders.add")}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" /> {t("purchaseOrders.add")}
+            </Button>
+          </div>
         }
       />
 
@@ -167,7 +191,7 @@ export default function PurchaseOrdersPage() {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -186,7 +210,7 @@ export default function PurchaseOrdersPage() {
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
-            ) : filtered.map((o) => (
+            ) : paginatedOrders.map((o) => (
               <TableRow key={o.id}>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-2">
@@ -214,7 +238,7 @@ export default function PurchaseOrdersPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {!isLoading && filtered.length === 0 && (
+            {!isLoading && paginatedOrders.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults")}
@@ -224,6 +248,44 @@ export default function PurchaseOrdersPage() {
           </TableBody>
         </Table>
       </div>
+
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <div className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></div>
+        ) : paginatedOrders.length === 0 ? (
+          <p className="text-center py-8 text-muted-foreground">{t("common.noResults")}</p>
+        ) : (
+          paginatedOrders.map((o) => (
+            <Card key={o.id} className="p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-medium flex items-center gap-1">
+                    <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                    {toUpper(o.suppliers?.name ?? "")}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{formatDate(o.order_date)}</p>
+                </div>
+                <Badge className={getStatusColor(o.status)} variant="secondary">
+                  {toUpper(o.status.charAt(0).toUpperCase() + o.status.slice(1))}
+                </Badge>
+              </div>
+              <div className="mt-2 text-sm">
+                <span className="font-mono">{formatCurrency(o.total_amount)}</span>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => openEdit(o)}>
+                  <Edit className="h-4 w-4 mr-1" /> {t("common.edit") || "Edit"}
+                </Button>
+                <Button variant="outline" size="sm" className="text-destructive" onClick={() => { setDeleting(o); setDeleteOpen(true) }}>
+                  <Trash2 className="h-4 w-4 mr-1" /> {t("common.delete") || "Delete"}
+                </Button>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+
+      <Pagination page={page} totalPages={totalPages} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

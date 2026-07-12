@@ -18,7 +18,7 @@ import {
   BarChart3,
   Shield,
   Award,
-  ScanQrCode,
+
   UserCircle,
   GraduationCap,
   Monitor,
@@ -60,6 +60,7 @@ const navGroups: NavGroup[] = [
     groupKey: "main",
     items: [
       { key: "dashboard", icon: LayoutDashboard, path: "/dashboard" },
+      { key: "pointage", icon: Clock, path: "/pointage" },
       { key: "members", icon: Users, path: "/members" },
       { key: "subscriptions", icon: CreditCard, path: "/subscriptions" },
       { key: "payments", icon: Wallet, path: "/payments" },
@@ -95,7 +96,6 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "accessControl", icon: Shield, path: "/access-control" },
       { key: "badges", icon: Award, path: "/badges" },
-      { key: "checkInKiosk", icon: ScanQrCode, path: "/check-in-kiosk" },
     ],
   },
   {
@@ -125,16 +125,34 @@ const navGroups: NavGroup[] = [
   },
 ]
 
+const VISIBLE_GROUPS: Record<string, string[]> = {
+  super_admin: navGroups.map(g => g.groupKey),
+  admin: ['main', 'planning', 'sales', 'equipment', 'access', 'portal', 'admin'],
+  staff: ['main', 'planning'],
+  coach: ['main', 'planning'],
+}
+
+function getTopRole(roles: { role: string }[]): string {
+  if (roles.some(r => r.role === 'super_admin')) return 'super_admin'
+  if (roles.some(r => r.role === 'admin')) return 'admin'
+  if (roles.some(r => r.role === 'staff')) return 'staff'
+  if (roles.some(r => r.role === 'coach')) return 'coach'
+  return 'admin'
+}
+
 function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collapsed?: boolean }) {
   const pathname = useLocation().pathname
   const t = useT()
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, signOut, roles } = useAuth()
+  const topRole = getTopRole(roles)
+  const visibleGroups = VISIBLE_GROUPS[topRole] ?? VISIBLE_GROUPS.admin
+  const filteredGroups = navGroups.filter(g => visibleGroups.includes(g.groupKey))
   const initials = profile?.full_name
     ? profile.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     : user?.email?.slice(0, 2).toUpperCase() || 'AD'
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const groups: Record<string, boolean> = {}
-    navGroups.forEach((g) => { groups[g.groupKey] = true })
+    filteredGroups.forEach((g) => { groups[g.groupKey] = true })
     return groups
   })
 
@@ -157,7 +175,7 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
         </div>
         <ScrollArea className="flex-1 w-full px-2 py-2">
           <nav className="space-y-2">
-            {navGroups.map((group) => (
+            {filteredGroups.map((group) => (
               <div key={group.groupKey} className="space-y-0.5">
                 {group.items.map((item) => (
                   <motion.li key={item.path} whileHover={{ scale: 1.05 }} transition={{ duration: 0.15 }} className="list-none">
@@ -207,7 +225,7 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
       </motion.div>
       <ScrollArea className="flex-1 px-3 py-2">
         <nav className="space-y-1">
-          {navGroups.map((group) => (
+          {filteredGroups.map((group) => (
             <div key={group.groupKey}>
               <button
                 onClick={() => toggleGroup(group.groupKey)}

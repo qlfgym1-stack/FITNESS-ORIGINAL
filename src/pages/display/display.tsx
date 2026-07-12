@@ -1,85 +1,160 @@
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { useT } from "@/i18n"
+import { useQuery } from "@/hooks/useQuery"
+import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
+import { useExportCsv } from "@/hooks/useExportCsv"
 import { getInitials } from "@/lib/utils"
-import { Users, Calendar, Clock, Activity, TrendingUp, UserCheck, LogIn } from "lucide-react"
-
-const mockRecentCheckins = [
-  { id: "1", name: "Ahmed Benali", time: "08:30", type: "check-in" },
-  { id: "2", name: "Fatima Zohra", time: "08:45", type: "check-in" },
-  { id: "3", name: "Karim Ouali", time: "09:00", type: "class", class_name: "Yoga" },
-  { id: "4", name: "Lamia Bensaid", time: "09:15", type: "check-in" },
-  { id: "5", name: "Sami Mokhtar", time: "09:30", type: "class", class_name: "CrossFit" },
-  { id: "6", name: "Nadia Hamdi", time: "09:45", type: "check-in" },
-  { id: "7", name: "Rachid Mansour", time: "10:00", type: "check-in" },
-  { id: "8", name: "Ines Merabet", time: "10:15", type: "class", class_name: "Spinning" },
-]
-
-const mockTodayClasses = [
-  { id: "1", name: "Morning Yoga", time: "08:00 - 09:00", coach: "Sami", enrolled: 12, capacity: 20 },
-  { id: "2", name: "CrossFit", time: "10:00 - 11:00", coach: "Sami", enrolled: 15, capacity: 15 },
-  { id: "3", name: "Spinning", time: "17:00 - 18:00", coach: "Ines", enrolled: 8, capacity: 12 },
-  { id: "4", name: "Zumba", time: "18:30 - 19:30", coach: "Meriem", enrolled: 10, capacity: 20 },
-]
+import { Users, Calendar, Clock, Activity, TrendingUp, UserCheck, LogIn, Loader2, Download } from "lucide-react"
 
 export default function DisplayPage() {
   const t = useT()
+  const supabase = useSupabase()
+  const { organization } = useAuth()
+  const orgId = organization?.id
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { data: todayCheckins = [] } = useQuery({
+    queryKey: ["display-checkins", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("attendance")
+        .select("id, check_in, members!inner(first_name, last_name)")
+        .eq("organization_id", orgId)
+        .gte("check_in", today)
+        .order("check_in", { ascending: false })
+        .limit(8)
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        name: `${r.members?.first_name ?? ""} ${r.members?.last_name ?? ""}`,
+        time: r.check_in ? new Date(r.check_in).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "",
+        type: "check-in" as const,
+      }))
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: todayClasses = [] } = useQuery({
+    queryKey: ["display-classes", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("classes")
+        .select("id, name, start_time, end_time, capacity, staff!inner(first_name, last_name)")
+        .eq("organization_id", orgId)
+        .gte("start_time", today)
+        .lt("start_time", new Date(Date.now() + 86400000).toISOString().slice(0, 10))
+        .order("start_time")
+        .limit(10)
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        time: `${new Date(r.start_time).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} - ${new Date(r.end_time).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`,
+        coach: `${r.staff?.first_name ?? ""} ${r.staff?.last_name ?? ""}`,
+        enrolled: 0,
+        capacity: r.capacity ?? 0,
+      }))
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: counts } = useQuery({
+    queryKey: ["display-counts", orgId],
+    queryFn: async () => {
+      if (!orgId) return { checkins: 0, members: 0, classes: 0, active: 0 }
+      const { count: checkins } = await supabase.from("attendance").select("*", { count: "exact", head: true }).eq("organization_id", orgId).gte("check_in", today)
+      const { count: members } = await supabase.from("members").select("*", { count: "exact", head: true }).eq("organization_id", orgId)
+      const { count: classes } = await supabase.from("classes").select("*", { count: "exact", head: true }).eq("organization_id", orgId).gte("start_time", today).lt("start_time", new Date(Date.now() + 86400000).toISOString().slice(0, 10))
+      const { count: active } = await supabase.from("members").select("*", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "active")
+      return { checkins: checkins ?? 0, members: members ?? 0, classes: classes ?? 0, active: active ?? 0 }
+    },
+    enabled: !!orgId,
+  })
+
+  const { exportCsv } = useExportCsv(
+    todayCheckins.map(r => ({ name: r.name, time: r.time, type: r.type })),
+    'checkins-today',
+    [
+      { key: 'name', label: t('common.name') || 'Name' },
+      { key: 'time', label: t('display.time') || 'Time' },
+      { key: 'type', label: t('display.type') || 'Type' },
+    ]
+  )
 
   return (
     <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between mb-4 px-2">
+        <h1 className="text-lg font-semibold">{t("display.title") || "Display"}</h1>
+        <Button variant="outline" size="sm" onClick={() => exportCsv()}>
+          <Download className="mr-2 h-4 w-4" />
+          {t("common.export") || "Export"}
+        </Button>
+      </div>
       <div className="flex-1 grid grid-cols-3 gap-6 overflow-hidden">
         <div className="col-span-2 flex flex-col gap-6 overflow-hidden">
           <div className="grid grid-cols-4 gap-4">
             <Card className="bg-primary/5 border-primary/20">
               <CardContent className="p-4 text-center">
                 <Users className="h-8 w-8 mx-auto mb-1 text-primary" />
-                <div className="text-3xl font-bold">42</div>
+                <div className="text-3xl font-bold">{counts?.checkins ?? 0}</div>
                 <div className="text-sm text-muted-foreground">{t("display.todayCheckins")}</div>
               </CardContent>
             </Card>
             <Card className="bg-success/5 border-success/20">
               <CardContent className="p-4 text-center">
-                <Activity className="h-8 w-8 mx-auto mb-1 text-success" />
-                <div className="text-3xl font-bold">156</div>
+                <UserCheck className="h-8 w-8 mx-auto mb-1 text-success" />
+                <div className="text-3xl font-bold">{counts?.active ?? 0}</div>
                 <div className="text-sm text-muted-foreground">{t("display.activeMembers")}</div>
               </CardContent>
             </Card>
             <Card className="bg-warning/5 border-warning/20">
               <CardContent className="p-4 text-center">
                 <Calendar className="h-8 w-8 mx-auto mb-1 text-warning" />
-                <div className="text-3xl font-bold">12</div>
+                <div className="text-3xl font-bold">{counts?.classes ?? 0}</div>
                 <div className="text-sm text-muted-foreground">{t("display.todayClasses")}</div>
               </CardContent>
             </Card>
             <Card className="bg-destructive/5 border-destructive/20">
               <CardContent className="p-4 text-center">
-                <TrendingUp className="h-8 w-8 mx-auto mb-1 text-destructive" />
-                <div className="text-3xl font-bold">89%</div>
-                <div className="text-sm text-muted-foreground">{t("display.occupancy")}</div>
+                <Users className="h-8 w-8 mx-auto mb-1 text-destructive" />
+                <div className="text-3xl font-bold">{counts?.members ?? 0}</div>
+                <div className="text-sm text-muted-foreground">{t("display.totalMembers")}</div>
               </CardContent>
             </Card>
           </div>
 
-          <Card className="flex-1 overflow-hidden">
-            <CardContent className="p-0">
-              <div className="p-4 border-b bg-muted/30">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
-                  <LogIn className="h-5 w-5" /> {t("display.recentCheckins")}
-                </h2>
-              </div>
-              <div className="divide-y overflow-y-auto max-h-[calc(100vh-24rem)]">
-                {mockRecentCheckins.map((c) => (
-                  <div key={c.id} className="flex items-center gap-4 px-4 py-3">
+          <Card className="flex-1">
+            <CardContent className="p-4">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Activity className="h-5 w-5 text-primary" />
+                {t("display.recentActivity")}
+              </h2>
+              <div className="space-y-3">
+                {todayCheckins.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">{t("common.noData")}</p>
+                ) : todayCheckins.map((r) => (
+                  <div key={r.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                     <Avatar className="h-10 w-10">
-                      <AvatarFallback>{getInitials(...c.name.split(" ") as [string, string])}</AvatarFallback>
+                      <AvatarFallback>{getInitials(r.name.split(" ")[0] ?? "", r.name.split(" ")[1] ?? "")}</AvatarFallback>
                     </Avatar>
-                    <div className="flex-1">
-                      <p className="font-medium">{c.name}</p>
-                      <p className="text-sm text-muted-foreground">{c.time}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{r.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {r.type === "check-in" ? t("display.checkedIn") : t("display.attending")}
+                      </p>
                     </div>
-                    <Badge variant={c.type === "class" ? "secondary" : "outline"}>
-                      {c.type === "class" ? c.class_name : t("display.checkIn")}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {r.time}
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      <LogIn className="h-3 w-3 mr-1" />
+                      {r.type === "check-in" ? t("display.checkin") : t("display.class")}
                     </Badge>
                   </div>
                 ))}
@@ -89,30 +164,25 @@ export default function DisplayPage() {
         </div>
 
         <div className="flex flex-col gap-6 overflow-hidden">
-          <Card className="flex-1 overflow-hidden">
-            <CardContent className="p-0">
-              <div className="p-4 border-b bg-muted/30">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
-                  <Calendar className="h-5 w-5" /> {t("display.todaySchedule")}
-                </h2>
-              </div>
-              <div className="divide-y overflow-y-auto max-h-[calc(100vh-16rem)]">
-                {mockTodayClasses.map((c) => (
-                  <div key={c.id} className="p-4">
-                    <div className="font-semibold text-lg">{c.name}</div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                      <Clock className="h-3.5 w-3.5" /> {c.time}
+          <Card>
+            <CardContent className="p-4">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                {t("display.todaySchedule")}
+              </h2>
+              <div className="space-y-3">
+                {todayClasses.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">{t("common.noData")}</p>
+                ) : todayClasses.map((c) => (
+                  <div key={c.id} className="p-3 rounded-lg bg-muted/30 border">
+                    <p className="font-medium text-sm">{c.name}</p>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {c.time}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Users className="h-3.5 w-3.5" /> {c.enrolled}/{c.capacity}
-                    </div>
-                    <div className="mt-2">
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-primary transition-all"
-                          style={{ width: `${c.capacity ? (c.enrolled / c.capacity) * 100 : 0}%` }}
-                        />
-                      </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <Badge variant="secondary" className="text-xs">{c.coach}</Badge>
+                      <span className="text-xs text-muted-foreground">{c.enrolled}/{c.capacity}</span>
                     </div>
                   </div>
                 ))}

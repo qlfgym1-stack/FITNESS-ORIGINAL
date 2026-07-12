@@ -20,8 +20,12 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import { formatDateTime, toUpper } from "@/lib/utils"
-import { Plus, Edit, Trash2, ArrowUpRight, ArrowDownLeft, Loader2 } from "lucide-react"
+import { Plus, Edit, Trash2, ArrowUpRight, ArrowDownLeft, Loader2, Download } from "lucide-react"
 import type { Inventory } from "@/types/supabase"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
+import { Card } from "@/components/ui/card"
 
 interface StockMovement {
   id: string
@@ -138,6 +142,20 @@ export default function StockMovementsPage() {
     return name.toLowerCase().includes(search.toLowerCase()) || notes.toLowerCase().includes(search.toLowerCase())
   }) ?? []
 
+  const { page, setPage, totalPages, paginatedData: paginatedMovements } = usePagination(filtered, 20)
+
+  const { exportCsv } = useExportCsv(
+    filtered.map(m => ({ product: m.inventory?.name ?? '-', type: m.type, quantity: m.quantity, date: m.created_at, notes: m.notes ?? '' })),
+    'stock-movements',
+    [
+      { key: 'product', label: t('stock.product') || 'Product' },
+      { key: 'type', label: t('stock.type') || 'Type' },
+      { key: 'quantity', label: t('stock.quantity') || 'Quantity' },
+      { key: 'date', label: t('stock.date') || 'Date' },
+      { key: 'notes', label: t('stock.notes') || 'Notes' },
+    ]
+  )
+
   function openCreate() {
     setEditing(null)
     setForm({ inventory_id: "", type: "in", quantity: 1, notes: "" })
@@ -169,9 +187,15 @@ export default function StockMovementsPage() {
         title={t("stock.title") || "Stock Movements"}
         description={t("stock.description") || "Track inventory movements"}
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" /> {t("stock.add") || "Add Movement"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" /> {t("stock.add") || "Add Movement"}
+            </Button>
+          </div>
         }
       />
 
@@ -190,7 +214,7 @@ export default function StockMovementsPage() {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -209,14 +233,14 @@ export default function StockMovementsPage() {
                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
-            ) : filtered.length === 0 ? (
+            ) : paginatedMovements.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults") || "No results"}
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((m) => (
+              paginatedMovements.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell className="font-medium">{toUpper(inventoryName(m))}</TableCell>
                   <TableCell>
@@ -244,6 +268,35 @@ export default function StockMovementsPage() {
           </TableBody>
         </Table>
       </div>
+      <div className="md:hidden space-y-3 p-4">
+        {paginatedMovements.length === 0 ? (
+          <p className="text-center py-8 text-muted-foreground">{t("common.noResults") || "No results"}</p>
+        ) : (
+          paginatedMovements.map(m => (
+            <Card key={m.id} className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-medium">{toUpper(inventoryName(m))}</span>
+                <Badge variant={m.type === "in" ? "default" : "destructive"} className="gap-1 ml-auto">
+                  {m.type === "in" ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
+                  {m.type === "in" ? t("stock.in") || "In" : t("stock.out") || "Out"}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{t("stock.quantity") || "Qty"}: {m.quantity}</p>
+              <p className="text-sm text-muted-foreground">{formatDateTime(m.created_at)}</p>
+              {m.notes && <p className="text-sm text-muted-foreground truncate">{toUpper(m.notes)}</p>}
+              <div className="flex justify-end gap-1 mt-2">
+                <Button variant="ghost" size="icon" onClick={() => openEdit(m)}>
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => { setDeleting(m); setDeleteOpen(true) }}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+      <Pagination page={page} totalPages={totalPages} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
 
       <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditing(null); setForm({ inventory_id: "", type: "in", quantity: 1, notes: "" }) } }}>
         <DialogContent>

@@ -21,7 +21,11 @@ import {
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { toUpper } from "../../lib/utils"
-import { Building2, Plus, Search, Edit, Trash2, Phone, Mail, MapPin, Loader2 } from "lucide-react"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
+import { Card } from "@/components/ui/card"
+import { Building2, Plus, Search, Edit, Trash2, Phone, Mail, MapPin, Loader2, Download, X } from "lucide-react"
 
 interface Supplier {
   id: string
@@ -79,6 +83,20 @@ export default function SuppliersPage() {
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.contact_name.toLowerCase().includes(search.toLowerCase()) ||
     s.email.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const { page, setPage, totalPages, paginatedData: paginatedSuppliers } = usePagination(filtered, 20)
+
+  const { exportCsv } = useExportCsv(
+    filtered.map(s => ({ name: s.name, contact_name: s.contact_name, email: s.email, phone: s.phone, address: s.address })),
+    'suppliers',
+    [
+      { key: 'name', label: t('suppliers.name') },
+      { key: 'contact_name', label: t('suppliers.contactName') },
+      { key: 'email', label: t('suppliers.email') },
+      { key: 'phone', label: t('suppliers.phone') },
+      { key: 'address', label: t('suppliers.address') },
+    ]
   )
 
   const upsertMutation = useMutation({
@@ -151,9 +169,15 @@ export default function SuppliersPage() {
         title={t("suppliers.title")}
         description={t("suppliers.description")}
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" /> {t("suppliers.add")}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" /> {t("suppliers.add")}
+            </Button>
+          </div>
         }
       />
 
@@ -162,9 +186,12 @@ export default function SuppliersPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
+        <Button variant="outline" size="icon" onClick={() => { setSearch(""); setPage(1) }} title="Reset filters">
+          <X className="h-4 w-4" />
+        </Button>
       </div>
 
-      <div className="rounded-md border">
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -183,7 +210,7 @@ export default function SuppliersPage() {
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
-            ) : filtered.map((s) => (
+            ) : paginatedSuppliers.map((s) => (
               <TableRow key={s.id}>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-2">
@@ -222,7 +249,7 @@ export default function SuppliersPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {!isLoading && filtered.length === 0 && (
+            {!isLoading && paginatedSuppliers.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults")}
@@ -232,6 +259,43 @@ export default function SuppliersPage() {
           </TableBody>
         </Table>
       </div>
+
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <div className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></div>
+        ) : paginatedSuppliers.length === 0 ? (
+          <p className="text-center py-8 text-muted-foreground">{t("common.noResults")}</p>
+        ) : (
+          paginatedSuppliers.map((s) => (
+            <Card key={s.id} className="p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-medium flex items-center gap-1">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    {toUpper(s.name)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{toUpper(s.contact_name)}</p>
+                </div>
+              </div>
+              <div className="mt-2 text-sm space-y-1">
+                <p className="flex items-center gap-1"><Mail className="h-3 w-3 text-muted-foreground" /> {s.email}</p>
+                <p className="flex items-center gap-1"><Phone className="h-3 w-3 text-muted-foreground" /> {s.phone}</p>
+                <p className="flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" /> {s.address}</p>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => openEdit(s)}>
+                  <Edit className="h-4 w-4 mr-1" /> {t("common.edit") || "Edit"}
+                </Button>
+                <Button variant="outline" size="sm" className="text-destructive" onClick={() => { setDeleting(s); setDeleteOpen(true) }}>
+                  <Trash2 className="h-4 w-4 mr-1" /> {t("common.delete") || "Delete"}
+                </Button>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+
+      <Pagination page={page} totalPages={totalPages} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

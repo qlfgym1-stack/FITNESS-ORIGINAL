@@ -7,7 +7,7 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { formatDate, formatCurrency, cn, toUpper } from "@/lib/utils"
+import { formatDate, formatCurrency, cn, toUpper, formatPhone, displayPhone } from "@/lib/utils"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,7 +28,10 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Pencil, Loader2, MoreHorizontal } from "lucide-react"
+import { Plus, Pencil, Loader2, MoreHorizontal, Mail, Download } from "lucide-react"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -67,6 +70,10 @@ export default function StaffPage() {
   const [editing, setEditing] = useState<Staff | null>(null)
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
   const [statusConfirmStaff, setStatusConfirmStaff] = useState<Staff | null>(null)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState("")
+  const [inviteRole, setInviteRole] = useState("staff")
+  const [inviteLoading, setInviteLoading] = useState(false)
 
   const form = useForm<StaffForm>({
     resolver: zodResolver(staffSchema),
@@ -140,7 +147,7 @@ export default function StaffPage() {
       firstName: staff.first_name,
       lastName: staff.last_name,
       email: staff.email ?? "",
-      phone: staff.phone ?? "",
+      phone: formatPhone(staff.phone) ?? "",
       role: staff.role ?? "",
       salary: staff.salary ?? "" as unknown as number,
       hireDate: staff.hire_date ?? "",
@@ -158,6 +165,23 @@ export default function StaffPage() {
     upsertMutation.mutate(values)
   }
 
+  const { page, setPage, totalPages, paginatedData: paginatedStaff } = usePagination(staffList, 20)
+
+  const { exportCsv } = useExportCsv(
+    (staffList ?? []).map(s => ({ first_name: s.first_name, last_name: s.last_name, email: s.email ?? '', phone: s.phone ?? '', role: s.role ?? '', salary: s.salary ?? 0, hire_date: s.hire_date ?? '', is_active: s.is_active })),
+    'staff',
+    [
+      { key: 'first_name', label: t('staff.firstName') },
+      { key: 'last_name', label: t('staff.lastName') },
+      { key: 'email', label: t('staff.email') },
+      { key: 'phone', label: t('staff.phone') },
+      { key: 'role', label: t('staff.role') },
+      { key: 'salary', label: t('staff.salary') },
+      { key: 'hire_date', label: t('staff.hireDate') },
+      { key: 'is_active', label: t('staff.status') },
+    ]
+  )
+
   const currentTab = TABS.find(t => t.path === location.pathname)?.value ?? "list"
 
   return (
@@ -166,10 +190,20 @@ export default function StaffPage() {
         title={t("staff.title")}
         description={t("staff.description")}
         actions={
-          <Button onClick={openAdd}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("staff.add")}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
+            <Button variant="outline" onClick={() => setInviteOpen(true)}>
+              <Mail className="mr-2 h-4 w-4" />
+              {t("staff.invite") || "Inviter"}
+            </Button>
+            <Button onClick={openAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("staff.add")}
+            </Button>
+          </div>
         }
       />
 
@@ -183,56 +217,85 @@ export default function StaffPage() {
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("staff.name")}</TableHead>
-                <TableHead>{t("staff.email")}</TableHead>
-                <TableHead>{t("staff.phone")}</TableHead>
-                <TableHead>{t("staff.role")}</TableHead>
-                <TableHead>{t("staff.salary")}</TableHead>
-                <TableHead>{t("staff.hireDate")}</TableHead>
-                <TableHead>{t("staff.status")}</TableHead>
-                <TableHead className="w-[70px]">{t("staff.actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-              ) : staffList?.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">{t("staff.noData")}</TableCell></TableRow>
-              ) : (
-                staffList?.map(staff => (
-                  <TableRow key={staff.id}>
-                    <TableCell className="font-medium">{toUpper(staff.first_name)} {toUpper(staff.last_name)}</TableCell>
-                    <TableCell>{staff.email}</TableCell>
-                    <TableCell>{toUpper(staff.phone)}</TableCell>
-                    <TableCell className="capitalize">{toUpper(staff.role)}</TableCell>
-                    <TableCell>{staff.salary ? formatCurrency(staff.salary) : "-"}</TableCell>
-                    <TableCell>{staff.hire_date ? formatDate(staff.hire_date) : "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant={staff.is_active ? "default" : "secondary"}>{staff.is_active ? t("common.active") : t("common.inactive")}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEdit(staff)}>
-                            <Pencil className="mr-2 h-4 w-4" /> {t("staff.edit")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setStatusConfirmStaff(staff); setStatusConfirmOpen(true) }}>
-                            {staff.is_active ? t("staff.deactivate") : t("staff.activate")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("staff.name")}</TableHead>
+                  <TableHead>{t("staff.email")}</TableHead>
+                  <TableHead>{t("staff.phone")}</TableHead>
+                  <TableHead>{t("staff.role")}</TableHead>
+                  <TableHead>{t("staff.salary")}</TableHead>
+                  <TableHead>{t("staff.hireDate")}</TableHead>
+                  <TableHead>{t("staff.status")}</TableHead>
+                  <TableHead className="w-[70px]">{t("staff.actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                ) : paginatedStaff?.length === 0 ? (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">{t("staff.noData")}</TableCell></TableRow>
+                ) : (
+                  paginatedStaff?.map(staff => (
+                    <TableRow key={staff.id}>
+                      <TableCell className="font-medium">{toUpper(staff.first_name)} {toUpper(staff.last_name)}</TableCell>
+                      <TableCell>{staff.email}</TableCell>
+                      <TableCell>{displayPhone(staff.phone)}</TableCell>
+                      <TableCell className="capitalize">{toUpper(staff.role)}</TableCell>
+                      <TableCell>{staff.salary ? formatCurrency(staff.salary) : "-"}</TableCell>
+                      <TableCell>{staff.hire_date ? formatDate(staff.hire_date) : "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant={staff.is_active ? "default" : "secondary"}>{staff.is_active ? t("common.active") : t("common.inactive")}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEdit(staff)}>
+                              <Pencil className="mr-2 h-4 w-4" /> {t("staff.edit")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setStatusConfirmStaff(staff); setStatusConfirmOpen(true) }}>
+                              {staff.is_active ? t("staff.deactivate") : t("staff.activate")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="md:hidden space-y-3 p-4">
+            {isLoading ? (
+              <div className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>
+            ) : paginatedStaff?.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">{t("staff.noData")}</p>
+            ) : (
+              paginatedStaff?.map(staff => (
+                <Card key={staff.id} className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium">{toUpper(staff.first_name)} {toUpper(staff.last_name)}</p>
+                      <p className="text-sm text-muted-foreground">{staff.email}</p>
+                    </div>
+                    <Badge variant={staff.is_active ? "default" : "secondary"}>{staff.is_active ? t("common.active") : t("common.inactive")}</Badge>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(staff)}><Pencil className="h-4 w-4" /></Button>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+
+          <div className="px-4 pb-4">
+            <Pagination page={page} totalPages={totalPages} totalItems={staffList?.length ?? 0} pageSize={20} onPageChange={setPage} />
+          </div>
         </CardContent>
       </Card>
 
@@ -271,7 +334,7 @@ export default function StaffPage() {
                 <FormField control={form.control} name="phone" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("staff.phone")}</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
+                    <FormControl><Input {...field} onBlur={() => field.onChange(formatPhone(field.value))} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -317,6 +380,56 @@ export default function StaffPage() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={inviteOpen} onOpenChange={(v) => { setInviteOpen(v); if (!v) { setInviteEmail(""); setInviteRole("staff") } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("staff.inviteStaff") || "Inviter un membre"}</DialogTitle>
+            <DialogDescription>{t("staff.inviteDescription") || "Envoyer une invitation par email"}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <FormLabel>{t("staff.email")}</FormLabel>
+              <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@example.com" />
+            </div>
+            <div>
+              <FormLabel>{t("staff.role")}</FormLabel>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLES.map(r => (
+                    <SelectItem key={r} value={r} className="capitalize">{t(`staff.${r}`)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>{t("common.cancel")}</Button>
+            <Button disabled={!inviteEmail || inviteLoading} onClick={async () => {
+              setInviteLoading(true)
+              try {
+                const { error } = await supabase.functions.invoke("send-staff-invitation", {
+                  body: { email: inviteEmail, role: inviteRole, organization_id: orgId },
+                })
+                if (error) throw error
+                toast({ title: t("staff.inviteSent") || "Invitation envoyée" })
+                setInviteOpen(false)
+                setInviteEmail("")
+              } catch (err: any) {
+                toast({ title: t("errors.error"), description: err.message, variant: "destructive" })
+              } finally {
+                setInviteLoading(false)
+              }
+            }}>
+              {inviteLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("staff.sendInvite") || "Envoyer"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

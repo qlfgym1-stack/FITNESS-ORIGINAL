@@ -33,10 +33,13 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Plus, CalendarDays, List, Users, Clock, Loader2, Trash2, UserPlus, UserMinus, Pencil,
+  Plus, CalendarDays, List, Users, Clock, Loader2, Trash2, UserPlus, UserMinus, Pencil, Download,
 } from "lucide-react"
 import { format } from "date-fns"
 import { cn, toUpper } from "@/lib/utils"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
 import type { Class, Staff, Member } from "@/types/supabase"
 
 const HOURS = Array.from({ length: 14 }, (_, i) => `${String(i + 7).padStart(2, "0")}:00`)
@@ -284,6 +287,21 @@ export default function ClassesPage() {
   const classesByDay = (day: number) =>
     classes?.filter((c) => c.day_of_week === day && c.recurring) ?? []
 
+  const { page, setPage, totalPages, paginatedData: paginatedClasses } = usePagination(classes, 20)
+
+  const { exportCsv } = useExportCsv(
+    (classes ?? []).map(c => ({ name: c.name, coach: c.staff ? `${c.staff.first_name} ${c.staff.last_name}` : '-', start_time: c.start_time, end_time: c.end_time, max_capacity: c.max_capacity ?? '-', recurring: c.recurring ? 'Yes' : 'No' })),
+    'classes',
+    [
+      { key: 'name', label: t('classes.name') },
+      { key: 'coach', label: t('classes.coach') },
+      { key: 'start_time', label: t('classes.startTime') },
+      { key: 'end_time', label: t('classes.endTime') },
+      { key: 'max_capacity', label: t('classes.maxCapacity') },
+      { key: 'recurring', label: t('classes.recurring') },
+    ]
+  )
+
   const handleViewDetails = (cls: Class) => {
     setSelectedClass(cls)
     setDetailDialogOpen(true)
@@ -295,6 +313,11 @@ export default function ClassesPage() {
         title={t("classes.title")}
         description={t("classes.description")}
         actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
           <Dialog open={addDialogOpen} onOpenChange={(v) => { setAddDialogOpen(v); if (!v) { setEditingClass(null); form.reset() } }}>
             <DialogTrigger asChild>
               <Button>
@@ -473,6 +496,7 @@ export default function ClassesPage() {
               </Form>
             </DialogContent>
           </Dialog>
+          </div>
         }
       />
 
@@ -540,8 +564,10 @@ export default function ClassesPage() {
           </CardContent>
         </Card>
       ) : (
+        <>
         <Card>
           <CardContent className="p-0">
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -562,14 +588,14 @@ export default function ClassesPage() {
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                     </TableCell>
                   </TableRow>
-                ) : classes?.length === 0 ? (
+                ) : paginatedClasses?.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       {t("classes.noClasses")}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  classes?.map((cls) => (
+                  paginatedClasses?.map((cls) => (
                     <TableRow key={cls.id} className="cursor-pointer" onClick={() => handleViewDetails(cls)}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
@@ -606,8 +632,37 @@ export default function ClassesPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
+            <div className="md:hidden space-y-3 p-4">
+              {isLoading ? (
+                <div className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>
+              ) : paginatedClasses?.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">{t("common.noResults")}</p>
+              ) : (
+                paginatedClasses?.map(cls => (
+                  <Card key={cls.id} className="p-4 cursor-pointer" onClick={() => handleViewDetails(cls)}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cls.color || "#3b82f6" }} />
+                      <span className="font-medium">{toUpper(cls.name)}</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>{t("classes.coach")}: {cls.staff ? toUpper(`${cls.staff.first_name} ${cls.staff.last_name}`) : "-"}</p>
+                      <p>{toUpper(cls.start_time)} - {toUpper(cls.end_time)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge variant="secondary">
+                        {classEnrollments(cls.id).length}{cls.max_capacity ? `/${cls.max_capacity}` : ""}
+                      </Badge>
+                      {cls.recurring && <Badge>{DAYS[cls.day_of_week ?? 0]}</Badge>}
+                    </div>
+                  </Card>
+                ))
+              )}
+            </div>
           </CardContent>
         </Card>
+        <Pagination page={page} totalPages={totalPages} totalItems={classes?.length ?? 0} pageSize={20} onPageChange={setPage} />
+        </>
       )}
 
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>

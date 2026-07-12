@@ -30,7 +30,8 @@ const Suppliers = lazy(() => import('@/pages/suppliers/suppliers'))
 const PurchaseOrders = lazy(() => import('@/pages/suppliers/purchase-orders'))
 const AccessControl = lazy(() => import('@/pages/access-control/access-control'))
 const Badges = lazy(() => import('@/pages/badges/badges'))
-const CheckInKiosk = lazy(() => import('@/pages/check-in-kiosk/kiosk'))
+const Pointage = lazy(() => import('@/pages/pointage/pointage'))
+
 const MemberPortal = lazy(() => import('@/pages/member-portal/portal'))
 const CoachMode = lazy(() => import('@/pages/coach-mode/coach-mode'))
 const Reports = lazy(() => import('@/pages/reports/reports'))
@@ -101,6 +102,7 @@ export default function App() {
             <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<PageTransition><Suspense fallback={<Loading />}><Dashboard /></Suspense></PageTransition>} />
+              <Route path="pointage" element={<PageTransition><Suspense fallback={<Loading />}><Pointage /></Suspense></PageTransition>} />
               <Route path="members" element={<PageTransition><Suspense fallback={<Loading />}><Members /></Suspense></PageTransition>} />
               <Route path="subscriptions" element={<PageTransition><Suspense fallback={<Loading />}><Subscriptions /></Suspense></PageTransition>} />
               <Route path="payments" element={<PageTransition><Suspense fallback={<Loading />}><Payments /></Suspense></PageTransition>} />
@@ -120,7 +122,6 @@ export default function App() {
               <Route path="purchase-orders" element={<PageTransition><Suspense fallback={<Loading />}><PurchaseOrders /></Suspense></PageTransition>} />
               <Route path="access-control" element={<PageTransition><Suspense fallback={<Loading />}><AccessControl /></Suspense></PageTransition>} />
               <Route path="badges" element={<PageTransition><Suspense fallback={<Loading />}><Badges /></Suspense></PageTransition>} />
-              <Route path="check-in-kiosk" element={<PageTransition><Suspense fallback={<Loading />}><CheckInKiosk /></Suspense></PageTransition>} />
               <Route path="member-portal" element={<PageTransition><Suspense fallback={<Loading />}><MemberPortal /></Suspense></PageTransition>} />
               <Route path="coach-mode" element={<PageTransition><Suspense fallback={<Loading />}><CoachMode /></Suspense></PageTransition>} />
               <Route path="reports" element={<PageTransition><Suspense fallback={<Loading />}><Reports /></Suspense></PageTransition>} />

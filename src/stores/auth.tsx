@@ -15,7 +15,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+  signIn: (email: string, password: string, recoveryCode?: string) => Promise<{ error: Error | null; newCode?: string }>
   signUp: (email: string, password: string, orgData: { name: string; slug: string }) => Promise<{ error: Error | null; recoveryCode?: string }>
   signOut: () => Promise<void>
 }
@@ -69,8 +69,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription?.unsubscribe()
   }, [fetchSession])
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string, recoveryCode?: string) => {
     if (IS_MOCK) { setState(MOCK_ADMIN); return { error: null } }
+
+    // Recovery code sign-in flow
+    if (recoveryCode) {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+      const res = await fetch(`${supabaseUrl}/functions/v1/sign-in-with-recovery`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ email, code: recoveryCode }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        return { error: new Error(data.error || 'Recovery sign-in failed') }
+      }
+      // Verify the magic link token to create a session
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email,
+        token: data.token,
+        type: 'magiclink',
+      })
+      if (verifyError) return { error: verifyError }
+      return { error: null, newCode: data.newCode }
+    }
+
+    // Normal password sign-in
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error }
   }, [])

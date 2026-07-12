@@ -16,9 +16,9 @@ export interface Database {
         Relationships: []
       }
       members: {
-        Row: { id: string; organization_id: string; first_name: string; last_name: string; email: string | null; phone: string | null; gender: string | null; birth_date: string | null; address: string | null; emergency_contact: string | null; emergency_phone: string | null; photo_url: string | null; status: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit: string | null; notes: string | null; created_at: string; updated_at: string }
-        Insert: { id?: string; organization_id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string }
-        Update: { id?: string; organization_id?: string; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string }
+        Row: { id: string; organization_id: string; first_name: string; last_name: string; email: string | null; phone: string | null; gender: string | null; birth_date: string | null; address: string | null; emergency_contact: string | null; emergency_phone: string | null; photo_url: string | null; status: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit: string | null; notes: string | null; created_at: string; updated_at: string; member_number: string | null }
+        Insert: { id?: string; organization_id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null }
+        Update: { id?: string; organization_id?: string; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null }
         Relationships: []
       }
       subscription_types: {
@@ -58,15 +58,21 @@ export interface Database {
         Relationships: []
       }
       rfid_cards: {
-        Row: { id: string; member_id: string; card_uid: string; status: 'active' | 'inactive' | 'lost' | 'stolen' | 'expired'; issued_at: string; expires_at: string | null; created_at: string }
-        Insert: { id?: string; member_id: string; card_uid: string; status?: 'active' | 'inactive' | 'lost' | 'stolen' | 'expired'; issued_at?: string; expires_at?: string | null; created_at?: string }
-        Update: { id?: string; member_id?: string; card_uid?: string; status?: 'active' | 'inactive' | 'lost' | 'stolen' | 'expired'; issued_at?: string; expires_at?: string | null; created_at?: string }
+        Row: { id: string; member_id: string; rfid_uid: string; status: 'ACTIF' | 'REMPLACÉ' | 'DÉSACTIVÉ' | 'PERDU' | 'VOLÉ' | 'BLACKLISTÉ' | 'ARCHIVÉ'; assigned_at: string; replaced_at: string | null; replaced_by: string | null; reason: string | null; notes: string | null; created_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; member_id: string; rfid_uid: string; status?: 'ACTIF' | 'REMPLACÉ' | 'DÉSACTIVÉ' | 'PERDU' | 'VOLÉ' | 'BLACKLISTÉ' | 'ARCHIVÉ'; assigned_at?: string; replaced_at?: string | null; replaced_by?: string | null; reason?: string | null; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; member_id?: string; rfid_uid?: string; status?: 'ACTIF' | 'REMPLACÉ' | 'DÉSACTIVÉ' | 'PERDU' | 'VOLÉ' | 'BLACKLISTÉ' | 'ARCHIVÉ'; assigned_at?: string; replaced_at?: string | null; replaced_by?: string | null; reason?: string | null; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
         Relationships: []
       }
       rfid_read_logs: {
         Row: { id: string; card_uid: string; member_id: string | null; terminal: string; event_type: 'check-in' | 'check-out' | 'denied'; result: 'granted' | 'denied' | 'pending'; reason: string | null; user_id: string | null; read_at: string }
         Insert: { id?: string; card_uid: string; member_id?: string | null; terminal: string; event_type: 'check-in' | 'check-out' | 'denied'; result: 'granted' | 'denied' | 'pending'; reason?: string | null; user_id?: string | null; read_at?: string }
         Update: { id?: string; card_uid?: string; member_id?: string | null; terminal?: string; event_type?: 'check-in' | 'check-out' | 'denied'; result?: 'granted' | 'denied' | 'pending'; reason?: string | null; user_id?: string | null; read_at?: string }
+        Relationships: []
+      }
+      rfid_audit_log: {
+        Row: { id: string; member_id: string; old_rfid_uid: string | null; new_rfid_uid: string; action: 'ASSIGN' | 'REPLACE' | 'DEACTIVATE' | 'REACTIVATE' | 'ARCHIVE'; reason: string | null; notes: string | null; created_by: string | null; ip_address: string | null; created_at: string }
+        Insert: { id?: string; member_id: string; old_rfid_uid?: string | null; new_rfid_uid: string; action: 'ASSIGN' | 'REPLACE' | 'DEACTIVATE' | 'REACTIVATE' | 'ARCHIVE'; reason?: string | null; notes?: string | null; created_by?: string | null; ip_address?: string | null; created_at?: string }
+        Update: { id?: string; member_id?: string; old_rfid_uid?: string | null; new_rfid_uid?: string; action?: 'ASSIGN' | 'REPLACE' | 'DEACTIVATE' | 'REACTIVATE' | 'ARCHIVE'; reason?: string | null; notes?: string | null; created_by?: string | null; ip_address?: string | null; created_at?: string }
         Relationships: []
       }
       turnstile_status: {
@@ -184,9 +190,9 @@ export interface Database {
         Relationships: []
       }
       notifications: {
-        Row: { id: string; organization_id: string; user_id: string; title: string; body: string | null; type: string | null; is_read: boolean; data: Json | null; created_at: string }
-        Insert: { id?: string; organization_id: string; user_id: string; title: string; body?: string | null; type?: string | null; is_read?: boolean; data?: Json | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; user_id?: string; title?: string; body?: string | null; type?: string | null; is_read?: boolean; data?: Json | null; created_at?: string }
+        Row: { id: string; organization_id: string; user_id: string | null; title: string; body: string | null; message: string; type: string; is_read: boolean; data: Json | null; created_at: string }
+        Insert: { id?: string; organization_id: string; user_id?: string | null; title: string; body?: string | null; message: string; type: string; is_read?: boolean; data?: Json | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; user_id?: string | null; title?: string; body?: string | null; message?: string; type?: string; is_read?: boolean; data?: Json | null; created_at?: string }
         Relationships: []
       }
       licenses: {
@@ -266,6 +272,7 @@ export type License = Tables<'licenses'>
 export type Setting = Tables<'settings'>
 export type Corporate = Tables<'corporate'>
 export type RfidCard = Tables<'rfid_cards'>
+export type RfidCardAudit = Tables<'rfid_audit_log'>
 export type RfidReadLog = Tables<'rfid_read_logs'>
 export type TurnstileStatus = Tables<'turnstile_status'>
 export type ManualValidation = Tables<'manual_validations'>

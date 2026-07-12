@@ -16,7 +16,11 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { formatDate, getDaysRemaining, getStatusColor } from "@/lib/utils"
-import { Key, Plus, Search, Edit, Trash2, Copy, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Key, Plus, Search, Edit, Trash2, Copy, CheckCircle2, AlertTriangle, Download } from "lucide-react"
+import { usePagination } from "@/hooks/usePagination"
+import { useExportCsv } from "@/hooks/useExportCsv"
+import { Pagination } from "@/components/ui/pagination"
+import { Card } from "@/components/ui/card"
 
 interface License {
   id: string
@@ -49,6 +53,21 @@ export default function LicensesPage() {
   const filtered = licenses.filter((l) =>
     l.license_key.toLowerCase().includes(search.toLowerCase()) ||
     l.organization.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const { page, setPage, totalPages, paginatedData: paginatedLicenses } = usePagination(filtered, 20)
+
+  const { exportCsv } = useExportCsv(
+    filtered.map(l => ({ license_key: l.license_key, type: l.type, organization: l.organization, issued_at: l.issued_at, expires_at: l.expires_at, active: l.is_active ? 'Yes' : 'No' })),
+    'licenses',
+    [
+      { key: 'license_key', label: t('licenses.key') },
+      { key: 'type', label: t('licenses.type') },
+      { key: 'organization', label: t('licenses.organization') },
+      { key: 'issued_at', label: t('licenses.issued') },
+      { key: 'expires_at', label: t('licenses.expires') },
+      { key: 'active', label: t('licenses.status') },
+    ]
   )
 
   function generateKey() {
@@ -98,9 +117,15 @@ export default function LicensesPage() {
         title={t("licenses.title")}
         description={t("licenses.description")}
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" /> {t("licenses.add")}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.export") || "Export"}
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" /> {t("licenses.add")}
+            </Button>
+          </div>
         }
       />
 
@@ -111,7 +136,7 @@ export default function LicensesPage() {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -125,7 +150,7 @@ export default function LicensesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((l) => {
+            {paginatedLicenses.map((l) => {
               const daysLeft = getDaysRemaining(l.expires_at)
               const expired = daysLeft <= 0
               return (
@@ -174,7 +199,7 @@ export default function LicensesPage() {
                 </TableRow>
               )
             })}
-            {filtered.length === 0 && (
+            {paginatedLicenses.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults")}
@@ -184,6 +209,50 @@ export default function LicensesPage() {
           </TableBody>
         </Table>
       </div>
+      <div className="md:hidden space-y-3 p-4">
+        {paginatedLicenses.length === 0 ? (
+          <p className="text-center py-8 text-muted-foreground">{t("common.noResults")}</p>
+        ) : (
+          paginatedLicenses.map(l => {
+            const daysLeft = getDaysRemaining(l.expires_at)
+            const expired = daysLeft <= 0
+            return (
+              <Card key={l.id} className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Key className="h-4 w-4 text-muted-foreground" />
+                  <code className="text-xs bg-muted px-2 py-1 rounded">{l.license_key}</code>
+                  <Badge variant={l.is_active ? "default" : "secondary"} className="ml-auto">
+                    {l.is_active ? t("common.active") : t("common.inactive")}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">{l.organization}</p>
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  {formatDate(l.issued_at)} - {formatDate(l.expires_at)}
+                  {expired ? (
+                    <AlertTriangle className="h-3 w-3 text-destructive" />
+                  ) : daysLeft < 30 ? (
+                    <AlertTriangle className="h-3 w-3 text-warning" />
+                  ) : (
+                    <CheckCircle2 className="h-3 w-3 text-success" />
+                  )}
+                </p>
+                <div className="flex justify-end gap-1 mt-2">
+                  <Button variant="ghost" size="icon" onClick={() => copyKey(l.license_key)}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(l)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => remove(l.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </Card>
+            )
+          })
+        )}
+      </div>
+      <Pagination page={page} totalPages={totalPages} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

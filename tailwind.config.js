@@ -39,12 +39,12 @@ export default {
           foreground: 'var(--card-foreground)',
         },
         success: {
-          DEFAULT: '#10b981',
-          foreground: '#ffffff',
+          DEFAULT: 'var(--success)',
+          foreground: 'var(--success-foreground)',
         },
         warning: {
-          DEFAULT: '#f59e0b',
-          foreground: '#ffffff',
+          DEFAULT: 'var(--warning)',
+          foreground: 'var(--warning-foreground)',
         },
       },
       borderRadius: {

@@ -18,9 +18,12 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Pencil, Search, Loader2, XCircle, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Search, Loader2, XCircle, RefreshCw, Download } from 'lucide-react'
 import { formatCurrency, formatDate, getDaysRemaining, getStatusColor, toUpper } from '@/lib/utils'
 import type { SubscriptionType, MemberSubscription } from '@/types/supabase'
+import { usePagination } from '@/hooks/usePagination'
+import { useExportCsv } from '@/hooks/useExportCsv'
+import { Pagination } from '@/components/ui/pagination'
 
 interface MemberSubWithDetails extends MemberSubscription {
   member_name?: string
@@ -216,6 +219,37 @@ export default function Subscriptions() {
     }
   }
 
+  const { page: typePage, setPage: setTypePage, totalPages: typeTotalPages, paginatedData: paginatedTypes } = usePagination(subTypes, 20)
+  const { page: subPage, setPage: setSubPage, totalPages: subTotalPages, paginatedData: paginatedSubs } = usePagination(memberSubs, 20)
+
+  const { exportCsv: exportTypesCsv } = useExportCsv(
+    (subTypes ?? []).map(type => ({ name: type.name, description: type.description ?? '', duration_days: type.duration_days, price: type.price, max_classes: type.max_classes ?? 'Unlimited', active: type.is_active ? 'Yes' : 'No' })),
+    'subscription-types',
+    [
+      { key: 'name', label: t('subscriptions.name') },
+      { key: 'description', label: t('subscriptions.descriptionLabel') },
+      { key: 'duration_days', label: t('subscriptions.duration') },
+      { key: 'price', label: t('subscriptions.price') },
+      { key: 'max_classes', label: t('subscriptions.maxClasses') },
+      { key: 'active', label: t('subscriptions.active') },
+    ]
+  )
+
+  const { exportCsv: exportSubsCsv } = useExportCsv(
+    (memberSubs ?? []).map(sub => ({ member_name: sub.member_name ?? '', type_name: sub.type_name ?? '', start_date: sub.start_date, end_date: sub.end_date, total_amount: sub.total_amount, amount_paid: sub.amount_paid, balance: sub.total_amount - sub.amount_paid, status: sub.status })),
+    'member-subscriptions',
+    [
+      { key: 'member_name', label: t('subscriptions.member') },
+      { key: 'type_name', label: t('subscriptions.type') },
+      { key: 'start_date', label: t('subscriptions.startDate') },
+      { key: 'end_date', label: t('subscriptions.endDate') },
+      { key: 'total_amount', label: t('payments.total') },
+      { key: 'amount_paid', label: t('subscriptions.paid') },
+      { key: 'balance', label: t('subscriptions.balance') },
+      { key: 'status', label: t('subscriptions.status') },
+    ]
+  )
+
   return (
     <div>
       <PageHeader title={t('subscriptions.title')} description={t('subscriptions.description')} />
@@ -231,11 +265,18 @@ export default function Subscriptions() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm text-muted-foreground">{t('subscriptions.typesDefined').replace('{count}', String(subTypes?.length ?? 0))}</p>
-                <Button onClick={openAddTypeDialog}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t('subscriptions.addType')}
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => exportTypesCsv()}>
+                    <Download className="mr-2 h-4 w-4" />
+                    {t('common.export') || 'Export'}
+                  </Button>
+                  <Button onClick={openAddTypeDialog}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t('subscriptions.addType')}
+                  </Button>
+                </div>
               </div>
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -252,10 +293,10 @@ export default function Subscriptions() {
                   {typesLoading && (
                     <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" /></TableCell></TableRow>
                   )}
-                  {!typesLoading && subTypes?.length === 0 && (
+                  {!typesLoading && paginatedTypes?.length === 0 && (
                     <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('subscriptions.noSubscriptionTypes')}</TableCell></TableRow>
                   )}
-                  {subTypes?.map((type) => (
+                  {paginatedTypes?.map((type) => (
                     <TableRow key={type.id}>
                       <TableCell className="font-medium">{toUpper(type.name)}</TableCell>
                       <TableCell className="text-muted-foreground max-w-[200px] truncate">{toUpper(type.description ?? '-')}</TableCell>
@@ -274,6 +315,28 @@ export default function Subscriptions() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
+              <div className="md:hidden space-y-3">
+                {paginatedTypes?.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">{t('common.noResults')}</p>
+                ) : (
+                  paginatedTypes?.map(type => (
+                    <Card key={type.id} className="p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-medium">{toUpper(type.name)}</span>
+                        <Switch checked={type.is_active} onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: type.id, is_active: checked })} className="ml-auto" />
+                      </div>
+                      <p className="text-sm text-muted-foreground">{type.duration_days} {t('subscriptions.days')} | {formatCurrency(type.price)}</p>
+                      <div className="flex justify-end mt-2">
+                        <Button variant="ghost" size="icon" onClick={() => openEditTypeDialog(type)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
+              <Pagination page={typePage} totalPages={typeTotalPages} totalItems={subTypes?.length ?? 0} pageSize={20} onPageChange={setTypePage} />
             </CardContent>
           </Card>
         </TabsContent>

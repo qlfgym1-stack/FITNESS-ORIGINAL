@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@/hooks/useQuery'
 import { useSupabase } from '@/hooks/useSupabase'
+import { useRealtime } from '@/hooks/useRealtime'
 import { useAuth } from '@/stores/auth'
 import { useT } from '@/i18n'
 import { useToast } from '@/components/ui/toast'
@@ -12,8 +13,8 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   Users, UserCheck, DollarSign, Calendar, Clock, TrendingUp, TrendingDown,
-  ArrowUpRight, Send, RefreshCw, UserPlus, CreditCard, LogIn, Activity, Award, Timer,
-  Wifi, WifiOff, AlertTriangle,
+  ArrowUpRight, Send, RefreshCw, UserPlus, CreditCard, Activity, Award, Timer,
+  Wifi, WifiOff, AlertTriangle, ScanQrCode,
 } from 'lucide-react'
 import { formatCurrency, formatDate, getDaysRemaining, getStatusColor, getInitials, toUpper } from '@/lib/utils'
 import {
@@ -59,7 +60,7 @@ function getActivityIcon(icon: string) {
     case 'dollar': return <DollarSign className="h-4 w-4" />
     case 'check': return <Calendar className="h-4 w-4" />
     case 'refresh': return <RefreshCw className="h-4 w-4" />
-    case 'log-in': return <LogIn className="h-4 w-4" />
+    case 'log-in': return <ScanQrCode className="h-4 w-4" />
     case 'credit-card': return <CreditCard className="h-4 w-4" />
     case 'calendar': return <Calendar className="h-4 w-4" />
     case 'alert': return <Timer className="h-4 w-4" />
@@ -84,7 +85,7 @@ interface StatCardProps {
 }
 
 // ── StatCard sub-component (count-up per card) ───────────────────────
-function StatCard({ title, rawValue, icon: Icon, change, trend, format, t: tFn }: StatCardProps) {
+function StatCard({ title, rawValue, icon: Icon, change, trend, format, t: tFn, loading }: StatCardProps & { loading?: boolean }) {
   const animatedValue = useCountUp(rawValue)
   return (
     <Card>
@@ -95,12 +96,21 @@ function StatCard({ title, rawValue, icon: Icon, change, trend, format, t: tFn }
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold tabular-nums">{format(animatedValue)}</div>
-        {change !== 0 && (
-          <p className={`mt-1 flex items-center text-xs ${trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-            {trend === 'up' ? <TrendingUp className="mr-1 h-3 w-3" /> : <TrendingDown className="mr-1 h-3 w-3" />}
-            {Math.abs(change)}% {tFn('dashboard.vsLastMonth')}
-          </p>
+        {loading ? (
+          <div className="space-y-2">
+            <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+          </div>
+        ) : (
+          <>
+            <div className="text-2xl font-bold tabular-nums">{format(animatedValue)}</div>
+            {change !== 0 && (
+              <p className={`mt-1 flex items-center text-xs ${trend === 'up' ? 'text-success' : 'text-destructive'}`}>
+                {trend === 'up' ? <TrendingUp className="mr-1 h-3 w-3" /> : <TrendingDown className="mr-1 h-3 w-3" />}
+                {Math.abs(change)}% {tFn('dashboard.vsLastMonth')}
+              </p>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -117,7 +127,11 @@ export default function Dashboard() {
   const { toast } = useToast()
   const orgId = organization?.id
 
-  const { data: stats } = useQuery({
+  useRealtime({ table: "attendance", queryKey: ["dashboard-stats", orgId ?? ""], filter: orgId ? `organization_id=eq.${orgId}` : undefined })
+  useRealtime({ table: "members", queryKey: ["dashboard-stats", orgId ?? ""], filter: orgId ? `organization_id=eq.${orgId}` : undefined })
+  useRealtime({ table: "payments", queryKey: ["dashboard-stats", orgId ?? ""], filter: orgId ? `organization_id=eq.${orgId}` : undefined })
+
+  const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard-stats', orgId],
     queryFn: async () => {
       if (!orgId) return null
@@ -357,7 +371,7 @@ export default function Dashboard() {
       {/* ── Stat cards ────────────────────────────────────────── */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {statCards.map((s) => (
-          <StatCard key={s.title} {...s} t={t} />
+          <StatCard key={s.title} {...s} t={t} loading={statsLoading} />
         ))}
       </div>
 
@@ -369,7 +383,6 @@ export default function Dashboard() {
             { label: t('dashboard.addMember'), desc: t('dashboard.addMemberDesc'), icon: UserPlus, path: '/members' },
             { label: t('dashboard.newSubscription'), desc: t('dashboard.newSubscriptionDesc'), icon: CreditCard, path: '/subscriptions' },
             { label: t('dashboard.recordPayment'), desc: t('dashboard.recordPaymentDesc'), icon: DollarSign, path: '/payments' },
-            { label: t('dashboard.checkIn'), desc: t('dashboard.checkInDesc'), icon: LogIn, path: '/check-in' },
           ].map((item) => (
             <Card key={item.label} className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => nav(item.path)}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-2">
@@ -400,7 +413,7 @@ export default function Dashboard() {
               <p className="text-3xl font-bold text-muted-foreground">{formatCurrency(revenueMonth?.last ?? 0)}</p>
             </div>
             {pctChange !== 0 && (
-              <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium ${pctChange > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium ${pctChange > 0 ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
                 {pctChange > 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                 {Math.abs(pctChange)}% {t('dashboard.vsLastMonth')}
               </div>
@@ -413,7 +426,7 @@ export default function Dashboard() {
       {turnstileStats && turnstileStats.total_terminals > 0 && (
         <div>
           <h2 className="text-lg font-semibold mb-3">{t('dashboard.turnstileStatus') || 'État du tourniquet'}</h2>
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
             <Card>
               <CardContent className="pt-6 text-center">
                 <Wifi className="h-8 w-8 mx-auto mb-2 text-success" />

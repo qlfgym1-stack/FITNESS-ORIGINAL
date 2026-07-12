@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react"
-import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe, Wifi, WifiOff, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, CheckCheck } from "lucide-react"
 import { motion } from "framer-motion"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,9 +14,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useTheme } from "@/stores/theme"
 import { useAuth } from "@/stores/auth"
 import { useT, useLocale } from "@/i18n"
+import { useNetworkStatus } from "@/hooks/useNetworkStatus"
+import { OfflineQueueBadge } from "@/components/ui/offline-queue-badge"
+import { useSupabase } from "@/hooks/useSupabase"
+import type { Notification } from "@/types/supabase"
 
 function ClockDisplay() {
   const [time, setTime] = useState(new Date())
@@ -32,6 +38,155 @@ function ClockDisplay() {
         {time.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}
       </div>
     </div>
+  )
+}
+
+function NetworkIndicator() {
+  const { isOnline, recovering } = useNetworkStatus()
+  if (recovering) return null
+  return (
+    <motion.div
+      className="flex items-center gap-1.5 mr-2"
+      animate={!isOnline ? { opacity: [1, 0.2, 1] } : { opacity: 1 }}
+      transition={!isOnline ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : {}}
+    >
+      {isOnline ? (
+        <Wifi className="h-4 w-4 text-success" />
+      ) : (
+        <WifiOff className="h-4 w-4 text-destructive" />
+      )}
+      <span className={`text-xs font-medium ${isOnline ? 'text-success' : 'text-destructive'}`}>
+        {isOnline ? 'En ligne' : 'Hors-ligne'}
+      </span>
+    </motion.div>
+  )
+}
+
+const NOTIF_TYPE_ICONS: Record<string, React.ElementType> = {
+  subscription_expiring: AlertTriangle,
+  payment_overdue: CreditCard,
+  member_checkin: UserCheck,
+  staff_leave: CalendarOff,
+  system: Settings,
+}
+
+function timeAgo(dateStr: string, t: (key: string) => string): string {
+  const now = Date.now()
+  const then = new Date(dateStr).getTime()
+  const diffSec = Math.floor((now - then) / 1000)
+  if (diffSec < 60) return t("notifications.justNow")
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return t("notifications.minutesAgo").replace("{n}", String(diffMin))
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24) return t("notifications.hoursAgo").replace("{n}", String(diffH))
+  const diffD = Math.floor(diffH / 24)
+  return t("notifications.daysAgo").replace("{n}", String(diffD))
+}
+
+function NotificationsDropdown() {
+  const t = useT()
+  const { user } = useAuth()
+  const supabase = useSupabase()
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return []
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .or(`user_id.eq.${user.id},user_id.is.null`)
+        .order("created_at", { ascending: false })
+        .limit(20)
+      if (error) throw error
+      return (data ?? []) as Notification[]
+    },
+    enabled: !!user?.id && open,
+    refetchInterval: open ? 30000 : false,
+  })
+
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.is_read).length,
+    [notifications],
+  )
+
+  const markAllRead = useMutation({
+    mutationFn: async () => {
+      const unread = notifications.filter((n) => !n.is_read && n.user_id === user?.id)
+      if (unread.length === 0) return
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .in("id", unread.map((n) => n.id))
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] })
+    },
+  })
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative">
+          <Bell className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" sideOffset={8} className="w-80 p-0">
+        <div className="flex items-center justify-between border-b px-4 py-2.5">
+          <span className="text-sm font-semibold">{t("notifications.title")}</span>
+          {unreadCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => markAllRead.mutate()}
+            >
+              <CheckCheck className="mr-1 h-3 w-3" />
+              {t("notifications.markAllRead")}
+            </Button>
+          )}
+        </div>
+        <div className="max-h-80 overflow-y-auto">
+          {notifications.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              <Bell className="mx-auto mb-2 h-8 w-8 opacity-20" />
+              {t("notifications.noNotifications")}
+            </div>
+          ) : (
+            notifications.slice(0, 5).map((notif) => {
+              const Icon = NOTIF_TYPE_ICONS[notif.type] || Bell
+              return (
+                <div
+                  key={notif.id}
+                  className={`flex items-start gap-3 border-b px-4 py-3 last:border-0 ${!notif.is_read ? "bg-primary/5" : ""}`}
+                >
+                  <div className="mt-0.5 rounded-full bg-muted p-1.5">
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">{notif.title}</p>
+                      {!notif.is_read && (
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{notif.message}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{timeAgo(notif.created_at, t)}</p>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -80,6 +235,10 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
       <ClockDisplay />
 
+      <NetworkIndicator />
+
+      <OfflineQueueBadge />
+
       <div className="flex items-center gap-2">
         {/* Language Switcher */}
         <DropdownMenu>
@@ -104,9 +263,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-        </Button>
+        <NotificationsDropdown />
 
         <Button variant="ghost" size="icon" onClick={toggleTheme}>
           {theme === "dark" ? (

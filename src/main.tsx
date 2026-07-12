@@ -6,6 +6,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { ThemeProvider } from '@/stores/theme'
 import { I18nProvider } from '@/i18n'
+import { OfflineQueueProvider } from '@/stores/offline-queue'
 import { OfflineBanner } from '@/components/ui/offline-banner'
 import { Toaster } from '@/components/ui/toast'
 import App from './App'
@@ -60,11 +61,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       >
         <ThemeProvider>
           <I18nProvider>
-            <OfflineBanner />
-            <ErrorBoundary>
-              <App />
-            </ErrorBoundary>
-            <Toaster />
+            <OfflineQueueProvider>
+              <OfflineBanner />
+              <ErrorBoundary>
+                <App />
+              </ErrorBoundary>
+              <Toaster />
+            </OfflineQueueProvider>
           </I18nProvider>
         </ThemeProvider>
       </PersistQueryClientProvider>

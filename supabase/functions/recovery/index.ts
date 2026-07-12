@@ -113,6 +113,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: true,
+        newCode: newPlainCode,
         message: 'Recovery code generated',
       }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
