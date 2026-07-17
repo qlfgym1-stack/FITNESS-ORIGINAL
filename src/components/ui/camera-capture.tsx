@@ -3,14 +3,16 @@ import { useSupabase } from "@/hooks/useSupabase"
 import { IS_MOCK } from "@/lib/config"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
-import { Camera, Loader2, RotateCcw, Check } from "lucide-react"
+import { Camera, Loader2, RotateCcw } from "lucide-react"
 
 interface CameraCaptureProps {
+  orgId: string
   memberId: string
   onPhotoUploaded: (url: string) => void
+  onUploading?: (uploading: boolean) => void
 }
 
-export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps) {
+export function CameraCapture({ orgId, memberId, onPhotoUploaded, onUploading }: CameraCaptureProps) {
   const supabase = useSupabase()
   const { toast } = useToast()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -18,11 +20,9 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
   const streamRef = useRef<MediaStream | null>(null)
   const [active, setActive] = useState(false)
   const [captured, setCaptured] = useState<string | null>(null)
+  const [blobCache, setBlobCache] = useState<Blob | null>(null)
   const [uploading, setUploading] = useState(false)
-
-  useEffect(() => {
-    return () => { stopCamera() }
-  }, [])
+  const [done, setDone] = useState(false)
 
   useEffect(() => {
     if (active && videoRef.current && streamRef.current) {
@@ -45,6 +45,7 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
       streamRef.current = stream
       setActive(true)
       setCaptured(null)
+      setBlobCache(null)
     } catch (e) {
       setActive(false)
       toast({ title: "Erreur caméra", description: e instanceof Error ? e.message : "Impossible d'accéder à la caméra", variant: "destructive" })
@@ -62,23 +63,33 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
     ctx.drawImage(video, 0, 0, 640, 480)
     const dataUrl = canvas.toDataURL("image/png")
     setCaptured(dataUrl)
+    setBlobCache(dataUrlToBlob(dataUrl))
     stopCamera()
     setActive(false)
   }
 
+  function dataUrlToBlob(dataUrl: string): Blob {
+    const parts = dataUrl.split(',')
+    const raw = atob(parts[1])
+    const arr = new Uint8Array(raw.length)
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
+    return new Blob([arr], { type: 'image/png' })
+  }
+
   const upload = useCallback(async () => {
-    if (!captured) return
+    if (!blobCache) return
     setUploading(true)
+    setDone(false)
+    onUploading?.(true)
     try {
-      const res = await fetch(captured)
-      const blob = await res.blob()
       const uid = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const filePath = `${memberId}/${uid}.png`
+      const filePath = `${orgId}/${memberId}/${uid}.png`
       if (IS_MOCK) {
-        onPhotoUploaded(URL.createObjectURL(blob))
+        onPhotoUploaded(URL.createObjectURL(blobCache))
+        setDone(true)
         return
       }
-      const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, blob, {
+      const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, blobCache, {
         contentType: "image/png",
       })
       if (uploadError) {
@@ -87,17 +98,20 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
       }
       const { data: urlData } = supabase.storage.from("photos").getPublicUrl(filePath)
       onPhotoUploaded(urlData.publicUrl)
+      setDone(true)
     } catch (e) {
       toast({ title: "Erreur", description: e instanceof Error ? e.message : "Échec de l'envoi", variant: "destructive" })
     } finally {
       setUploading(false)
+      onUploading?.(false)
     }
-  }, [captured, memberId, onPhotoUploaded, supabase, toast])
+  }, [blobCache, orgId, memberId, onPhotoUploaded, onUploading, supabase, toast])
 
   function handleCancel() {
     stopCamera()
     setActive(false)
     setCaptured(null)
+    setBlobCache(null)
   }
 
   return (
@@ -129,17 +143,24 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
         <div className="space-y-2">
           <div className="relative rounded-lg overflow-hidden bg-muted">
             <img src={captured} alt="Photo capturée" className="w-full h-48 object-cover" />
+            {done && (
+              <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                <span className="text-xs font-semibold text-primary bg-background/80 px-2 py-0.5 rounded-full">✓ Enregistrée</span>
+              </div>
+            )}
           </div>
-          <div className="flex gap-2">
-            <Button type="button" size="sm" className="flex-1" onClick={upload} disabled={uploading}>
-              {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-              {uploading ? "Upload..." : "Enregistrer"}
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={startCamera}>
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Reprendre
-            </Button>
-          </div>
+          {!done && (
+            <div className="flex gap-2">
+              <Button type="button" size="sm" className="flex-1" onClick={upload} disabled={uploading}>
+                {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
+                {uploading ? "Upload..." : "Enregistrer"}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={startCamera}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reprendre
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

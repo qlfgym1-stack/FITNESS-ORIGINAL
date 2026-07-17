@@ -154,6 +154,8 @@ export default function Members() {
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [deletingMember, setDeletingMember] = useState<Member | null>(null)
   const [avatarUploadedUrl, setAvatarUploadedUrl] = useState<string | null>(null)
+  const photoUrlRef = useRef<string | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
   const tempMemberIdRef = useRef(crypto.randomUUID())
   const [mockMembers, setMockMembers] = useState<Member[]>(MOCK_MEMBERS)
   const [mockSubMap, setMockSubMap] = useState<Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number }>>({
@@ -305,7 +307,7 @@ export default function Members() {
   const createMutation = useMutation({
     mutationFn: async (values: MemberForm) => {
       if (!orgId) throw new Error('No organization')
-      const photo_url: string | null = avatarUploadedUrl
+      const photo_url: string | null = photoUrlRef.current
       if (IS_MOCK) {
         const memberId = `mock-${crypto.randomUUID()}`
         const nextNum = mockMembers.length + 1
@@ -401,7 +403,7 @@ export default function Members() {
   const updateMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: MemberForm }) => {
       if (!orgId) throw new Error('No organization')
-      const photo_url: string | null = avatarUploadedUrl ?? editingMember?.photo_url ?? null
+      const photo_url: string | null = photoUrlRef.current ?? editingMember?.photo_url ?? null
       if (IS_MOCK) {
         setMockMembers(prev => prev.map(m => m.id === id ? { ...m, ...values, photo_url, updated_at: new Date().toISOString() } as Member : m))
         if (values.subscription_type_id && values.start_date) {
@@ -526,7 +528,10 @@ export default function Members() {
     setDialogOpen(false)
     setEditingMember(null)
     setAvatarUploadedUrl(null)
+    photoUrlRef.current = null
+    setPhotoUploading(false)
     setRfidUid('')
+    tempMemberIdRef.current = crypto.randomUUID()
   }
 
   function onSubmit(values: MemberForm) {
@@ -643,6 +648,7 @@ export default function Members() {
                       {sortBy === 'member_number' ? (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground" />}
                     </div>
                   </TableHead>
+                  <TableHead className="w-10">Photo</TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => handleSort('last_name')}>
                     <div className="flex items-center gap-1">
                       {t('members.name')}
@@ -681,20 +687,26 @@ export default function Members() {
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && membersData?.data.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">{t('members.noData')}</TableCell>
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">{t('members.noData')}</TableCell>
                   </TableRow>
                 )}
               {membersData?.data.map((member: Member) => (
                 <TableRow key={member.id}>
                   <TableCell>
                     <code className="text-xs font-mono font-semibold bg-muted px-1.5 py-0.5 rounded">{member.member_number ?? '—'}</code>
+                  </TableCell>
+                  <TableCell>
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={member.photo_url ?? undefined} />
+                      <AvatarFallback className="text-[10px]">{getInitials(member.first_name, member.last_name)}</AvatarFallback>
+                    </Avatar>
                   </TableCell>
                   <TableCell className="font-medium">{toUpper(member.first_name)} {toUpper(member.last_name)}</TableCell>
                   <TableCell>{member.email ?? '-'}</TableCell>
@@ -814,17 +826,20 @@ export default function Members() {
             <form id="member-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-1">
               <div className="flex items-center gap-4 pb-2">
                 <AvatarUpload
+                  orgId={orgId!}
                   memberId={editingMember?.id ?? tempMemberIdRef.current}
                   currentUrl={editingMember?.photo_url}
                   firstName={editingMember?.first_name ?? form.watch('first_name')}
                   lastName={editingMember?.last_name ?? form.watch('last_name')}
-                  onUploadComplete={(url) => setAvatarUploadedUrl(url)}
+                  onUploadComplete={(url) => { setAvatarUploadedUrl(url); photoUrlRef.current = url }}
                 />
                 <div className="flex-1 space-y-2">
                   <p className="text-xs text-muted-foreground">{t('members.supportsCamera')}</p>
                   <CameraCapture
+                    orgId={orgId!}
                     memberId={editingMember?.id ?? tempMemberIdRef.current}
-                    onPhotoUploaded={(url) => setAvatarUploadedUrl(url)}
+                    onPhotoUploaded={(url) => { setAvatarUploadedUrl(url); photoUrlRef.current = url }}
+                    onUploading={setPhotoUploading}
                   />
                 </div>
               </div>
@@ -900,7 +915,8 @@ export default function Members() {
           </div>
           <DialogFooter className="shrink-0 border-t border-border/50 pt-4 mt-2">
             <Button type="button" variant="outline" onClick={closeDialog}>{t('common.cancel')}</Button>
-            <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} form="member-form">
+            <Button type="submit" disabled={photoUploading || createMutation.isPending || updateMutation.isPending} form="member-form">
+              {photoUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editingMember ? t('members.saveChanges') : t('members.add')}
             </Button>

@@ -3,10 +3,12 @@ import { useSupabase } from '@/hooks/useSupabase'
 import { IS_MOCK } from '@/lib/config'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/toast'
 import { Camera, Loader2, User } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 
 interface AvatarUploadProps {
+  orgId: string
   memberId: string
   currentUrl?: string | null
   firstName?: string
@@ -14,8 +16,9 @@ interface AvatarUploadProps {
   onUploadComplete: (url: string) => void
 }
 
-export function useAvatarUpload({ memberId, currentUrl, onUploadComplete }: Pick<AvatarUploadProps, 'memberId' | 'currentUrl' | 'onUploadComplete'>) {
+export function useAvatarUpload({ orgId, memberId, currentUrl, onUploadComplete }: Pick<AvatarUploadProps, 'orgId' | 'memberId' | 'currentUrl' | 'onUploadComplete'>) {
   const supabase = useSupabase()
+  const { toast } = useToast()
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(currentUrl ?? null)
@@ -31,10 +34,11 @@ export function useAvatarUpload({ memberId, currentUrl, onUploadComplete }: Pick
         return
       }
       const ext = file.name.split('.').pop() || 'jpg'
-      const filePath = `${memberId}/${crypto.randomUUID()}.${ext}`
+      const filePath = `${orgId}/${memberId}/${crypto.randomUUID()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('photos').upload(filePath, file)
       if (uploadError) {
         setUploadError(uploadError.message)
+        toast({ title: "Erreur upload", description: uploadError.message, variant: "destructive" })
         return
       }
       const { data: urlData } = supabase.storage.from('photos').getPublicUrl(filePath)
@@ -42,18 +46,20 @@ export function useAvatarUpload({ memberId, currentUrl, onUploadComplete }: Pick
       setAvatarUrl(url)
       onUploadComplete(url)
     } catch (e) {
-      setUploadError(e instanceof Error ? e.message : 'Upload failed')
+      const msg = e instanceof Error ? e.message : 'Upload failed'
+      setUploadError(msg)
+      toast({ title: "Erreur", description: msg, variant: "destructive" })
     } finally {
       setUploading(false)
     }
-  }, [memberId, onUploadComplete, supabase])
+  }, [orgId, memberId, onUploadComplete, supabase, toast])
 
   return { uploading, uploadError, avatarUrl, setAvatarUrl, upload }
 }
 
-export function AvatarUpload({ memberId, currentUrl, firstName, lastName, onUploadComplete }: AvatarUploadProps) {
+export function AvatarUpload({ orgId, memberId, currentUrl, firstName, lastName, onUploadComplete }: AvatarUploadProps) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const { uploading, avatarUrl, upload } = useAvatarUpload({ memberId, currentUrl, onUploadComplete })
+  const { uploading, uploadError, avatarUrl, upload } = useAvatarUpload({ orgId, memberId, currentUrl, onUploadComplete })
 
   function handleClick() {
     fileRef.current?.click()
@@ -94,6 +100,9 @@ export function AvatarUpload({ memberId, currentUrl, firstName, lastName, onUplo
           )}
         </div>
       </button>
+      {uploadError && (
+        <p className="text-xs text-destructive pt-1">{uploadError}</p>
+      )}
     </div>
   )
 }

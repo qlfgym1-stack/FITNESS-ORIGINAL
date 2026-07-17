@@ -288,7 +288,7 @@ export default function PointagePage() {
             <div className="pt-3 border-t">
               <p className="text-xs text-muted-foreground mb-2">Photo adhérent</p>
               {checkedInMemberId ? (
-                <CameraCapture memberId={checkedInMemberId} onPhotoUploaded={(url) => toast({ title: "Photo enregistrée" })} />
+                <CameraCapture orgId={orgId!} memberId={checkedInMemberId} onPhotoUploaded={(url) => toast({ title: "Photo enregistrée" })} />
               ) : (
                 <p className="text-xs text-muted-foreground">Effectuez un check-in pour prendre une photo</p>
               )}
