@@ -1,4 +1,14 @@
 node_modules
 dist
 .env
-*.local
+.env.local
+.env.*.local
+*.log
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
+supabase/.temp/
+.eslintcache
+coverage/
+
+.vercel

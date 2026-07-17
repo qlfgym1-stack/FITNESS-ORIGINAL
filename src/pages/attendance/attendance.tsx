@@ -200,21 +200,36 @@ export default function AttendancePage() {
 
   const handleExportHistory = async () => {
     if (!history) return
-    const XLSX = await import("xlsx")
-    const data = history.map((h) => ({
-      [t("attendance.member")]: `${h.members?.first_name ?? ""} ${h.members?.last_name ?? ""}`,
-      [t("attendance.checkIn")]: h.check_in ? format(new Date(h.check_in), "HH:mm") : "-",
-      [t("attendance.checkOut")]: h.check_out ? format(new Date(h.check_out), "HH:mm") : "-",
-      [t("attendance.duration")]: h.check_in && h.check_out
-        ? `${differenceInMinutes(new Date(h.check_out), new Date(h.check_in))} ${t("attendance.min")}`
-        : "-",
-      [t("attendance.source") || "Source"]: h.source,
-      [t("common.status")]: h.check_out ? t("attendance.completed") : t("attendance.inProgress"),
-    }))
-    const ws = XLSX.utils.json_to_sheet(data)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, t("attendance.title"))
-    XLSX.writeFile(wb, `${t("attendance.exportFileName")}-${historyDateFrom}-${historyDateTo}.xlsx`)
+    const ExcelJS = await import("exceljs")
+    const memberLabel = t("attendance.member")
+    const checkInLabel = t("attendance.checkIn")
+    const checkOutLabel = t("attendance.checkOut")
+    const durationLabel = t("attendance.duration")
+    const sourceLabel = t("attendance.source") || "Source"
+    const statusLabel = t("common.status")
+    const wb = new ExcelJS.default.Workbook()
+    const ws = wb.addWorksheet(t("attendance.title"))
+    ws.columns = [
+      { header: memberLabel, key: memberLabel, width: 30 },
+      { header: checkInLabel, key: checkInLabel, width: 15 },
+      { header: checkOutLabel, key: checkOutLabel, width: 15 },
+      { header: durationLabel, key: durationLabel, width: 20 },
+      { header: sourceLabel, key: sourceLabel, width: 15 },
+      { header: statusLabel, key: statusLabel, width: 15 },
+    ]
+    history.forEach((h) => {
+      ws.addRow({
+        [memberLabel]: `${h.members?.first_name ?? ""} ${h.members?.last_name ?? ""}`,
+        [checkInLabel]: h.check_in ? format(new Date(h.check_in), "HH:mm") : "-",
+        [checkOutLabel]: h.check_out ? format(new Date(h.check_out), "HH:mm") : "-",
+        [durationLabel]: h.check_in && h.check_out
+          ? `${differenceInMinutes(new Date(h.check_out), new Date(h.check_in))} ${t("attendance.min")}`
+          : "-",
+        [sourceLabel]: h.source,
+        [statusLabel]: h.check_out ? t("attendance.completed") : t("attendance.inProgress"),
+      })
+    })
+    await wb.xlsx.writeFile(`${t("attendance.exportFileName")}-${historyDateFrom}-${historyDateTo}.xlsx`)
   }
 
   const presentToday = membersWithAttendance.filter((m) => m.attendance).length

@@ -1,8 +1,8 @@
 -- =============================================================
 -- DEMO DATA GENERATION
--- Idempotent : ne crée pas de doublons si déjà exécuté
+-- Idempotent : ne cr??e pas de doublons si d??j?? ex??cut??
 -- Utilise une transaction avec rollback automatique en cas d'erreur
--- Marque les données avec email '%@fitmanager.demo' et notes '[DEMO]'
+-- Marque les donn??es avec email '%@fitmanager.demo' et notes '[DEMO]'
 -- =============================================================
 
 DO $$
@@ -16,10 +16,10 @@ DECLARE
 
   -- Algerian first names
   v_first_names TEXT[] := ARRAY['Mohamed','Ahmed','Ali','Hassan','Hussein','Abdelkader','Abdelaziz','Khaled','Karim','Farid','Sami','Walid','Nadir','Tarek','Rachid','Sofiane','Yacine','Amine','Reda','Bilal','Nassim','Zakaria','Lyes','Mourad','Hicham','Fouad','Djamel','Ayoub','Ismail','Abderrahmane','Said','Abdelmadjid','Abdellah','Brahim','Noureddine','Mokhtar','Slimane','Kamel','Riad','Merouane','Fatima','Aicha','Zahra','Khadija','Amina','Hafida','Nadia','Samira','Karima','Farida','Malika','Souad','Rachida','Salima','Louiza','Yamina','Zineb','Houria','Djamila','Safia','Nabila','Latifa','Assia','Keltoum','Fadhila','Halima','Chahrazad','Nassima','Meriem','Hayet','Nawel','Souhila','Lynda','Fatiha','Zohra','Saida','Radia','Wassila','Naima','Dalila','Nora','Samia','Farah','Ines','Sonia','Myriam','Nesrine','Amel'];
-  v_last_names TEXT[] := ARRAY['Benali','Ahmed','Said','Ouali','Brahimi','Tahar','Mansouri','Slimani','Hamdi','Benyahia','Kaci','Khelifi','Toumi','Belkacem','Boualem','Yahiaoui','Khaldi','Moussa','Cherifi','Gacem','Ammari','Nacer','Sebbah','Mekki','Zerrouki','Benamor','Taleb','Bennabi','Menad','Bouallegue','Sahi','Guedjali','Zidane','Rahal','Mazari','Khebbache','Messaoudi','Chikh','Ait','Boumediène','Belhadj','Adimi','Kermiche','Bouchaib','Sari','Aliouat','Ladjimi','Malki','Tighilt','Djerbi','Benmoussa','Yala','Boucherit','Henni','Mekacher','Boukerch','Tabachi','Ouahab','Djouad','Soualhi','Messaada','Lakhdari','Sahraoui','Boudiaf','Mazouni','Benziane','Cherrak','Belaidi','Loucif','Chabane','Satha','Haddadi','Benguerba','Beghoul','Bensebaini','Aouar','Belkadi','Zemouri','Tibou','Bouzaher','Benyounes','Semaoui','Tazarine','Mokhtari','Boukerrou','Lamari','Chennouf','Boussad','Achi','Mouzaoui','Taieb','Benazzouz','Charef','Ayache','Mechri','Bessaha'];
-  v_wilayas TEXT[] := ARRAY['Alger','Oran','Constantine','Annaba','Blida','Sétif','Tizi Ouzou','Béjaïa','Tlemcen','Sidi Bel Abbès','Batna','Skikda','Biskra','Chlef','Béchar','Médéa','Mostaganem','Aïn Oussara','El Oued','Guelma','Bordj Bou Arreridj','Laghouat','Bouira','Tébessa','Mila','Aïn Defla','Saïda','Oum El Bouaghi','Ghardaïa','Souk Ahras','Tipaza','Mascara','Jijel','Relizane','Tamanrasset','BBA','Khenchela','Naâma','Adrar','Illizi'];
-  v_commune_prefix TEXT[] := ARRAY['Cité','Lotissement','Zone','Centre','Village','Quartier','Route','Rue','Impasse','Cité Universitaire','Domaine','Ferme','Plage','Forêt','Oasis','Palmeraie','Station','Hameau','Bourg','Dédale'];
-  v_member_notes TEXT := '[DEMO] Donnée de démonstration';
+  v_last_names TEXT[] := ARRAY['Benali','Ahmed','Said','Ouali','Brahimi','Tahar','Mansouri','Slimani','Hamdi','Benyahia','Kaci','Khelifi','Toumi','Belkacem','Boualem','Yahiaoui','Khaldi','Moussa','Cherifi','Gacem','Ammari','Nacer','Sebbah','Mekki','Zerrouki','Benamor','Taleb','Bennabi','Menad','Bouallegue','Sahi','Guedjali','Zidane','Rahal','Mazari','Khebbache','Messaoudi','Chikh','Ait','Boumedi??ne','Belhadj','Adimi','Kermiche','Bouchaib','Sari','Aliouat','Ladjimi','Malki','Tighilt','Djerbi','Benmoussa','Yala','Boucherit','Henni','Mekacher','Boukerch','Tabachi','Ouahab','Djouad','Soualhi','Messaada','Lakhdari','Sahraoui','Boudiaf','Mazouni','Benziane','Cherrak','Belaidi','Loucif','Chabane','Satha','Haddadi','Benguerba','Beghoul','Bensebaini','Aouar','Belkadi','Zemouri','Tibou','Bouzaher','Benyounes','Semaoui','Tazarine','Mokhtari','Boukerrou','Lamari','Chennouf','Boussad','Achi','Mouzaoui','Taieb','Benazzouz','Charef','Ayache','Mechri','Bessaha'];
+  v_wilayas TEXT[] := ARRAY['Alger','Oran','Constantine','Annaba','Blida','S??tif','Tizi Ouzou','B??ja??a','Tlemcen','Sidi Bel Abb??s','Batna','Skikda','Biskra','Chlef','B??char','M??d??a','Mostaganem','A??n Oussara','El Oued','Guelma','Bordj Bou Arreridj','Laghouat','Bouira','T??bessa','Mila','A??n Defla','Sa??da','Oum El Bouaghi','Gharda??a','Souk Ahras','Tipaza','Mascara','Jijel','Relizane','Tamanrasset','BBA','Khenchela','Na??ma','Adrar','Illizi'];
+  v_commune_prefix TEXT[] := ARRAY['Cit??','Lotissement','Zone','Centre','Village','Quartier','Route','Rue','Impasse','Cit?? Universitaire','Domaine','Ferme','Plage','For??t','Oasis','Palmeraie','Station','Hameau','Bourg','D??dale'];
+  v_member_notes TEXT := '[DEMO] Donn??e de d??monstration';
   v_rfid_uid TEXT;
   v_member_status TEXT;
   v_sub_id UUID;
@@ -47,7 +47,7 @@ DECLARE
   v_staff_role_idx INT;
 
   -- Course data
-  v_course_names TEXT[] := ARRAY['Musculation','Cardio','CrossFit','HIIT','Boxe Française','Pilates','Yoga','Cycling','Stretching','Zumba'];
+  v_course_names TEXT[] := ARRAY['Musculation','Cardio','CrossFit','HIIT','Boxe Fran??aise','Pilates','Yoga','Cycling','Stretching','Zumba'];
   v_course_durations TIME[] := ARRAY['01:00:00','00:45:00','01:00:00','00:45:00','01:30:00','01:00:00','01:00:00','00:45:00','01:00:00','01:00:00'];
   v_course_colors TEXT[] := ARRAY['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#06b6d4','#f97316','#84cc16','#6366f1'];
   v_course_start TIME[] := ARRAY['07:00:00','08:00:00','09:00:00','10:00:00','11:00:00','14:00:00','15:00:00','16:00:00','17:00:00','18:00:00'];
@@ -61,8 +61,8 @@ DECLARE
   v_course_rand INT;
 
   -- Product categories
-  v_product_categories TEXT[] := ARRAY['Boissons','Compléments','Snacks','Vêtements','Accessoires','Équipement','Hygiène','Autre'];
-  v_product_names TEXT[] := ARRAY['Eau 500ml','Eau 1.5L','Isotonic 500ml','Boisson énergétique','Barre protéinée','Shaker 600ml','Protéine Whey 1kg','BCAA 500g','Créditine 300g','Pré-workout 300g','Casquette','T-shirt sport','Short sport','Serviette microfibre','Gant de musculation','Ceinture lombaire','Kettlebell 8kg','Kettlebell 16kg','Corde à sauter','Tapis de sol 10mm','Élastique de résistance','Foam roller','Balle de massage','Genouillère','Poignée de traction','Sandwich poulet','Salade bowl','Jus d\'orange','Infusion','Banane'];
+  v_product_categories TEXT[] := ARRAY['Boissons','Compl??ments','Snacks','V??tements','Accessoires','??quipement','Hygi??ne','Autre'];
+  v_product_names TEXT[] := ARRAY['Eau 500ml','Eau 1.5L','Isotonic 500ml','Boisson ??nerg??tique','Barre prot??in??e','Shaker 600ml','Prot??ine Whey 1kg','BCAA 500g','Cr??ditine 300g','Pr??-workout 300g','Casquette','T-shirt sport','Short sport','Serviette microfibre','Gant de musculation','Ceinture lombaire','Kettlebell 8kg','Kettlebell 16kg','Corde ?? sauter','Tapis de sol 10mm','??lastique de r??sistance','Foam roller','Balle de massage','Genouill??re','Poign??e de traction','Sandwich poulet','Salade bowl','Jus d''orange','Infusion','Banane'];
   v_product_prices DECIMAL[][] := ARRAY[
     ARRAY[50,25],ARRAY[100,55],ARRAY[120,65],ARRAY[150,80],ARRAY[200,100],
     ARRAY[500,250],ARRAY[4500,3000],ARRAY[2800,1800],ARRAY[1800,1200],ARRAY[2500,1600],
@@ -125,9 +125,11 @@ BEGIN
   -- =============================================================
   SELECT id INTO v_org_id FROM organizations WHERE slug = 'fitmanager-demo' LIMIT 1;
   IF v_org_id IS NULL THEN
+    ALTER TABLE organizations DISABLE TRIGGER after_organization_insert;
     INSERT INTO organizations (name, slug, address, phone, email)
-    VALUES ('FitManager Démo', 'fitmanager-demo', '123 Rue Didouche Mourad, Alger Centre', '0550 12 34 56', 'demo@fitmanager.dz')
+    VALUES ('FitManager D??mo', 'fitmanager-demo', '123 Rue Didouche Mourad, Alger Centre', '0550 12 34 56', 'demo@fitmanager.dz')
     RETURNING id INTO v_org_id;
+    ALTER TABLE organizations ENABLE TRIGGER after_organization_insert;
   END IF;
 
   -- =============================================================
@@ -138,27 +140,27 @@ BEGIN
   ) INTO v_already_seeded;
 
   IF v_already_seeded THEN
-    RAISE NOTICE 'Données DEMO déjà générées. Pour réinitialiser, exécutez : SELECT reset_demo_data();';
+    RAISE NOTICE 'Donn??es DEMO d??j?? g??n??r??es. Pour r??initialiser, ex??cutez : SELECT reset_demo_data();';
     RETURN;
   END IF;
 
   -- =============================================================
   -- 3. SUBSCRIPTION TYPES (10)
   -- =============================================================
-  RAISE NOTICE 'Création des types d''abonnement...';
+  RAISE NOTICE 'Cr??ation des types d''abonnement...';
 
   INSERT INTO subscription_types (organization_id, name, description, duration_days, price, max_classes)
-  VALUES (v_org_id, 'Séance', 'Accès pour une séance unique', 1, 500, 1)
+  VALUES (v_org_id, 'S??ance', 'Acc??s pour une s??ance unique', 1, 500, 1)
   RETURNING id INTO v_sub_type_id;
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
   INSERT INTO subscription_types (organization_id, name, description, duration_days, price)
-  VALUES (v_org_id, 'Journalier', 'Accès illimité pour une journée', 1, 800)
+  VALUES (v_org_id, 'Journalier', 'Acc??s illimit?? pour une journ??e', 1, 800)
   RETURNING id INTO v_sub_type_id;
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
   INSERT INTO subscription_types (organization_id, name, description, duration_days, price)
-  VALUES (v_org_id, 'Hebdomadaire', 'Accès illimité pour une semaine', 7, 2500)
+  VALUES (v_org_id, 'Hebdomadaire', 'Acc??s illimit?? pour une semaine', 7, 2500)
   RETURNING id INTO v_sub_type_id;
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
@@ -168,17 +170,17 @@ BEGIN
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
   INSERT INTO subscription_types (organization_id, name, description, duration_days, price, max_classes)
-  VALUES (v_org_id, 'Mensuel + Coach', 'Abonnement mensuel avec coaching personnalisé', 30, 9000, 8)
+  VALUES (v_org_id, 'Mensuel + Coach', 'Abonnement mensuel avec coaching personnalis??', 30, 9000, 8)
   RETURNING id INTO v_sub_type_id;
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
   INSERT INTO subscription_types (organization_id, name, description, duration_days, price, max_classes)
-  VALUES (v_org_id, 'Trimestriel', 'Abonnement trimestriel économique', 90, 15000, NULL)
+  VALUES (v_org_id, 'Trimestriel', 'Abonnement trimestriel ??conomique', 90, 15000, NULL)
   RETURNING id INTO v_sub_type_id;
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
   INSERT INTO subscription_types (organization_id, name, description, duration_days, price, max_classes)
-  VALUES (v_org_id, 'Semestriel', 'Abonnement semestriel très avantageux', 180, 25000, NULL)
+  VALUES (v_org_id, 'Semestriel', 'Abonnement semestriel tr??s avantageux', 180, 25000, NULL)
   RETURNING id INTO v_sub_type_id;
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
@@ -188,38 +190,38 @@ BEGIN
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
   INSERT INTO subscription_types (organization_id, name, description, duration_days, price)
-  VALUES (v_org_id, 'Étudiant', 'Tarif étudiant mensuel', 30, 3500)
+  VALUES (v_org_id, '??tudiant', 'Tarif ??tudiant mensuel', 30, 3500)
   RETURNING id INTO v_sub_type_id;
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
   INSERT INTO subscription_types (organization_id, name, description, duration_days, price)
-  VALUES (v_org_id, 'VIP', 'Accès illimité + tous les services premium', 30, 15000)
+  VALUES (v_org_id, 'VIP', 'Acc??s illimit?? + tous les services premium', 30, 15000)
   RETURNING id INTO v_sub_type_id;
   v_subscription_type_ids := array_append(v_subscription_type_ids, v_sub_type_id);
 
   GET DIAGNOSTICS v_sub_count = ROW_COUNT;
 
   -- =============================================================
-  -- 4. STAFF (100 employés)
+  -- 4. STAFF (100 employ??s)
   -- =============================================================
-  RAISE NOTICE 'Création du personnel...';
+  RAISE NOTICE 'Cr??ation du personnel...';
 
   -- Staff config: 14 roles with counts
   v_staff_roles := ARRAY[
-    'Directeur|Direction Générale|Directeur Général|1',
-    'Gérant|Direction|Gérant|1',
+    'Directeur|Direction G??n??rale|Directeur G??n??ral|1',
+    'G??rant|Direction|G??rant|1',
     'Assistant|Direction|Assistant de Direction|2',
-    'Réceptionniste|Accueil|Réceptionniste|12',
+    'R??ceptionniste|Accueil|R??ceptionniste|12',
     'Coach Sportif Homme|Coaching|Coach Musculation|25',
     'Coach Sportif Femme|Coaching|Coach Fitness|15',
     'Comptable|Finance|Comptable|5',
     'Responsable RH|Ressources Humaines|Responsable RH|3',
-    'Agent de Sécurité|Sécurité|Agent de Sécurité|10',
-    'Femme de Ménage|Entretien|Femme de Ménage|12',
+    'Agent de S??curit??|S??curit??|Agent de S??curit??|10',
+    'Femme de M??nage|Entretien|Femme de M??nage|12',
     'Agent d''Entretien|Entretien|Agent Technique|4',
     'Commercial|Commercial|Commercial Salle|3',
     'Technicien Maintenance|Technique|Technicien Maintenance|2',
-    'Administratif|Administration|Employé Administratif|5'
+    'Administratif|Administration|Employ?? Administratif|5'
   ];
 
   FOR i IN 1..array_length(v_staff_roles, 1) LOOP
@@ -228,7 +230,7 @@ BEGIN
       random_first := v_first_names[1 + floor(random() * array_length(v_first_names, 1))::INT];
       random_last := v_last_names[1 + floor(random() * array_length(v_last_names, 1))::INT];
       demo_email := 'staff.' || lower(random_first) || '.' || lower(random_last) || '.' || (i*100 + j)::TEXT || '@fitmanager.demo';
-      member_phone_prefix := ARRAY['0550','0551','0552','0553','0554','0555','0556','0557','0558','0559','0660','0661','0662','0663','0665','0666','0670','0671','0672','0770','0771','0772'][1 + floor(random() * 21)::INT];
+member_phone_prefix := (ARRAY['0550','0551','0552','0553','0554','0555','0556','0557','0558','0559','0660','0661','0662','0663','0665','0666','0670','0671','0672','0770','0771','0772'])[1 + floor(random() * 21)::INT];
       member_phone := member_phone_prefix || ' ' || LPAD((1 + floor(random() * 9999))::TEXT, 4, '0');
 
       INSERT INTO staff (organization_id, first_name, last_name, email, phone, role, salary, hire_date, is_active)
@@ -260,7 +262,7 @@ BEGIN
   -- =============================================================
   -- 5. STAFF SHIFTS (2 weeks of shifts)
   -- =============================================================
-  RAISE NOTICE 'Création des plannings du personnel...';
+  RAISE NOTICE 'Cr??ation des plannings du personnel...';
 
   FOR i IN 1..array_length(v_staff_ids, 1) LOOP
     FOR j IN 0..13 LOOP
@@ -270,21 +272,21 @@ BEGIN
         CURRENT_DATE + j,
         CASE WHEN floor(random() * 3) = 0 THEN '06:00:00'::TIME ELSE '08:00:00'::TIME END,
         CASE WHEN floor(random() * 3) = 0 THEN '14:00:00'::TIME ELSE '18:00:00'::TIME END,
-        '[DEMO] Planning démo'
+        '[DEMO] Planning d??mo'
       );
     END LOOP;
   END LOOP;
 
   -- =============================================================
-  -- 6. MEMBERS (300 adhérents)
+  -- 6. MEMBERS (300 adh??rents)
   -- =============================================================
-  RAISE NOTICE 'Création des adhérents...';
+  RAISE NOTICE 'Cr??ation des adh??rents...';
 
   FOR i IN 1..300 LOOP
     random_first := v_first_names[1 + floor(random() * array_length(v_first_names, 1))::INT];
     random_last := v_last_names[1 + floor(random() * array_length(v_last_names, 1))::INT];
     demo_email := 'member.' || lower(random_first) || '.' || lower(random_last) || '.' || i::TEXT || '@fitmanager.demo';
-    member_phone_prefix := ARRAY['0550','0551','0552','0553','0554','0555','0556','0557','0558','0559','0660','0661','0662','0663','0665','0666','0670','0671','0672','0770','0771','0772'][1 + floor(random() * 21)::INT];
+    member_phone_prefix := (ARRAY['0550','0551','0552','0553','0554','0555','0556','0557','0558','0559','0660','0661','0662','0663','0665','0666','0670','0671','0672','0770','0771','0772'])[1 + floor(random() * 21)::INT];
     member_phone := member_phone_prefix || LPAD((1 + floor(random() * 999999))::TEXT, 6, '0');
     member_address := v_commune_prefix[1 + floor(random() * array_length(v_commune_prefix, 1))::INT] || ' ' || (1+floor(random()*500))::TEXT || ', ' || v_wilayas[1+floor(random()*array_length(v_wilayas,1))::INT];
     rand_real := random();
@@ -320,7 +322,7 @@ BEGIN
   -- =============================================================
   -- 7. MEMBER SUBSCRIPTIONS
   -- =============================================================
-  RAISE NOTICE 'Création des abonnements...';
+  RAISE NOTICE 'Cr??ation des abonnements...';
 
   FOR i IN 1..array_length(v_member_ids, 1) LOOP
     rand_int := 1 + floor(random() * array_length(v_subscription_type_ids, 1))::INT;
@@ -358,7 +360,7 @@ BEGIN
   -- =============================================================
   -- 8. RFID CARDS
   -- =============================================================
-  RAISE NOTICE 'Création des badges RFID...';
+  RAISE NOTICE 'Cr??ation des badges RFID...';
 
   FOR i IN 1..array_length(v_member_ids, 1) LOOP
     v_rfid_uid := 'RF' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 6)) || LPAD(i::TEXT, 4, '0');
@@ -379,7 +381,7 @@ BEGIN
   -- =============================================================
   -- 9. COURSES + SCHEDULES
   -- =============================================================
-  RAISE NOTICE 'Création des cours et plannings...';
+  RAISE NOTICE 'Cr??ation des cours et plannings...';
 
   -- Collect coach staff IDs
   SELECT ARRAY_AGG(id) INTO v_available_coaches
@@ -398,7 +400,7 @@ BEGIN
       INSERT INTO classes (organization_id, name, description, coach_id, start_time, end_time, max_capacity, color, recurring, day_of_week)
       VALUES (
         v_org_id, v_course_names[i],
-        'Cours de ' || v_course_names[i] || ' - Niveau débutant à avancé',
+        'Cours de ' || v_course_names[i] || ' - Niveau d??butant ?? avanc??',
         v_coach_id, v_start_time, v_end_time,
         15 + floor(random() * 15)::INT,
         v_course_colors[i],
@@ -409,9 +411,9 @@ BEGIN
   END LOOP;
 
   -- =============================================================
-  -- 10. PRODUCTS (30 produits répartis dans 8 catégories)
+  -- 10. PRODUCTS (30 produits r??partis dans 8 cat??gories)
   -- =============================================================
-  RAISE NOTICE 'Création des produits POS...';
+  RAISE NOTICE 'Cr??ation des produits POS...';
 
   FOR i IN 1..array_length(v_product_names, 1) LOOP
     v_cat_idx := CASE
@@ -441,25 +443,52 @@ BEGIN
   -- =============================================================
   -- 11. SUPPLIERS
   -- =============================================================
-  RAISE NOTICE 'Création des fournisseurs...';
+  RAISE NOTICE 'Cr??ation des fournisseurs...';
 
   INSERT INTO suppliers (organization_id, name, contact_name, email, phone, address)
-  VALUES
-    (v_org_id, 'DistribAlim SPA', 'Karim Mansouri', 'contact@distribalim.dz', '0550 11 22 33', 'Zone Industrielle, Alger'),
-    (v_org_id, 'SportWorld Algérie', 'Sami Bensalem', 'commandes@sportworld.dz', '0551 44 55 66', 'Lotissement les Pins, Oran'),
-    (v_org_id, 'ProFit Distribution', 'Nadia Khelifi', 'info@profit-dz.com', '0552 77 88 99', 'Cité des Sports, Blida'),
-    (v_org_id, 'NutriPlus SARL', 'Farid Bouzid', 'ventes@nutriplus.dz', '0660 11 22 33', 'Route de Sétif, Bordj Bou Arreridj'),
-    (v_org_id, 'Equip Gym International', 'Hassan Taleb', 'h.taleb@equipgym.dz', '0661 44 55 66', 'Zone d''Activités, Constantine'),
-    (v_org_id, 'NettPro Hygiène', 'Fatima Zidane', 'info@nettpro.dz', '0553 33 44 55', 'Cité Bellevue, Annaba'),
-    (v_org_id, 'Boissons & Cie', 'Reda Ouali', 'r.ouali@boissonscie.dz', '0554 55 66 77', 'Zone Industrielle El Hadjar, Annaba'),
-    (v_org_id, 'Tissu Sport SARL', 'Meriem Bouchareb', 'meriem@tissusport.dz', '0662 33 44 55', 'Quartier des Affaires, Tizi Ouzou')
+  VALUES (v_org_id, 'DistribAlim SPA', 'Karim Mansouri', 'contact@distribalim.dz', '0550 11 22 33', 'Zone Industrielle, Alger')
+  RETURNING id INTO v_final_id;
+  v_supplier_ids := array_append(v_supplier_ids, v_final_id);
+
+  INSERT INTO suppliers (organization_id, name, contact_name, email, phone, address)
+  VALUES (v_org_id, 'SportWorld Alg??rie', 'Sami Bensalem', 'commandes@sportworld.dz', '0551 44 55 66', 'Lotissement les Pins, Oran')
+  RETURNING id INTO v_final_id;
+  v_supplier_ids := array_append(v_supplier_ids, v_final_id);
+
+  INSERT INTO suppliers (organization_id, name, contact_name, email, phone, address)
+  VALUES (v_org_id, 'ProFit Distribution', 'Nadia Khelifi', 'info@profit-dz.com', '0552 77 88 99', 'Cit?? des Sports, Blida')
+  RETURNING id INTO v_final_id;
+  v_supplier_ids := array_append(v_supplier_ids, v_final_id);
+
+  INSERT INTO suppliers (organization_id, name, contact_name, email, phone, address)
+  VALUES (v_org_id, 'NutriPlus SARL', 'Farid Bouzid', 'ventes@nutriplus.dz', '0660 11 22 33', 'Route de S??tif, Bordj Bou Arreridj')
+  RETURNING id INTO v_final_id;
+  v_supplier_ids := array_append(v_supplier_ids, v_final_id);
+
+  INSERT INTO suppliers (organization_id, name, contact_name, email, phone, address)
+  VALUES (v_org_id, 'Equip Gym International', 'Hassan Taleb', 'h.taleb@equipgym.dz', '0661 44 55 66', 'Zone d''Activit??s, Constantine')
+  RETURNING id INTO v_final_id;
+  v_supplier_ids := array_append(v_supplier_ids, v_final_id);
+
+  INSERT INTO suppliers (organization_id, name, contact_name, email, phone, address)
+  VALUES (v_org_id, 'NettPro Hygi??ne', 'Fatima Zidane', 'info@nettpro.dz', '0553 33 44 55', 'Cit?? Bellevue, Annaba')
+  RETURNING id INTO v_final_id;
+  v_supplier_ids := array_append(v_supplier_ids, v_final_id);
+
+  INSERT INTO suppliers (organization_id, name, contact_name, email, phone, address)
+  VALUES (v_org_id, 'Boissons & Cie', 'Reda Ouali', 'r.ouali@boissonscie.dz', '0554 55 66 77', 'Zone Industrielle El Hadjar, Annaba')
+  RETURNING id INTO v_final_id;
+  v_supplier_ids := array_append(v_supplier_ids, v_final_id);
+
+  INSERT INTO suppliers (organization_id, name, contact_name, email, phone, address)
+  VALUES (v_org_id, 'Tissu Sport SARL', 'Meriem Bouchareb', 'meriem@tissusport.dz', '0662 33 44 55', 'Quartier des Affaires, Tizi Ouzou')
   RETURNING id INTO v_final_id;
   v_supplier_ids := array_append(v_supplier_ids, v_final_id);
 
   -- =============================================================
   -- 12. INVENTORY + STOCK MOVEMENTS
   -- =============================================================
-  RAISE NOTICE 'Création de l''inventaire...';
+  RAISE NOTICE 'Cr??ation de l''inventaire...';
 
   FOR i IN 1..array_length(v_product_names, 1) LOOP
     INSERT INTO inventory (organization_id, name, category, quantity, unit, min_stock, price, supplier_id)
@@ -468,7 +497,7 @@ BEGIN
         CASE WHEN i <= 5 THEN 1 WHEN i <= 10 THEN 2 WHEN i <= 11 THEN 3
              WHEN i <= 15 THEN 4 WHEN i <= 20 THEN 5 WHEN i <= 25 THEN 6 ELSE 7 END
       ],
-      50 + floor(random() * 500)::INT, 'unité', 10,
+      50 + floor(random() * 500)::INT, 'unit??', 10,
       v_product_prices[i][2],
       v_supplier_ids[1 + floor(random() * array_length(v_supplier_ids, 1))::INT]
     )
@@ -479,9 +508,9 @@ BEGIN
   END LOOP;
 
   -- =============================================================
-  -- 13. ATTENDANCE / RFID CHECK-INS (90 jours de données)
+  -- 13. ATTENDANCE / RFID CHECK-INS (90 jours de donn??es)
   -- =============================================================
-  RAISE NOTICE 'Création des passages RFID...';
+  RAISE NOTICE 'Cr??ation des passages RFID...';
 
   FOR v_att_day_offset IN 0..89 LOOP
     FOR i IN 1..array_length(v_member_ids, 1) LOOP
@@ -515,7 +544,7 @@ BEGIN
   -- =============================================================
   -- 14. POS SESSIONS + TRANSACTIONS (plusieurs centaines)
   -- =============================================================
-  RAISE NOTICE 'Création des ventes POS...';
+  RAISE NOTICE 'Cr??ation des ventes POS...';
 
   FOR i IN 1..5 LOOP
     INSERT INTO pos_sessions (organization_id, staff_id, opened_at, closed_at, status, total)
@@ -548,7 +577,7 @@ BEGIN
 
       v_discount := CASE WHEN random() < 0.2 THEN floor(v_subtotal * random() * 0.2) ELSE 0 END;
       v_trans_total := v_subtotal - v_discount;
-      v_payment_method := ARRAY['cash','card','transfer'][1 + floor(random() * 3)::INT];
+      v_payment_method := (ARRAY['cash','card','transfer'])[1 + floor(random() * 3)::INT];
 
       IF random() < 0.4 THEN
         v_member_sale := v_member_ids[1 + floor(random() * array_length(v_member_ids, 1))::INT];
@@ -577,9 +606,9 @@ BEGIN
   END LOOP;
 
   -- =============================================================
-  -- 15. PAYMENTS (liés aux abonnements)
+  -- 15. PAYMENTS (li??s aux abonnements)
   -- =============================================================
-  RAISE NOTICE 'Création des paiements...';
+  RAISE NOTICE 'Cr??ation des paiements...';
 
   FOR i IN 1..array_length(v_member_ids, 1) LOOP
     -- ~70% des membres ont un paiement
@@ -587,7 +616,7 @@ BEGIN
       rand_int := 1 + floor(random() * array_length(v_subscription_type_ids, 1))::INT;
       v_sub_type_id := v_subscription_type_ids[rand_int];
       SELECT price INTO rand_real FROM subscription_types WHERE id = v_sub_type_id;
-      v_payment_method := ARRAY['cash','cash','card','transfer'][1 + floor(random() * 4)::INT];
+      v_payment_method := (ARRAY['cash','cash','card','transfer'])[1 + floor(random() * 4)::INT];
 
       INSERT INTO payments (organization_id, member_id, amount, payment_method, payment_date, status, notes)
       VALUES (
@@ -601,7 +630,7 @@ BEGIN
   -- =============================================================
   -- 16. PURCHASE ORDERS + STOCK MOVEMENTS
   -- =============================================================
-  RAISE NOTICE 'Création des commandes fournisseurs...';
+  RAISE NOTICE 'Cr??ation des commandes fournisseurs...';
 
   FOR i IN 1..30 LOOP
     v_po_list := '[]';
@@ -636,7 +665,7 @@ BEGIN
         VALUES (
           (SELECT id FROM inventory WHERE name = (SELECT name FROM products WHERE id = v_final_id) AND organization_id = v_org_id LIMIT 1),
           v_org_id, 'in', rand_int,
-          '[DEMO] Réapprovisionnement commande #' || v_purchase_order_id
+          '[DEMO] R??approvisionnement commande #' || v_purchase_order_id
         );
 
         UPDATE products SET stock = COALESCE(stock,0) + rand_int WHERE id = v_final_id;
@@ -652,25 +681,25 @@ BEGIN
   ON CONFLICT (organization_id, key) DO UPDATE SET value = 'true';
 
   RAISE NOTICE '=========================================================';
-  RAISE NOTICE 'Données DEMO générées avec succès !';
-  RAISE NOTICE 'Organisation : FitManager Démo';
+  RAISE NOTICE 'Donn??es DEMO g??n??r??es avec succ??s !';
+  RAISE NOTICE 'Organisation : FitManager D??mo';
   RAISE NOTICE 'Types d''abonnement : %', v_sub_count;
-  RAISE NOTICE 'Employés : %', v_staff_count;
-  RAISE NOTICE 'Adhérents : %', v_member_count;
+  RAISE NOTICE 'Employ??s : %', v_staff_count;
+  RAISE NOTICE 'Adh??rents : %', v_member_count;
   RAISE NOTICE '=========================================================';
-  RAISE NOTICE 'Pour réinitialiser : SELECT reset_demo_data();';
+  RAISE NOTICE 'Pour r??initialiser : SELECT reset_demo_data();';
   RAISE NOTICE '=========================================================';
 
 EXCEPTION WHEN OTHERS THEN
-  RAISE NOTICE 'ERREUR durant la génération des données DEMO : %', SQLERRM;
-  RAISE NOTICE 'Rollback effectué.';
+  RAISE NOTICE 'ERREUR durant la g??n??ration des donn??es DEMO : %', SQLERRM;
+  RAISE NOTICE 'Rollback effectu??.';
   RAISE;
 END;
 $$;
 
 -- =============================================================
--- RESET FUNCTION: nettoie toutes les données DEMO
--- Organisation ciblée : slug = 'fitmanager-demo'
+-- RESET FUNCTION: nettoie toutes les donn??es DEMO
+-- Organisation cibl??e : slug = 'fitmanager-demo'
 -- =============================================================
 CREATE OR REPLACE FUNCTION reset_demo_data()
 RETURNS TEXT
@@ -684,7 +713,7 @@ DECLARE
 BEGIN
   SELECT id INTO v_org_id FROM organizations WHERE slug = 'fitmanager-demo';
   IF v_org_id IS NULL THEN
-    RETURN 'Aucune donnée DEMO trouvée.';
+    RETURN 'Aucune donn??e DEMO trouv??e.';
   END IF;
 
   -- Collect demo member IDs
@@ -764,7 +793,7 @@ BEGIN
   UPDATE settings SET value = 'false' WHERE organization_id = v_org_id AND key = 'demo_data_seeded';
   GET DIAGNOSTICS v_count = ROW_COUNT; v_total := v_total + v_count;
 
-  RETURN v_total || ' lignes supprimées. Données DEMO réinitialisées. Vous pouvez relancer le script de génération.';
+  RETURN v_total || ' lignes supprim??es. Donn??es DEMO r??initialis??es. Vous pouvez relancer le script de g??n??ration.';
 END;
 $$;
 
@@ -773,3 +802,4 @@ $$;
 -- =============================================================
 GRANT EXECUTE ON FUNCTION reset_demo_data() TO authenticated;
 GRANT EXECUTE ON FUNCTION reset_demo_data() TO service_role;
+

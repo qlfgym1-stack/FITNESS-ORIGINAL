@@ -1,40 +1,34 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sha256, generateCode } from '../_shared/crypto.ts'
 
-async function sha256(code: string): Promise<string> {
-  const data = new TextEncoder().encode(code)
-  const hash = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(hash))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-}
+const allowedOrigins = [
+  'https://qlfgym1-stack.github.io',
+  'http://localhost:5173',
+  'http://localhost:3000',
+]
 
-function generateCode(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes)
-    .map(b => chars[b % chars.length])
-    .join('')
-}
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+function getCorsHeaders(request: Request) {
+  const origin = request.headers.get('origin') || ''
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : 'null'
+  return {
+    'Access-Control-Allow-Origin': corsOrigin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  }
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders })
-  }
-
   try {
     if (req.method !== 'POST') {
       return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         status: 405,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
+    }
+
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: getCorsHeaders(req) })
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -42,7 +36,7 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseKey) {
       return new Response(JSON.stringify({ error: 'Server configuration error' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
 
@@ -53,7 +47,7 @@ serve(async (req) => {
     if (!email || !code) {
       return new Response(JSON.stringify({ error: 'Email and code are required' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
 
@@ -66,7 +60,7 @@ serve(async (req) => {
     if (!rpcResult?.valid) {
       return new Response(JSON.stringify({ error: rpcResult?.error || 'Invalid credentials' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
 
@@ -87,7 +81,7 @@ serve(async (req) => {
     if (!token) {
       return new Response(JSON.stringify({ error: 'Failed to generate auth token' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
 
@@ -103,13 +97,13 @@ serve(async (req) => {
     }, { onConflict: 'user_id' })
 
     return new Response(JSON.stringify({ token, newCode: newPlainCode }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
     })
   } catch (err) {
     console.error('Sign-in with recovery error:', err)
     return new Response(JSON.stringify({ error: 'An unexpected error occurred' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
     })
   }
 })

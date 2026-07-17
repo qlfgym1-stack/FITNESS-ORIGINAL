@@ -70,7 +70,7 @@ export default function Recovery() {
           setIsSubmitting(false);
           return;
         }
-        if (values.email.toLowerCase() !== "admin@fitmanager.pro") {
+        if (values.email.toLowerCase() !== "moussamohamedelmabrouk@gmail.com") {
           toast({ variant: "destructive", title: "Error", description: "Invalid credentials" });
           setIsSubmitting(false);
           return;

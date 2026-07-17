@@ -1,21 +1,32 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+const allowedOrigins = [
+  'https://qlfgym.vercel.app',
+  'https://qlfgym1-stack.github.io',
+  'http://localhost:5173',
+  'http://localhost:3000',
+]
+
+function getCorsHeaders(request: Request) {
+  const origin = request.headers.get('origin') || ''
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : 'null'
+  return {
+    'Access-Control-Allow-Origin': corsOrigin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  }
 }
 
 serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
     })
   }
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders })
+    return new Response(null, { status: 204, headers: getCorsHeaders(req) })
   }
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -23,9 +34,29 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseKey) {
       return new Response(JSON.stringify({ error: 'Server configuration error' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
+
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Missing or invalid Authorization header' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+      })
+    }
+    const token = authHeader.slice(7)
+    const authClient = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    })
+    const { data: { user }, error: authError } = await authClient.auth.getUser()
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+      })
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     const { data: expiringSubs } = await supabase
@@ -40,7 +71,7 @@ serve(async (req) => {
       .gte('end_date', new Date().toISOString().split('T')[0])
 
     if (!expiringSubs?.length) {
-      return new Response(JSON.stringify({ sent: 0 }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } })
+      return new Response(JSON.stringify({ sent: 0 }), { headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) } })
     }
 
     const orgIds = [...new Set(expiringSubs.map((sub: any) => sub.members.organization_id))]
@@ -62,7 +93,7 @@ serve(async (req) => {
           organization_id: sub.members.organization_id,
           user_id: userId,
           title: 'Abonnement expire bientôt',
-          body: `L'abonnement de ${sub.members.first_name} ${sub.members.last_name} expire le ${sub.end_date}`,
+          message: `L'abonnement de ${sub.members.first_name} ${sub.members.last_name} expire le ${sub.end_date}`,
           type: 'subscription_expiring',
           data: { member_subscription_id: sub.id, member_id: sub.member_id },
         })
@@ -83,17 +114,17 @@ serve(async (req) => {
     )
 
     if (!uniqueNotifications.length) {
-      return new Response(JSON.stringify({ sent: 0 }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } })
+      return new Response(JSON.stringify({ sent: 0 }), { headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) } })
     }
 
     const { error } = await supabase.from('notifications').insert(uniqueNotifications)
     if (error) throw error
 
     return new Response(JSON.stringify({ sent: uniqueNotifications.length }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
     })
   } catch (err) {
     console.error('Error:', err)
-    return new Response(JSON.stringify({ error: 'An unexpected error occurred' }), { status: 500, headers: { ...corsHeaders } })
+    return new Response(JSON.stringify({ error: 'An unexpected error occurred' }), { status: 500, headers: { ...getCorsHeaders(req) } })
   }
 })

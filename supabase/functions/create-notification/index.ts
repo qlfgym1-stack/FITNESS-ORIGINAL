@@ -1,33 +1,80 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+const allowedOrigins = [
+  'https://qlfgym.vercel.app',
+  'https://qlfgym1-stack.github.io',
+  'http://localhost:5173',
+  'http://localhost:3000',
+]
+
+function getCorsHeaders(request: Request) {
+  const origin = request.headers.get('origin') || ''
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : 'null'
+  return {
+    'Access-Control-Allow-Origin': corsOrigin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  }
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders })
+    return new Response(null, { status: 204, headers: getCorsHeaders(req) })
   }
 
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
     })
   }
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    if (!supabaseUrl || !supabaseKey) {
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    if (!supabaseUrl || !supabaseKey || !supabaseAnonKey) {
       return new Response(JSON.stringify({ error: 'Server configuration error' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
+
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Missing or invalid Authorization header' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+      })
+    }
+
+    const jwt = authHeader.replace('Bearer ', '')
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    })
+
+    const { data: { user }, error: authError } = await userClient.auth.getUser()
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+      })
+    }
+
+    const { data: roleRow, error: roleError } = await userClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single()
+
+    if (roleError || !roleRow || !['admin', 'super_admin'].includes(roleRow.role)) {
+      return new Response(JSON.stringify({ error: 'Forbidden: admin or super_admin role required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+      })
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     const body = await req.json()
@@ -36,7 +83,7 @@ serve(async (req) => {
     if (!organization_id || !type || !title || !message) {
       return new Response(JSON.stringify({ error: 'Missing required fields: organization_id, type, title, message' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
 
@@ -44,7 +91,7 @@ serve(async (req) => {
     if (!validTypes.includes(type)) {
       return new Response(JSON.stringify({ error: `Invalid type. Must be one of: ${validTypes.join(', ')}` }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
 
@@ -61,18 +108,18 @@ serve(async (req) => {
       console.error('create_notification error:', error)
       return new Response(JSON.stringify({ error: 'Failed to create notification' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
 
     return new Response(JSON.stringify({ id: notifId }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
     })
   } catch (err) {
     console.error('create-notification error:', err)
     return new Response(JSON.stringify({ error: 'An unexpected error occurred' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
     })
   }
 })

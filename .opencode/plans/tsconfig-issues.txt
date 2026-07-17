@@ -1,0 +1,245 @@
+# tsconfig-issues.txt — Erreurs révélées par noImplicitAny / noUnusedLocals / noUnusedParameters
+# Généré le 2026-07-13 — Flags temporairement remis à false en attendant le typage progressif
+
+## Résumé
+- Total erreurs : ~200+
+- TS7006 (implicit any) : ~150+ (paramètres non typés)
+- TS6133 (unused variables) : ~50+ (imports/variables déclarés non utilisés)
+- TS6198 (unused destructuring) : 2
+- TS6196 (unused type imports) : 6
+- TS6192 (unused imports totaux) : 4
+- TS7031 (binding element any) : 4
+
+## Fichiers concernés (26 fichiers)
+
+### navbar.tsx (4 erreurs TS7006)
+- L112: param 'n' implicit any
+- L118: param 'n' implicit any
+- L123: param 'n' implicit any
+- L164: param 'notif' implicit any
+
+### avatar-upload.tsx (1 erreur TS6133)
+- L5: 'Button' déclaré non utilisé
+
+### i18n/index.tsx (1 erreur TS6133)
+- L1: 'React' déclaré non utilisé
+
+### access-control.tsx (7 erreurs)
+- L11: 'Label' non utilisé
+- L22: 'CardHeader', 'CardTitle' non utilisés
+- L216: param 'd' implicit any
+- L221: param 'v' implicit any
+- L232: param 'd' implicit any
+- L254: param 'v' implicit any
+- L347: param 'd' implicit any
+- L382: param 'd' implicit any
+
+### attendance.tsx (14 erreurs)
+- L25: 'Clock', 'Loader2' non utilisés
+- L30: 'formatDate', 'formatDateTime' non utilisés
+- L135, L153: param 'err' implicit any
+- L162-164: params 'a', 'm' implicit any
+- L170: 'totalToday' non utilisé
+- L180, L220: param 'h' implicit any
+- L201: 'handleExportHistory' non utilisé
+
+### recovery.tsx (1 erreur)
+- L35: 't' déclaré non utilisé
+
+### sign-up.tsx (1 erreur)
+- L30: 't' déclaré non utilisé
+
+### badges.tsx (1 erreur)
+- L87: 'setTab' déclaré non utilisé
+
+### classes.tsx (22 erreurs)
+- L27: 'CardHeader', 'CardTitle' non utilisés
+- L30: 'TabsContent' non utilisé
+- L36: 'Clock' non utilisé
+- L38: 'format' non utilisé
+- L200-285: params 'err', 'e', 'c' implicit any (multiples)
+- L287: 'classesByDay' non utilisé
+- L205: 'updateMutation' non utilisé
+- L288-544: params 'c', 'cls', 'enr', 'm' implicit any
+
+### coach-mode.tsx (6 erreurs)
+- L10: 'CardHeader', 'CardTitle' non utilisés
+- L11: 'AvatarImage' non utilisé
+- L17: 'MapPin', 'UserCheck', 'Loader2' non utilisés
+- L100, L108, L130: param 'c' implicit any
+
+### corporate.tsx (3 erreurs)
+- L14: 'Switch' non utilisé
+- L17: 'formatCurrency', 'getStatusColor' non utilisés
+
+### checkin-dialog.tsx (5 erreurs)
+- L8: 'Badge' non utilisé
+- L82, L107, L126: param 'data' implicit any
+- L197, L278: param 'm' implicit any
+
+### dashboard.tsx (8 erreurs)
+- L12: 'AvatarImage' non utilisé
+- L16: 'ArrowUpRight' non utilisé
+- L334-474: params 'entry', 'idx', 'g', 's', 'item', 'coach', 'sub' implicit any
+
+### display.tsx (5 erreurs)
+- L4: 'AvatarImage' non utilisé
+- L11: 'TrendingUp', 'Loader2' non utilisés
+- L80, L140: param 'r' implicit any
+- L176: param 'c' implicit any
+
+### equipment.tsx (1 erreur)
+- L166: param 'item' implicit any
+
+### report.tsx (4 erreurs)
+- L20: 'EquipmentReservation' type non utilisé
+- L70, L76: param 'e' implicit any
+- L85: param 'r' implicit any
+- L159: binding 'name', 'percent' implicit any
+
+### reservations.tsx (6 erreurs)
+- L15: 'CardHeader', 'CardTitle' non utilisés
+- L31: 'EquipmentReservation' non utilisé
+- L110: param 'e' implicit any
+- L113: param 'm' implicit any
+- L188: param 'res' implicit any
+- L342, L358: params 'e', 'm' implicit any
+
+### gyms.tsx (2 erreurs)
+- L5: 'Label' non utilisé
+- L18: 'Calendar' non utilisé
+
+### install.tsx (5 erreurs)
+- L8: 'Share2', 'PlusCircle' non utilisés
+- L9: 'ArrowRight', 'RefreshCw', 'Globe' non utilisés
+
+### inventory.tsx (2 erreurs)
+- L91, L100: param 'i' implicit any
+
+### stock.tsx (3 erreurs)
+- L139, L148: param 'm' implicit any
+- L313: param 'item' implicit any
+
+### licenses.tsx (1 erreur)
+- L18: 'getStatusColor' non utilisé
+
+### portal.tsx (3 erreurs)
+- L105: param 's' implicit any
+- L118: param 'a' implicit any
+- L129: param 'p' implicit any
+
+### members.tsx (12 erreurs)
+- L1: 'useMemo' non utilisé
+- L25: 'isValidDzPhone' non utilisé
+- L26: 'RfidCard' type non utilisé
+- L172: 'mockRfidMap' non utilisé
+- L334, L407, L425: param 't' implicit any
+- L382: param 'data' implicit any
+- L397, L479, L492: param 'err' implicit any
+- L462: param 'data' implicit any
+- L836: param 'st' implicit any
+
+### rfid-management.tsx (4 erreurs)
+- L14: 'ShieldCheck' non utilisé
+- L37: 't' non utilisé
+- L85, L100, L114: param 'err' implicit any
+
+### notifications.tsx (6 erreurs)
+- L70, L75, L84, L90, L91, L141: param 'n' implicit any
+
+### payments.tsx (7 erreurs)
+- L190: param 'err' implicit any
+- L196: param 'p' implicit any
+- L207: destructuring entièrement non utilisé
+- L208: param 'p' implicit any
+- L319: param 'p' implicit any
+- L332, L386: param 'm' implicit any
+- L415: param 's' implicit any
+
+### pointage.tsx (16 erreurs)
+- L1: 'useEffect' non utilisé
+- L19: 'Search', 'LogOut', 'TrendingUp' non utilisés
+- L21: 'Wifi', 'WifiOff' non utilisés
+- L23: 'formatDateTime' non utilisé
+- L55: 'userId' non utilisé
+- L61: 'canManualValidate' non utilisé
+- L91-135: params 'a' implicit any (multiples)
+- L158: param 'data' implicit any
+- L194: 'dateRangeEnd' non utilisé
+- L196: 'isPro' non utilisé
+
+### pos.tsx (16 erreurs)
+- L8: 'getInitials' non utilisé
+- L24: 'SheetTrigger' non utilisé
+- L26: import entièrement non utilisé
+- L30: 'User', 'Percent' non utilisés
+- L31: 'Member' type non utilisé
+- L119: 'selectedMemberDetails' non utilisé
+- L160: 'panelFilteredProducts' non utilisé
+- L134, L149, L163, L223: param 'p' implicit any
+- L138: params 'a', 'b' implicit any
+- L172, L230, L427: param 'm' implicit any
+
+### reports.tsx (3 erreurs)
+- L66: 'exp' non utilisé
+- L163: param 'r' implicit any
+- L233: params '_', 'i' implicit any
+
+### profile.tsx (2 erreurs)
+- L8: 'Separator' non utilisé
+- L14: 'Mail' non utilisé
+
+### settings.tsx (2 erreurs)
+- L1: 'useState' non utilisé
+- L14: 'Form' non utilisé
+
+### leaves.tsx (5 erreurs)
+- L16: 'CardHeader', 'CardTitle' non utilisés
+- L34: 'StaffLeave' non utilisé
+- L106: param 's' implicit any
+- L108: param 'l' implicit any
+- L280: param 's' implicit any
+
+### planning.tsx (5 erreurs)
+- L7: 'parseISO' non utilisé
+- L12: 'Badge' non utilisé
+- L13: import entièrement non utilisé
+- L102: param 's' implicit any
+- L206: param 'staff' implicit any
+- L261: param 's' implicit any
+
+### staff.tsx (5 erreurs)
+- L10: 'cn' non utilisé
+- L15: 'CardHeader', 'CardTitle' non utilisés
+- L21: 'DialogTrigger' non utilisé
+- L38: 'Tables' non utilisé
+- L171: param 's' implicit any
+
+### timesheet.tsx (4 erreurs)
+- L11: 'Badge' non utilisé
+- L82, L88: param 'ts' implicit any
+- L175, L231: param 'staff' implicit any
+
+### subscriptions.tsx (14 erreurs)
+- L22: 'getDaysRemaining' non utilisé
+- L117, L130, L146, L164, L188: param 'err' implicit any
+- L138: binding 'id', 'is_active' implicit any
+- L146: param 'vars', 'context' implicit any
+- L172: param 't' implicit any
+- L223: destructuring entièrement non utilisé
+- L226: param 'type' implicit any
+- L238: 'exportSubsCsv' non utilisé
+- L239, L384: param 'sub' implicit any
+
+### super-admin.tsx (7 erreurs)
+- L14: import entièrement non utilisé
+- L20: 'Globe', 'Calendar' non utilisés
+- L46-60: params 's', 'o' implicit any (multiples)
+
+### purchase-orders.tsx (2 erreurs)
+- L86: param 'o' implicit any
+- L94: param 'o' implicit any
+
+### suppliers.tsx (2 erreurs)
+- L82: param 's' implicit any
+- L91: param 's' implicit any

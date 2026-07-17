@@ -1,4 +1,14 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from "react"
+
+const STORAGE_KEY = "FITMANAGER_OFFLINE_QUEUE"
+
+function loadQueue(): QueuedMutation[] {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+  } catch {
+    return []
+  }
+}
 
 interface QueuedMutation {
   id: string
@@ -20,8 +30,12 @@ interface OfflineQueueContextType {
 const OfflineQueueContext = createContext<OfflineQueueContextType | undefined>(undefined)
 
 export function OfflineQueueProvider({ children }: { children: ReactNode }) {
-  const [queue, setQueue] = useState<QueuedMutation[]>([])
+  const [queue, setQueue] = useState<QueuedMutation[]>(loadQueue)
   const [isProcessing, setIsProcessing] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(queue))
+  }, [queue])
 
   const addToQueue = useCallback((mutation: Omit<QueuedMutation, "id" | "timestamp">) => {
     setQueue((prev) => [

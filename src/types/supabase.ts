@@ -124,9 +124,9 @@ export interface Database {
         Relationships: []
       }
       inventory: {
-        Row: { id: string; organization_id: string; name: string; category: string | null; quantity: number; unit: string | null; min_stock: number | null; price: number | null; supplier_id: string | null; created_at: string }
-        Insert: { id?: string; organization_id: string; name: string; category?: string | null; quantity?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; name?: string; category?: string | null; quantity?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; created_at?: string }
+        Row: { id: string; organization_id: string; name: string; category: string | null; quantity: number; unit: string | null; min_stock: number | null; price: number | null; supplier_id: string | null; image_url: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; name: string; category?: string | null; quantity?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; image_url?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; name?: string; category?: string | null; quantity?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; image_url?: string | null; created_at?: string }
         Relationships: []
       }
       stock_movements: {

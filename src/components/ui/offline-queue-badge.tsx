@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useOfflineQueue } from "@/stores/offline-queue"
+import { useT } from "@/i18n/index.tsx"
 import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -9,6 +10,7 @@ import { CloudOff, Trash2, RefreshCw } from "lucide-react"
 
 export function OfflineQueueBadge() {
   const { queue, removeFromQueue, clearQueue } = useOfflineQueue()
+  const t = useT()
   const [open, setOpen] = useState(false)
 
   if (queue.length === 0) return null
@@ -23,16 +25,16 @@ export function OfflineQueueBadge() {
       >
         <CloudOff className="h-4 w-4 text-amber-500" />
         <span className="text-xs font-medium text-amber-600">
-          {queue.length} en attente
+          {queue.length} {t("offlineQueue.pending")}
         </span>
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>File d&apos;attente hors-ligne</DialogTitle>
+            <DialogTitle>{t("offlineQueue.queueTitle")}</DialogTitle>
             <DialogDescription>
-              {queue.length} opération{queue.length > 1 ? "s" : ""} en attente de synchronisation
+              {t("offlineQueue.syncDescription").replace("{count}", String(queue.length))}
             </DialogDescription>
           </DialogHeader>
 
@@ -74,7 +76,7 @@ export function OfflineQueueBadge() {
                 setOpen(false)
               }}
             >
-              Tout synchroniser
+              {t("offlineQueue.syncAll")}
               <RefreshCw className="ml-2 h-4 w-4" />
             </Button>
           </DialogFooter>

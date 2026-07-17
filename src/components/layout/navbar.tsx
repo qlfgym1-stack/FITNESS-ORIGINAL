@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react"
 import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe, Wifi, WifiOff, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, CheckCheck } from "lucide-react"
 import { motion } from "framer-motion"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -205,9 +206,18 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const { locale, setLocale } = useLocale()
   const { theme, toggleTheme } = useTheme()
   const { signOut, user, profile, organization } = useAuth()
+  const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState("")
   const initials = profile?.full_name
     ? profile.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     : user?.email?.slice(0, 2).toUpperCase() || 'AD'
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      navigate(`/members?q=${encodeURIComponent(searchQuery.trim())}`)
+    }
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border/50 bg-background/80 backdrop-blur-lg px-4 lg:px-6">
@@ -226,11 +236,15 @@ export function Navbar({ onMenuClick }: NavbarProps) {
         transition={{ duration: 0.3 }}
         className="relative max-w-md flex-1"
       >
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder={t("navbar.search")}
-          className="bg-muted pl-8"
-        />
+        <form onSubmit={handleSearch} className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={t("navbar.search")}
+            className="bg-muted pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </form>
       </motion.div>
 
       <ClockDisplay />
@@ -287,7 +301,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">{profile?.full_name || organization?.name || 'Admin'}</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  {user?.email || 'admin@fitmanager.pro'}
+                  {user?.email || 'MoussaMohamedelmabrouk@gmail.com'}
                 </p>
               </div>
             </DropdownMenuLabel>

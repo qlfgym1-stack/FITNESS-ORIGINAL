@@ -15,7 +15,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  signIn: (email: string, password: string, recoveryCode?: string) => Promise<{ error: Error | null; newCode?: string }>
+  signIn: (identifier: string, password: string, recoveryCode?: string) => Promise<{ error: Error | null; newCode?: string }>
   signUp: (email: string, password: string, orgData: { name: string; slug: string }) => Promise<{ error: Error | null; recoveryCode?: string }>
   signOut: () => Promise<void>
 }
@@ -23,9 +23,9 @@ interface AuthContextValue extends AuthState {
 
 
 const MOCK_ADMIN: AuthState = {
-  user: { id: 'mock-admin-id', email: 'admin@fitmanager.pro', app_metadata: {}, user_metadata: { full_name: 'Admin User' }, aud: 'authenticated', created_at: new Date().toISOString() } as any,
-  profile: { id: 'mock-admin-id', email: 'admin@fitmanager.pro', full_name: 'Admin User' },
-  organization: { id: 'mock-org-id', name: 'FitManager Pro Gym', slug: 'fitmanager-pro', logo_url: null, address: null, phone: null, email: 'admin@fitmanager.pro', created_at: new Date().toISOString() },
+  user: { id: 'mock-admin-id', email: 'MoussaMohamedelmabrouk@gmail.com', app_metadata: {}, user_metadata: { full_name: 'Moussa Mohamed Elmabrouk' }, aud: 'authenticated', created_at: new Date().toISOString() } as any,
+  profile: { id: 'mock-admin-id', email: 'MoussaMohamedelmabrouk@gmail.com', full_name: 'Moussa Mohamed Elmabrouk' },
+  organization: { id: 'mock-org-id', name: 'DINATEK', slug: 'dinatek', logo_url: null, address: null, phone: null, email: 'MoussaMohamedelmabrouk@gmail.com', created_at: new Date().toISOString() },
   roles: [{ id: 'mock-role-id', user_id: 'mock-admin-id', organization_id: 'mock-org-id', role: 'super_admin', created_at: new Date().toISOString() }],
   isLoading: false, isAuthenticated: true, isSuperAdmin: true,
 }
@@ -69,11 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription?.unsubscribe()
   }, [fetchSession])
 
-  const signIn = useCallback(async (email: string, password: string, recoveryCode?: string) => {
+  const signIn = useCallback(async (identifier: string, password: string, recoveryCode?: string) => {
     if (IS_MOCK) { setState(MOCK_ADMIN); return { error: null } }
 
-    // Recovery code sign-in flow
+    // Recovery code sign-in flow (requires email)
     if (recoveryCode) {
+      if (!identifier.includes('@')) return { error: new Error('Recovery code requires an email address') }
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
       const res = await fetch(`${supabaseUrl}/functions/v1/sign-in-with-recovery`, {
         method: 'POST',
@@ -81,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ email, code: recoveryCode }),
+        body: JSON.stringify({ email: identifier, code: recoveryCode }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
@@ -89,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Verify the magic link token to create a session
       const { error: verifyError } = await supabase.auth.verifyOtp({
-        email,
+        email: identifier,
         token: data.token,
         type: 'magiclink',
       })
@@ -97,9 +98,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: null, newCode: data.newCode }
     }
 
-    // Normal password sign-in
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error }
+    // Normal password sign-in (email, phone, or member identifier)
+    if (identifier.includes('@')) {
+      const { error } = await supabase.auth.signInWithPassword({ email: identifier, password })
+      return { error }
+    }
+
+    // Try as phone first (Supabase Auth native phone sign-in)
+    const { error: phoneErr } = await supabase.auth.signInWithPassword({ phone: identifier, password })
+    if (!phoneErr) return { error: null }
+
+    // Fallback: lookup identifier via SECURITY DEFINER RPC (bypasses RLS for pre-auth)
+    const { data: email } = await (supabase.rpc as any)('lookup_email_by_identifier', { p_identifier: identifier })
+    if (email) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      return { error }
+    }
+
+    return { error: phoneErr }
   }, [])
 
   const signUp = useCallback(async (email: string, password: string, orgData: { name: string; slug: string }) => {

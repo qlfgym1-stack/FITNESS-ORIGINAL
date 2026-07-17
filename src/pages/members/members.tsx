@@ -71,13 +71,26 @@ function ImportDialog({ open, onOpenChange, onImport, t: tFn }: ImportDialogProp
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const XLSX = await import("xlsx")
+    const ExcelJS = await import("exceljs")
     const reader = new FileReader()
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const data = new Uint8Array(evt.target?.result as ArrayBuffer)
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const json = XLSX.utils.sheet_to_json(sheet)
+      const wb = new ExcelJS.default.Workbook()
+      await wb.xlsx.load(data.buffer)
+      const ws = wb.worksheets[0]
+      const headers: string[] = []
+      ws.getRow(1).eachCell((cell, colNumber) => {
+        headers[colNumber - 1] = String(cell.value ?? '')
+      })
+      const json: Record<string, unknown>[] = []
+      ws.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return
+        const obj: Record<string, unknown> = {}
+        row.eachCell((cell, colNumber) => {
+          obj[headers[colNumber - 1]] = cell.value ?? ''
+        })
+        json.push(obj)
+      })
       onImport(json)
       onOpenChange(false)
     }

@@ -16,6 +16,7 @@ import {
   Dumbbell,
   Clock,
   BarChart3,
+  ClipboardList,
   Shield,
   Award,
 
@@ -78,8 +79,9 @@ const navGroups: NavGroup[] = [
     groupKey: "sales",
     items: [
       { key: "pos", icon: ShoppingCart, path: "/pos" },
-      { key: "inventory", icon: Package, path: "/inventory" },
-      { key: "stock", icon: Boxes, path: "/stock" },
+      { key: "products", icon: Package, path: "/products" },
+      { key: "inventory", icon: Boxes, path: "/inventory" },
+      { key: "stock", icon: ClipboardList, path: "/stock" },
       { key: "suppliers", icon: Truck, path: "/suppliers" },
     ],
   },
@@ -113,6 +115,7 @@ const navGroups: NavGroup[] = [
       { key: "profile", icon: UserCog, path: "/profile" },
       { key: "gyms", icon: Building2, path: "/gyms" },
       { key: "notifications", icon: Bell, path: "/notifications" },
+      { key: "users", icon: Users, path: "/admin/users" },
     ],
   },
   {
@@ -277,7 +280,7 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
           </Avatar>
           <div className="flex-1 truncate">
             <p className="text-sm font-medium">{profile?.full_name || 'Admin'}</p>
-            <p className="text-xs text-muted-foreground">{user?.email || 'admin@fitmanager.pro'}</p>
+            <p className="text-xs text-muted-foreground">{user?.email || 'MoussaMohamedelmabrouk@gmail.com'}</p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={signOut}>
             <LogOut className="h-4 w-4" />

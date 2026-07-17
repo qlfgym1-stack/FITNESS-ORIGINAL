@@ -93,15 +93,17 @@ export default function ReportPage() {
   }, [reservations, equipmentMap])
 
   async function exportToExcel() {
-    const XLSX = await import("xlsx")
-    const data = usageData.map(d => ({
-      "Equipment Name": d.name,
-      "Usage Count": d.count,
-    }))
-    const ws = XLSX.utils.json_to_sheet(data)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Equipment Report")
-    XLSX.writeFile(wb, `equipment-report-${startDate}-to-${endDate}.xlsx`)
+    const ExcelJS = await import("exceljs")
+    const wb = new ExcelJS.default.Workbook()
+    const ws = wb.addWorksheet("Equipment Report")
+    ws.columns = [
+      { header: "Equipment Name", key: "name", width: 30 },
+      { header: "Usage Count", key: "count", width: 15 },
+    ]
+    usageData.forEach((d) => {
+      ws.addRow({ name: d.name, count: d.count })
+    })
+    await wb.xlsx.writeFile(`equipment-report-${startDate}-to-${endDate}.xlsx`)
   }
 
   const currentTab = TABS.find(t => t.path === location.pathname)?.value ?? "report"

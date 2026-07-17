@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
@@ -25,7 +25,7 @@ import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { toUpper } from "../../lib/utils"
 import {
-  Package, Plus, Search, Edit, Trash2, AlertTriangle, Loader2, Download,
+  Package, Plus, Search, Edit, Trash2, AlertTriangle, Loader2, Download, Camera, ImageIcon, X,
 } from "lucide-react"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
@@ -41,6 +41,7 @@ interface InventoryItem {
   min_stock: number
   price: number
   supplier_id: string | null
+  image_url: string | null
   suppliers?: { name: string } | null
 }
 
@@ -52,6 +53,7 @@ const inventorySchema = z.object({
   min_stock: z.coerce.number().min(0, "Min 0"),
   price: z.coerce.number().min(0, "Min 0"),
   supplier_id: z.string().optional().or(z.literal("")),
+  image_url: z.string().optional().or(z.literal("")),
 })
 
 type InventoryForm = z.infer<typeof inventorySchema>
@@ -68,6 +70,8 @@ export default function InventoryPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState<InventoryItem | null>(null)
+  const [imageUploading, setImageUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["inventory", orgId],
@@ -85,7 +89,7 @@ export default function InventoryPage() {
 
   const form = useForm<InventoryForm>({
     resolver: zodResolver(inventorySchema),
-    defaultValues: { name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "" },
+    defaultValues: { name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "", image_url: "" },
   })
 
   const filtered = items.filter((i) =>
@@ -121,6 +125,7 @@ export default function InventoryPage() {
         min_stock: values.min_stock,
         price: values.price,
         supplier_id: values.supplier_id || null,
+        image_url: values.image_url || null,
       }
       if (editing) {
         const { error } = await supabase.from("inventory").update(payload).eq("id", editing.id)
@@ -156,7 +161,7 @@ export default function InventoryPage() {
 
   function openCreate() {
     setEditing(null)
-    form.reset({ name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "" })
+    form.reset({ name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "", image_url: "" })
     setDialogOpen(true)
   }
 
@@ -170,8 +175,35 @@ export default function InventoryPage() {
       min_stock: item.min_stock,
       price: item.price,
       supplier_id: item.supplier_id ?? "",
+      image_url: item.image_url ?? "",
     })
     setDialogOpen(true)
+  }
+
+  async function handleImageUpload(file: File) {
+    if (!orgId) return
+    setImageUploading(true)
+    try {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const filePath = `${orgId}/${crypto.randomUUID()}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file)
+      if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(filePath)
+      form.setValue('image_url', urlData.publicUrl)
+    } catch (e) {
+      toast({ title: t("errors.error") || "Error", description: e instanceof Error ? e.message : 'Upload failed', variant: "destructive" })
+    } finally {
+      setImageUploading(false)
+    }
+  }
+
+  function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) handleImageUpload(file)
+  }
+
+  function clearImage() {
+    form.setValue('image_url', '')
   }
 
   function onSubmit(values: InventoryForm) {
@@ -219,13 +251,14 @@ export default function InventoryPage() {
               <TableHead className="text-right">{t("inventory.minStock")}</TableHead>
               <TableHead className="text-right">{t("inventory.price")}</TableHead>
               <TableHead>{t("inventory.supplier")}</TableHead>
+              <TableHead>{t("inventory.image") || "Image"}</TableHead>
               <TableHead className="text-right">{t("common.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
@@ -250,6 +283,13 @@ export default function InventoryPage() {
                   <TableCell className="text-right">{item.min_stock}</TableCell>
                   <TableCell className="text-right">{item.price.toLocaleString()} DA</TableCell>
                   <TableCell>{toUpper(item.suppliers?.name ?? "")}</TableCell>
+                  <TableCell>
+                    {item.image_url ? (
+                      <img src={item.image_url} alt={item.name} className="w-10 h-10 rounded-md object-cover border border-border" />
+                    ) : (
+                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
@@ -265,7 +305,7 @@ export default function InventoryPage() {
             })}
             {!isLoading && paginatedItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults")}
                 </TableCell>
               </TableRow>
@@ -282,7 +322,11 @@ export default function InventoryPage() {
             return (
               <Card key={item.id} className="p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Package className="h-4 w-4 text-muted-foreground" />
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.name} className="w-10 h-10 rounded-md object-cover border border-border" />
+                  ) : (
+                    <ImageIcon className="h-5 w-5 text-muted-foreground shrink-0" />
+                  )}
                   <span className="font-medium">{toUpper(item.name)}</span>
                   {lowStock && (
                     <Badge variant="destructive" className="gap-1 ml-auto">
@@ -375,6 +419,49 @@ export default function InventoryPage() {
                 <FormItem>
                   <FormLabel>{t("inventory.supplier")}</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="image_url" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("inventory.image") || "Image"}</FormLabel>
+                  <FormControl>
+                    <div>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageFileChange}
+                      />
+                      {field.value ? (
+                        <div className="relative w-32 h-32 rounded-md overflow-hidden border border-border">
+                          <img src={field.value} alt="Preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={clearImage}
+                            className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5 hover:bg-background"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => fileRef.current?.click()}
+                          disabled={imageUploading}
+                          className="flex items-center gap-2 px-4 py-2 rounded-md border border-border hover:bg-accent text-sm"
+                        >
+                          {imageUploading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Camera className="h-4 w-4" />
+                          )}
+                          {imageUploading ? t("common.uploading") || "Uploading..." : t("inventory.uploadImage") || "Upload Image"}
+                        </button>
+                      )}
+                    </div>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />

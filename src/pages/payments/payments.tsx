@@ -235,13 +235,26 @@ export default function PaymentsPage() {
   const handleImportExcel = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const XLSX = await import("xlsx")
+    const ExcelJS = await import("exceljs")
     const reader = new FileReader()
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const data = new Uint8Array(ev.target?.result as ArrayBuffer)
-      const workbook = XLSX.read(data, { type: "array" })
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const json = XLSX.utils.sheet_to_json(sheet) as Record<string, string>[]
+      const wb = new ExcelJS.default.Workbook()
+      await wb.xlsx.load(data.buffer)
+      const ws = wb.worksheets[0]
+      const headers: string[] = []
+      ws.getRow(1).eachCell((cell, colNumber) => {
+        headers[colNumber - 1] = String(cell.value ?? '')
+      })
+      const json: Record<string, string>[] = []
+      ws.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return
+        const obj: Record<string, string> = {}
+        row.eachCell((cell, colNumber) => {
+          obj[headers[colNumber - 1]] = String(cell.value ?? '')
+        })
+        json.push(obj)
+      })
       const rows: ImportRow[] = json.map((r) => {
         const rawAmount = Number(r.amount ?? r.Amount ?? 0)
         return {
@@ -292,19 +305,28 @@ export default function PaymentsPage() {
 
   const handleExportExcel = useCallback(async () => {
     if (!payments) return
-    const XLSX = await import("xlsx")
-    const data = payments.map((p) => ({
-      Membre: `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`,
-      Montant: p.amount,
-      Date: formatDate(p.payment_date),
-      Méthode: getMethodLabel(p.payment_method),
-      Statut: p.status,
-      Notes: p.notes || "",
-    }))
-    const ws = XLSX.utils.json_to_sheet(data)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Paiements")
-    XLSX.writeFile(wb, "paiements.xlsx")
+    const ExcelJS = await import("exceljs")
+    const wb = new ExcelJS.default.Workbook()
+    const ws = wb.addWorksheet("Paiements")
+    ws.columns = [
+      { header: "Membre", key: "Membre", width: 30 },
+      { header: "Montant", key: "Montant", width: 15 },
+      { header: "Date", key: "Date", width: 15 },
+      { header: "Méthode", key: "Méthode", width: 15 },
+      { header: "Statut", key: "Statut", width: 15 },
+      { header: "Notes", key: "Notes", width: 30 },
+    ]
+    payments.forEach((p) => {
+      ws.addRow({
+        Membre: `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`,
+        Montant: p.amount,
+        Date: formatDate(p.payment_date),
+        Méthode: getMethodLabel(p.payment_method),
+        Statut: p.status,
+        Notes: p.notes || "",
+      })
+    })
+    await wb.xlsx.writeFile("paiements.xlsx")
   }, [payments, getMethodLabel])
 
   const filteredMembers = members?.filter((m) =>

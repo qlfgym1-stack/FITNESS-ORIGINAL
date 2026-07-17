@@ -16,18 +16,18 @@ export function useExportCsv<T extends Record<string, unknown>>(
     if (!data.length) return
     setIsExporting(true)
     try {
-      const XLSX = await import('xlsx')
-      const rows = data.map((row) => {
+      const ExcelJS = await import('exceljs')
+      const wb = new ExcelJS.default.Workbook()
+      const ws = wb.addWorksheet('Data')
+      ws.columns = columns.map((c) => ({ header: c.label, key: c.label, width: 20 }))
+      data.forEach((row) => {
         const mapped: Record<string, unknown> = {}
         for (const col of columns) {
           mapped[col.label] = row[col.key] ?? ''
         }
-        return mapped
+        ws.addRow(mapped)
       })
-      const ws = XLSX.utils.json_to_sheet(rows)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Data')
-      XLSX.writeFile(wb, `${filename}.xlsx`)
+      await wb.xlsx.writeFile(`${filename}.xlsx`)
     } finally {
       setIsExporting(false)
     }

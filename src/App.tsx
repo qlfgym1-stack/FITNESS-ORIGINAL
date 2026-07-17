@@ -26,6 +26,7 @@ const EquipmentReservations = lazy(() => import('@/pages/equipment/reservations'
 const EquipmentReport = lazy(() => import('@/pages/equipment/report'))
 const Inventory = lazy(() => import('@/pages/inventory/inventory'))
 const Stock = lazy(() => import('@/pages/inventory/stock'))
+const Products = lazy(() => import('@/pages/products/products'))
 const Suppliers = lazy(() => import('@/pages/suppliers/suppliers'))
 const PurchaseOrders = lazy(() => import('@/pages/suppliers/purchase-orders'))
 const AccessControl = lazy(() => import('@/pages/access-control/access-control'))
@@ -42,6 +43,7 @@ const Notifications = lazy(() => import('@/pages/notifications/notifications'))
 const Settings = lazy(() => import('@/pages/settings/settings'))
 const Profile = lazy(() => import('@/pages/settings/profile'))
 const SuperAdmin = lazy(() => import('@/pages/super-admin/super-admin'))
+const AdminUsers = lazy(() => import('@/pages/admin/users'))
 const Display = lazy(() => import('@/pages/display/display'))
 const Install = lazy(() => import('@/pages/install/install'))
 
@@ -118,6 +120,7 @@ export default function App() {
               <Route path="equipment/report" element={<PageTransition><Suspense fallback={<Loading />}><EquipmentReport /></Suspense></PageTransition>} />
               <Route path="inventory" element={<PageTransition><Suspense fallback={<Loading />}><Inventory /></Suspense></PageTransition>} />
               <Route path="stock" element={<PageTransition><Suspense fallback={<Loading />}><Stock /></Suspense></PageTransition>} />
+              <Route path="products" element={<PageTransition><Suspense fallback={<Loading />}><Products /></Suspense></PageTransition>} />
               <Route path="suppliers" element={<PageTransition><Suspense fallback={<Loading />}><Suppliers /></Suspense></PageTransition>} />
               <Route path="purchase-orders" element={<PageTransition><Suspense fallback={<Loading />}><PurchaseOrders /></Suspense></PageTransition>} />
               <Route path="access-control" element={<PageTransition><Suspense fallback={<Loading />}><AccessControl /></Suspense></PageTransition>} />
@@ -132,6 +135,7 @@ export default function App() {
               <Route path="settings" element={<PageTransition><Suspense fallback={<Loading />}><Settings /></Suspense></PageTransition>} />
               <Route path="profile" element={<PageTransition><Suspense fallback={<Loading />}><Profile /></Suspense></PageTransition>} />
               <Route path="super-admin" element={<PageTransition><Suspense fallback={<Loading />}><SuperAdmin /></Suspense></PageTransition>} />
+              <Route path="admin/users" element={<PageTransition><Suspense fallback={<Loading />}><AdminUsers /></Suspense></PageTransition>} />
               <Route path="display" element={<PageTransition><Suspense fallback={<Loading />}><Display /></Suspense></PageTransition>} />
               <Route path="install" element={<PageTransition><Suspense fallback={<Loading />}><Install /></Suspense></PageTransition>} />
             </Route>

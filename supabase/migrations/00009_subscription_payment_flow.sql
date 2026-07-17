@@ -11,6 +11,8 @@ CREATE OR REPLACE FUNCTION create_member_with_pending_subscription(
   p_organization_id UUID,
   p_first_name TEXT,
   p_last_name TEXT,
+  p_subscription_type_id UUID,
+  p_start_date DATE,
   p_email TEXT DEFAULT NULL,
   p_phone TEXT DEFAULT NULL,
   p_gender TEXT DEFAULT NULL,
@@ -18,9 +20,7 @@ CREATE OR REPLACE FUNCTION create_member_with_pending_subscription(
   p_address TEXT DEFAULT NULL,
   p_emergency_contact TEXT DEFAULT NULL,
   p_emergency_phone TEXT DEFAULT NULL,
-  p_photo_url TEXT DEFAULT NULL,
-  p_subscription_type_id UUID,
-  p_start_date DATE
+  p_photo_url TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql

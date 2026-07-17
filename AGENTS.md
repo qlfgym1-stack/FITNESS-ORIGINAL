@@ -119,3 +119,55 @@
 - `src/pages/members/members.tsx` → ajout sélecteur abonnement + date début dans le formulaire, RPC create_member_with_pending_subscription, redirection vers `/pos` avec state
 - `src/pages/pos/pos.tsx` → détection pendingSubscription, ajout article virtuel abonnement, finalize_subscription_payment RPC après checkout
 - `src/types/supabase.ts` → member_subscriptions.status inclut `pending_payment`
+
+## Audit Findings (Juillet 2026 — 6 phases, 60+ anomalies)
+
+> Rapport complet : `.opencode/plans/audit-juillet-2026.md`
+
+### Anomalies Critiques (10)
+
+| ID | Phase | Constat | Statut |
+|----|-------|---------|--------|
+| S-C1 | Sécurité | 6/6 Edge Functions sans vérification JWT — utilisent `service_role` statique sans valider le caller | **À corriger** |
+| B-1 | Backend | RPCs `SECURITY DEFINER` (`create_member_with_pending_subscription`, `finalize_subscription_payment`) sans autorisation rôles — tout user auth peut créer membres/abonnements/paiements | **À corriger** |
+| S-C2 | Sécurité | `xlsx` vulnérable CVE Prototype Pollution + ReDoS | **À corriger** |
+| B-3 | Backend | Recovery code exposé en clair dans réponse HTTP (`send_code`, `reset`) | **À corriger** |
+| B-2 | Backend | `send-payment-reminder` utilise type `payment_pending` inexistant dans CHECK constraint (doit être `payment_overdue`) — INSERT échoue toujours | **À corriger** |
+| F-1 | Frontend | Double ErrorBoundary (main.tsx inline + App.tsx import) — fallback inutilisable | **À corriger** |
+| F-2 | Frontend | `fr.ts` : section `profile` entièrement manquante (21 clés) — pages profil affichent clés brutes | **À corriger** |
+| F-3 | Frontend | `fr.ts` : 21 clés `settings` manquantes — page settings affiche clés brutes | **À corriger** |
+| P-1 | Perf | `LOGO QLForiginal.png` = 1.74 MB — 40% du dist total, LCP dégradé | **À corriger** |
+| P-2 | Perf | 3 icons PWA manquantes (favicon.ico, pwa-192x192, pwa-512x512) — PWA non installable | **À corriger** |
+
+### Anomalies Hautes (13)
+
+| ID | Phase | Constat | Statut |
+|----|-------|---------|--------|
+| S-H1 | Sécurité | CORS `*` sur toutes les EFs — CSRF possible depuis n'importe quel site | **À corriger** |
+| S-H2 | Sécurité | `listUsers` paginé à 100 dans EF recovery — codes non générés au-delà | **À corriger** |
+| S-H3 | Sécurité | `recovery.tsx:131` lit `data.newRecoveryCode` mais EF retourne `newCode` — nouveau code jamais affiché | **À corriger** |
+| B-4 | Backend | Comparaison hash SHA-256 non constant-time (`reduce` short-circuite) — timing attack | **À corriger** |
+| B-5 | Backend | Photos bucket Storage sans restriction — tout user peut lire/modifier/supprimer toutes les photos | **À corriger** |
+| F-4 | Frontend | Page sign-in non i18n (toutes chaînes hardcodées français) | **À corriger** |
+| F-5 | Frontend | OfflineQueue non persistée (`useState([])`) — perte mutations offline au refresh | **À corriger** |
+| F-6 | Frontend | Navbar import `@tanstack/react-query` direct au lieu de `@/hooks/useQuery` | **À corriger** |
+| F-7 | Frontend | Navbar champ Search non fonctionnel | **À corriger** |
+| F-8 | Frontend | Settings "Save" ne fait que `toast()` — aucune écriture DB | **À corriger** |
+| G2 | Git | Aucune branche secondaire — tout sur master, pas de workflow PR | **À corriger** |
+| B1 | Git/Deps | 2 PNGs non optimisées (LOGO 1.82MB + QLG_3D 186KB) = 40% du dist | **À corriger** |
+| C1 | Build | `noImplicitAny: false` — masque erreurs de typage TypeScript | **À corriger** |
+
+### Score Global : 3.6/10
+
+| Catégorie | Score | Pire Anomalie |
+|-----------|-------|---------------|
+| Sécurité | 2/10 | EFs sans vérification JWT |
+| Backend | 3/10 | RPCs SECURITY DEFINER ouverts |
+| Frontend | 4/10 | ErrorBoundary cassé + i18n incomplet |
+| Performance | 4/10 | Logo 1.74 MB (40% dist) |
+| Git/Deps/Build | 5/10 | Tout sur master |
+
+### Priorités de correction
+1. **IMMÉDIAT (6h)** : JWT validation EFs, RPCs authorization, xlsx CVE, recovery code exposure, hash constant-time, payment-reminder fix
+2. **HAUTE (6h)** : i18n fr.ts, ErrorBoundary, recovery.tsx fix, Settings DB, OfflineQueue persist, Search fix, Photos RLS, CORS
+3. **MOYENNE (10h)** : Logo compression, PWA icons, framer-motion lazy, Dashboard N+1, sign-in i18n, tsconfig strict, Git branches

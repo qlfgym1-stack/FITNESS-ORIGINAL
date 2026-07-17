@@ -31,27 +31,6 @@ const persister = createSyncStoragePersister({
   key: 'FITMANAGER_QUERY_CACHE',
 })
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props)
-    this.state = { hasError: false, error: null }
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
-  }
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('=== ERROR BOUNDARY CAUGHT ===', error, info)
-  }
-  render() {
-    if (this.state.hasError) {
-      return React.createElement('div', {
-        style: { color: 'red', backgroundColor: 'white', padding: '20px', fontSize: '18px' }
-      }, `Error: ${this.state.error?.message}`)
-    }
-    return this.props.children
-  }
-}
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -63,9 +42,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <I18nProvider>
             <OfflineQueueProvider>
               <OfflineBanner />
-              <ErrorBoundary>
-                <App />
-              </ErrorBoundary>
+              <App />
               <Toaster />
             </OfflineQueueProvider>
           </I18nProvider>

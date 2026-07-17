@@ -18,7 +18,10 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/toast"
 import { useT, useLocale } from "@/i18n"
 import { useTheme } from "@/stores/theme"
-import { Save, Building2, Globe, Palette, Bell } from "lucide-react"
+import { useAuth } from "@/stores/auth"
+import { useSupabase } from "@/hooks/useSupabase"
+import { useMutation } from "@/hooks/useQuery"
+import { Save, Building2, Globe, Palette, Bell, Loader2 } from "lucide-react"
 
 const settingsSchema = z.object({
   gym_name: z.string().min(1, "Gym name is required"),
@@ -39,6 +42,8 @@ export default function SettingsPage() {
   const { toast } = useToast()
   const { theme, setTheme } = useTheme()
   const { locale, setLocale } = useLocale()
+  const { organization } = useAuth()
+  const supabase = useSupabase()
 
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
@@ -55,8 +60,47 @@ export default function SettingsPage() {
     },
   })
 
-  function onSubmit() {
-    toast({ title: t("settings.saved"), description: t("settings.savedDescription") })
+  const saveMutation = useMutation({
+    mutationFn: async (data: SettingsForm) => {
+      const orgId = organization?.id
+      if (!orgId) throw new Error("No organization")
+
+      const entries: [string, string][] = [
+        ["gym_name", data.gym_name],
+        ["address", data.address ?? ""],
+        ["phone", data.phone ?? ""],
+        ["email", data.email ?? ""],
+        ["currency", data.currency],
+        ["language", data.language],
+        ["notifications_enabled", String(data.notifications_enabled)],
+        ["email_notifications", String(data.email_notifications)],
+        ["sms_notifications", String(data.sms_notifications)],
+      ]
+
+      for (const [key, value] of entries) {
+        const { error } = await supabase
+          .from("settings")
+          .upsert(
+            { organization_id: orgId, key, value },
+            { onConflict: "organization_id,key" },
+          )
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      toast({ title: t("settings.saved"), description: t("settings.savedDescription") })
+    },
+    onError: () => {
+      toast({
+        title: t("settings.error"),
+        description: t("settings.errorDescription"),
+        variant: "destructive",
+      })
+    },
+  })
+
+  function onSubmit(data: SettingsForm) {
+    saveMutation.mutate(data)
   }
 
   return (
@@ -225,8 +269,13 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Button onClick={form.handleSubmit(onSubmit)} className="w-full sm:w-auto">
-          <Save className="mr-2 h-4 w-4" /> {t("settings.saveSettings")}
+        <Button onClick={form.handleSubmit(onSubmit)} disabled={saveMutation.isPending} className="w-full sm:w-auto">
+          {saveMutation.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="mr-2 h-4 w-4" />
+          )}{" "}
+          {t("settings.saveSettings")}
         </Button>
       </div>
     </div>
