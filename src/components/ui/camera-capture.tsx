@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useSupabase } from "@/hooks/useSupabase"
+import { IS_MOCK } from "@/lib/config"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { Camera, Loader2, RotateCcw, Check } from "lucide-react"
@@ -71,17 +72,23 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
     try {
       const res = await fetch(captured)
       const blob = await res.blob()
-      const filePath = `${memberId}/${crypto.randomUUID()}.png`
+      const uid = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const filePath = `${memberId}/${uid}.png`
+      if (IS_MOCK) {
+        onPhotoUploaded(URL.createObjectURL(blob))
+        return
+      }
       const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, blob, {
         contentType: "image/png",
       })
       if (uploadError) {
         toast({ title: "Erreur upload", description: uploadError.message, variant: "destructive" })
-        setUploading(false)
         return
       }
       const { data: urlData } = supabase.storage.from("photos").getPublicUrl(filePath)
       onPhotoUploaded(urlData.publicUrl)
+    } catch (e) {
+      toast({ title: "Erreur", description: e instanceof Error ? e.message : "Échec de l'envoi", variant: "destructive" })
     } finally {
       setUploading(false)
     }
@@ -97,7 +104,7 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
     <div className="space-y-3">
       <canvas ref={canvasRef} className="hidden" />
       {!active && !captured && (
-        <Button variant="outline" className="w-full" onClick={startCamera}>
+        <Button type="button" variant="outline" className="w-full" onClick={startCamera}>
           <Camera className="mr-2 h-4 w-4" />
           Prendre une photo
         </Button>
@@ -108,11 +115,11 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-48 object-cover" />
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" className="flex-1" onClick={capture}>
+            <Button type="button" variant="secondary" size="sm" className="flex-1" onClick={capture}>
               <Camera className="mr-2 h-4 w-4" />
               Capturer
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleCancel}>
+            <Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
               Annuler
             </Button>
           </div>
@@ -124,11 +131,11 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
             <img src={captured} alt="Photo capturée" className="w-full h-48 object-cover" />
           </div>
           <div className="flex gap-2">
-            <Button size="sm" className="flex-1" onClick={upload} disabled={uploading}>
+            <Button type="button" size="sm" className="flex-1" onClick={upload} disabled={uploading}>
               {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
               {uploading ? "Upload..." : "Enregistrer"}
             </Button>
-            <Button variant="outline" size="sm" onClick={startCamera}>
+            <Button type="button" variant="outline" size="sm" onClick={startCamera}>
               <RotateCcw className="mr-2 h-4 w-4" />
               Reprendre
             </Button>
