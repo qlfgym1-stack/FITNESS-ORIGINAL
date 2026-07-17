@@ -65,7 +65,7 @@ export default function PointagePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [rfidInput, setRfidInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
-  const [scanResult, setScanResult] = useState<"granted" | "denied" | null>(null)
+  const [scanResult, setScanResult] = useState<{ result: "granted" | "denied"; reason?: string } | null>(null)
 
   const [birthDate, setBirthDate] = useState("")
   const [codeRfid, setCodeRfid] = useState("")
@@ -156,7 +156,7 @@ export default function PointagePage() {
       return data as { result: string; reason?: string }
     },
     onSuccess: (data) => {
-      setScanResult(data.result === "granted" ? "granted" : "denied")
+      setScanResult({ result: data.result === "granted" ? "granted" : "denied", reason: data.reason })
       setIsScanning(false)
       setRfidInput("")
       if (data.result === "granted") {
@@ -265,10 +265,10 @@ export default function PointagePage() {
               />
               {scanResult && (
                 <div className={`flex items-center gap-2 text-sm p-2 rounded ${
-                  scanResult === "granted" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+                  scanResult.result === "granted" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
                 }`}>
-                  {scanResult === "granted" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                  {scanResult === "granted" ? "Accès autorisé" : "Accès refusé"}
+                  {scanResult.result === "granted" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                  {scanResult.result === "granted" ? "Accès autorisé" : "Accès refusé" + (scanResult.reason ? ` : ${scanResult.reason}` : "")}
                 </div>
               )}
               <Button
