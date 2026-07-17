@@ -26,6 +26,7 @@ import { formatDate, getInitials, getStatusColor, toUpper, formatCurrency, forma
 import type { Member, SubscriptionType, RfidCard } from '@/types/supabase'
 import { RfidManagementDialog, RfidCreateSection } from './rfid-management'
 import { AvatarUpload } from '@/components/ui/avatar-upload'
+import { CameraCapture } from '@/components/ui/camera-capture'
 
 const MOCK_MEMBERS: Member[] = [
   { id: 'mock-1', organization_id: 'mock-org-id', first_name: 'Ahmed', last_name: 'Benali', email: 'ahmed@example.com', phone: '0555123456', gender: 'male', birth_date: '1990-05-15', address: 'Alger Centre', emergency_contact: 'Fatima Benali', emergency_phone: '0555654321', photo_url: null, status: 'active', last_visit: new Date().toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 30).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00001' },
@@ -819,8 +820,12 @@ export default function Members() {
                   lastName={editingMember?.last_name ?? form.watch('last_name')}
                   onUploadComplete={(url) => setAvatarUploadedUrl(url)}
                 />
-                <div>
+                <div className="flex-1 space-y-2">
                   <p className="text-xs text-muted-foreground">{t('members.supportsCamera')}</p>
+                  <CameraCapture
+                    memberId={editingMember?.id ?? tempMemberIdRef.current}
+                    onPhotoUploaded={(url) => setAvatarUploadedUrl(url)}
+                  />
                 </div>
               </div>
               <RfidCreateSection rfidUid={rfidUid} onRfidChange={setRfidUid} />
