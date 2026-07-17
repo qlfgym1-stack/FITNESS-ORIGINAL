@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useSupabase } from "@/hooks/useSupabase"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/toast"
 import { Camera, Loader2, RotateCcw, Check } from "lucide-react"
 
 interface CameraCaptureProps {
@@ -10,6 +11,7 @@ interface CameraCaptureProps {
 
 export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps) {
   const supabase = useSupabase()
+  const { toast } = useToast()
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -20,6 +22,12 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
   useEffect(() => {
     return () => { stopCamera() }
   }, [])
+
+  useEffect(() => {
+    if (active && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [active])
 
   function stopCamera() {
     if (streamRef.current) {
@@ -34,11 +42,11 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
       })
       streamRef.current = stream
-      if (videoRef.current) videoRef.current.srcObject = stream
       setActive(true)
       setCaptured(null)
-    } catch {
+    } catch (e) {
       setActive(false)
+      toast({ title: "Erreur caméra", description: e instanceof Error ? e.message : "Impossible d'accéder à la caméra", variant: "destructive" })
     }
   }
 
@@ -67,13 +75,17 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
       const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, blob, {
         contentType: "image/png",
       })
-      if (uploadError) { setUploading(false); return }
+      if (uploadError) {
+        toast({ title: "Erreur upload", description: uploadError.message, variant: "destructive" })
+        setUploading(false)
+        return
+      }
       const { data: urlData } = supabase.storage.from("photos").getPublicUrl(filePath)
       onPhotoUploaded(urlData.publicUrl)
     } finally {
       setUploading(false)
     }
-  }, [captured, memberId, onPhotoUploaded, supabase])
+  }, [captured, memberId, onPhotoUploaded, supabase, toast])
 
   function handleCancel() {
     stopCamera()
@@ -93,7 +105,7 @@ export function CameraCapture({ memberId, onPhotoUploaded }: CameraCaptureProps)
       {active && (
         <div className="space-y-2">
           <div className="relative rounded-lg overflow-hidden bg-black">
-            <video ref={videoRef} autoPlay playsInline className="w-full h-48 object-cover" />
+            <video ref={videoRef} autoPlay playsInline muted className="w-full h-48 object-cover" />
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" size="sm" className="flex-1" onClick={capture}>

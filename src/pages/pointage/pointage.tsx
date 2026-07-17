@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { useT } from "@/i18n"
 import { useAuth } from "@/stores/auth"
 import { useSupabase } from "@/hooks/useSupabase"
@@ -72,6 +72,9 @@ export default function PointagePage() {
   const [codeRfid, setCodeRfid] = useState("")
   const [phone, setPhone] = useState("")
   const [checkedInMemberId, setCheckedInMemberId] = useState<string | null>(null)
+  const [qrCameraActive, setQrCameraActive] = useState(false)
+  const qrVideoRef = useRef<HTMLVideoElement>(null)
+  const qrStreamRef = useRef<MediaStream | null>(null)
 
   const { data: todayAttendance } = useQuery({
     queryKey: ["pointage-today", orgId, todayStr],
@@ -192,6 +195,40 @@ export default function PointagePage() {
     else toast({ title: "Code RFID requis pour le check-in", variant: "destructive" })
   }
 
+  function stopQrCamera() {
+    if (qrStreamRef.current) {
+      qrStreamRef.current.getTracks().forEach(t => t.stop())
+      qrStreamRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => { stopQrCamera() }
+  }, [])
+
+  useEffect(() => {
+    if (qrCameraActive && qrVideoRef.current && qrStreamRef.current) {
+      qrVideoRef.current.srcObject = qrStreamRef.current
+    }
+  }, [qrCameraActive])
+
+  async function startQrCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+      })
+      qrStreamRef.current = stream
+      setQrCameraActive(true)
+    } catch (e) {
+      toast({ title: "Erreur caméra", description: e instanceof Error ? e.message : "Impossible d'accéder à la caméra", variant: "destructive" })
+    }
+  }
+
+  function handleQrCameraClose() {
+    stopQrCamera()
+    setQrCameraActive(false)
+  }
+
   const checkInCount = checkedInToday.length
   const isPro = false
 
@@ -272,11 +309,16 @@ export default function PointagePage() {
                 <QrCode className="mr-2 h-4 w-4" />
                 Generer QR
               </Button>
-              <Button variant="outline" className="flex-1" onClick={() => toast({ title: "Caméra activée" })}>
+              <Button variant="outline" className="flex-1" onClick={qrCameraActive ? handleQrCameraClose : startQrCamera}>
                 <Camera className="mr-2 h-4 w-4" />
-                Activer la camera
+                {qrCameraActive ? "Fermer caméra" : "Activer la caméra"}
               </Button>
             </div>
+            {qrCameraActive && (
+              <div className="relative rounded-lg overflow-hidden bg-black">
+                <video ref={qrVideoRef} autoPlay playsInline muted className="w-full h-48 object-cover" />
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               Probleme de camera ? Saisissez le code QR manuellement :
             </p>
