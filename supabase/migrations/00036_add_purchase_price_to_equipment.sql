@@ -1,0 +1,1 @@
+ALTER TABLE equipment ADD COLUMN purchase_price DECIMAL(10,2) DEFAULT 0;

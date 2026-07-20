@@ -1,0 +1,1 @@
+ALTER TABLE staff ADD COLUMN rate_per_member DECIMAL(10,2) DEFAULT 0;

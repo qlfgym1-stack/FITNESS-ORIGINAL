@@ -4,9 +4,9 @@ export interface Database {
   public: {
     Tables: {
       organizations: {
-        Row: { id: string; name: string; slug: string; logo_url: string | null; address: string | null; phone: string | null; email: string | null; created_at: string }
-        Insert: { id?: string; name: string; slug: string; logo_url?: string | null; address?: string | null; phone?: string | null; email?: string | null; created_at?: string }
-        Update: { id?: string; name?: string; slug?: string; logo_url?: string | null; address?: string | null; phone?: string | null; email?: string | null; created_at?: string }
+        Row: { id: string; name: string; slug: string; logo_url: string | null; address: string | null; phone: string | null; email: string | null; created_at: string; coach_default_salary: number | null; coach_default_rate_per_member: number | null }
+        Insert: { id?: string; name: string; slug: string; logo_url?: string | null; address?: string | null; phone?: string | null; email?: string | null; created_at?: string; coach_default_salary?: number | null; coach_default_rate_per_member?: number | null }
+        Update: { id?: string; name?: string; slug?: string; logo_url?: string | null; address?: string | null; phone?: string | null; email?: string | null; created_at?: string; coach_default_salary?: number | null; coach_default_rate_per_member?: number | null }
         Relationships: []
       }
       user_roles: {
@@ -16,9 +16,9 @@ export interface Database {
         Relationships: []
       }
       members: {
-        Row: { id: string; organization_id: string; first_name: string; last_name: string; email: string | null; phone: string | null; gender: string | null; birth_date: string | null; address: string | null; emergency_contact: string | null; emergency_phone: string | null; photo_url: string | null; status: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit: string | null; notes: string | null; created_at: string; updated_at: string; member_number: string | null }
-        Insert: { id?: string; organization_id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null }
-        Update: { id?: string; organization_id?: string; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null }
+        Row: { id: string; organization_id: string; first_name: string; last_name: string; email: string | null; phone: string | null; gender: string | null; birth_date: string | null; address: string | null; emergency_contact: string | null; emergency_phone: string | null; photo_url: string | null; status: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit: string | null; notes: string | null; created_at: string; updated_at: string; member_number: string | null; coach_id: string | null }
+        Insert: { id?: string; organization_id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null; coach_id?: string | null }
+        Update: { id?: string; organization_id?: string; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null; coach_id?: string | null }
         Relationships: []
       }
       subscription_types: {
@@ -88,9 +88,9 @@ export interface Database {
         Relationships: []
       }
       staff: {
-        Row: { id: string; organization_id: string; user_id: string | null; first_name: string; last_name: string; email: string | null; phone: string | null; role: string | null; salary: number | null; hire_date: string | null; is_active: boolean; created_at: string }
-        Insert: { id?: string; organization_id: string; user_id?: string | null; first_name: string; last_name: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
-        Update: { id?: string; organization_id?: string; user_id?: string | null; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
+        Row: { id: string; organization_id: string; user_id: string | null; first_name: string; last_name: string; email: string | null; phone: string | null; role: string | null; salary: number | null; rate_per_member: number | null; hire_date: string | null; is_active: boolean; created_at: string }
+        Insert: { id?: string; organization_id: string; user_id?: string | null; first_name: string; last_name: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
+        Update: { id?: string; organization_id?: string; user_id?: string | null; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
         Relationships: []
       }
       staff_timesheet: {
@@ -111,10 +111,22 @@ export interface Database {
         Update: { id?: string; staff_id?: string; organization_id?: string; start_date?: string; end_date?: string; type?: 'vacation' | 'sick' | 'personal'; status?: 'pending' | 'approved' | 'rejected'; reason?: string | null; created_at?: string }
         Relationships: []
       }
+      coach_salary_history: {
+        Row: { id: string; organization_id: string; coach_id: string; period: string; fixed_salary: number; rate_per_member: number; member_count: number; variable_amount: number; total_amount: number; created_at: string }
+        Insert: { id?: string; organization_id: string; coach_id: string; period: string; fixed_salary: number; rate_per_member: number; member_count: number; variable_amount: number; total_amount: number; created_at?: string }
+        Update: { id?: string; organization_id?: string; coach_id?: string; period?: string; fixed_salary?: number; rate_per_member?: number; member_count?: number; variable_amount?: number; total_amount?: number; created_at?: string }
+        Relationships: []
+      }
+      staff_salary_payments: {
+        Row: { id: string; organization_id: string; staff_id: string; amount: number; payment_date: string; payment_method: 'cash' | 'transfer' | 'check'; period: string; notes: string | null; created_by: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; staff_id: string; amount: number; payment_date?: string; payment_method: 'cash' | 'transfer' | 'check'; period: string; notes?: string | null; created_by?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; staff_id?: string; amount?: number; payment_date?: string; payment_method?: 'cash' | 'transfer' | 'check'; period?: string; notes?: string | null; created_by?: string | null; created_at?: string }
+        Relationships: []
+      }
       equipment: {
-        Row: { id: string; organization_id: string; name: string; description: string | null; category: string | null; quantity: number; available_quantity: number; status: string | null; purchase_date: string | null; last_maintenance: string | null; created_at: string }
-        Insert: { id?: string; organization_id: string; name: string; description?: string | null; category?: string | null; quantity?: number; available_quantity?: number; status?: string | null; purchase_date?: string | null; last_maintenance?: string | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; name?: string; description?: string | null; category?: string | null; quantity?: number; available_quantity?: number; status?: string | null; purchase_date?: string | null; last_maintenance?: string | null; created_at?: string }
+        Row: { id: string; organization_id: string; name: string; description: string | null; category: string | null; quantity: number; available_quantity: number; purchase_price: number | null; status: string | null; purchase_date: string | null; last_maintenance: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; name: string; description?: string | null; category?: string | null; quantity?: number; available_quantity?: number; purchase_price?: number | null; status?: string | null; purchase_date?: string | null; last_maintenance?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; name?: string; description?: string | null; category?: string | null; quantity?: number; available_quantity?: number; purchase_price?: number | null; status?: string | null; purchase_date?: string | null; last_maintenance?: string | null; created_at?: string }
         Relationships: []
       }
       equipment_reservations: {
@@ -148,9 +160,9 @@ export interface Database {
         Relationships: []
       }
       products: {
-        Row: { id: string; organization_id: string; name: string; category: string | null; price: number; cost: number | null; stock: number | null; image_url: string | null; barcode: string | null; is_active: boolean; created_at: string }
-        Insert: { id?: string; organization_id: string; name: string; category?: string | null; price: number; cost?: number | null; stock?: number | null; image_url?: string | null; barcode?: string | null; is_active?: boolean; created_at?: string }
-        Update: { id?: string; organization_id?: string; name?: string; category?: string | null; price?: number; cost?: number | null; stock?: number | null; image_url?: string | null; barcode?: string | null; is_active?: boolean; created_at?: string }
+        Row: { id: string; organization_id: string; name: string; category: string | null; brand: string | null; sku: string | null; reference: string | null; price: number; cost: number | null; stock: number | null; image_url: string | null; barcode: string | null; is_active: boolean; created_at: string }
+        Insert: { id?: string; organization_id: string; name: string; category?: string | null; brand?: string | null; sku?: string | null; reference?: string | null; price: number; cost?: number | null; stock?: number | null; image_url?: string | null; barcode?: string | null; is_active?: boolean; created_at?: string }
+        Update: { id?: string; organization_id?: string; name?: string; category?: string | null; brand?: string | null; sku?: string | null; reference?: string | null; price?: number; cost?: number | null; stock?: number | null; image_url?: string | null; barcode?: string | null; is_active?: boolean; created_at?: string }
         Relationships: []
       }
       pos_sessions: {
@@ -276,3 +288,4 @@ export type RfidCardAudit = Tables<'rfid_audit_log'>
 export type RfidReadLog = Tables<'rfid_read_logs'>
 export type TurnstileStatus = Tables<'turnstile_status'>
 export type ManualValidation = Tables<'manual_validations'>
+export type StaffSalaryPayment = Tables<'staff_salary_payments'>

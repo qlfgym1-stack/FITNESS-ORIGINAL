@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+﻿import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@/hooks/useQuery'
 import { useSupabase } from '@/hooks/useSupabase'
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import {
   Users, UserCheck, DollarSign, CalendarDays, TrendingUp, Percent,
   Database, FileText, Activity, UserCog, Heart, BarChart3,
-  RefreshCw, UserPlus, CreditCard, Wallet, Target, Loader2,
+  RefreshCw, UserPlus, CreditCard, Wallet, Target, Loader2, XCircle,
 } from 'lucide-react'
 import { formatCurrency, toUpper } from '@/lib/utils'
 
@@ -32,6 +32,11 @@ interface DashboardData {
   monthly_profit: number
   monthly_revenue_total: number
   monthly_cogs: number
+  encaissement_today: number
+  encaissement_week: number
+  encaissement_month: number
+  expiring_subscriptions: number
+  expired_subscriptions: number
 }
 
 export default function Dashboard() {
@@ -66,9 +71,14 @@ export default function Dashboard() {
     queryFn: async () => {
       if (!orgId) return null
       const today = new Date().toISOString().split('T')[0]
+      const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       const monthStart = new Date()
       monthStart.setDate(1)
       const monthStartStr = monthStart.toISOString().split('T')[0]
+      const weekStart = new Date()
+      weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7))
+      const weekStartStr = weekStart.toISOString().split('T')[0]
 
       const [
         { count: presentNow },
@@ -82,6 +92,12 @@ export default function Dashboard() {
         { data: monthTransactions },
         { data: monthPayments },
         { data: productsWithCost },
+        { data: paymentsToday },
+        { data: posToday },
+        { data: paymentsWeek },
+        { data: posWeek },
+        { count: expiringCount },
+        { count: expiredCount },
       ] = await Promise.all([
         supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).gte('check_in', today).is('check_out', null),
         supabase.from('payments').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'completed').gte('payment_date', today),
@@ -94,6 +110,14 @@ export default function Dashboard() {
         supabase.from('pos_transactions').select('total, items').eq('organization_id', orgId).eq('payment_status', 'completed').gte('created_at', monthStartStr),
         supabase.from('payments').select('amount').eq('organization_id', orgId).eq('status', 'completed').gte('payment_date', monthStartStr),
         supabase.from('products').select('id, cost').eq('organization_id', orgId),
+        supabase.from('payments').select('amount').eq('organization_id', orgId).eq('status', 'completed').gte('payment_date', today),
+        supabase.from('pos_transactions').select('total').eq('organization_id', orgId).eq('payment_status', 'completed').gte('created_at', today),
+        supabase.from('payments').select('amount').eq('organization_id', orgId).eq('status', 'completed').gte('payment_date', weekStartStr),
+        supabase.from('pos_transactions').select('total').eq('organization_id', orgId).eq('payment_status', 'completed').gte('created_at', weekStartStr),
+        // Count expiring subscriptions (active, end_date within 7 days)
+        supabase.from('member_subscriptions').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'active').gte('end_date', today).lt('end_date', nextWeek),
+        // Count recently expired subscriptions (expired within 30 days)
+        supabase.from('member_subscriptions').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'expired').gte('end_date', monthAgo),
       ])
 
       let bestDayRevenue = 0
@@ -119,6 +143,10 @@ export default function Dashboard() {
       const subRevenue = (monthPayments ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
       const totalRevenue = posRevenue + subRevenue
       const profit = totalRevenue - totalCogs
+      const encaissementToday = (paymentsToday ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
+        + (posToday ?? []).reduce((sum: number, p: any) => sum + (Number(p.total) || 0), 0)
+      const encaissementWeek = (paymentsWeek ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
+        + (posWeek ?? []).reduce((sum: number, p: any) => sum + (Number(p.total) || 0), 0)
 
       return {
         present_now: presentNow ?? 0,
@@ -133,6 +161,11 @@ export default function Dashboard() {
         monthly_profit: Math.max(profit, 0),
         monthly_revenue_total: totalRevenue,
         monthly_cogs: totalCogs,
+        encaissement_today: encaissementToday,
+        encaissement_week: encaissementWeek,
+        encaissement_month: totalRevenue,
+        expiring_subscriptions: expiringCount ?? 0,
+        expired_subscriptions: expiredCount ?? 0,
       }
     },
     enabled: !!orgId,
@@ -157,6 +190,11 @@ export default function Dashboard() {
     monthly_profit: extra?.monthly_profit ?? 0,
     monthly_revenue_total: extra?.monthly_revenue_total ?? 0,
     monthly_cogs: extra?.monthly_cogs ?? 0,
+    encaissement_today: extra?.encaissement_today ?? 0,
+    encaissement_week: extra?.encaissement_week ?? 0,
+    encaissement_month: extra?.encaissement_month ?? 0,
+    expiring_subscriptions: extra?.expiring_subscriptions ?? 0,
+    expired_subscriptions: extra?.expired_subscriptions ?? 0,
   }), [agg, extra])
 
   const occupancyRate = dash.active_members > 0
@@ -248,6 +286,52 @@ export default function Dashboard() {
             label="Revenus du Mois"
             value={formatCurrency(dash.monthly_revenue)}
             color="#06b6d4"
+          />
+        </div>
+      </div>
+
+      {/* Row 1b – Encaissements */}
+      <div>
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Encaissements</h2>
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3">
+          <KpiCard
+            icon={Wallet}
+            label={t('encaissement.today')}
+            value={formatCurrency(dash.encaissement_today)}
+            color="#06b6d4"
+          />
+          <KpiCard
+            icon={Wallet}
+            label={t('encaissement.thisWeek')}
+            value={formatCurrency(dash.encaissement_week)}
+            color="#06b6d4"
+          />
+          <KpiCard
+            icon={Wallet}
+            label={t('encaissement.thisMonth')}
+            value={formatCurrency(dash.encaissement_month)}
+            color="#06b6d4"
+          />
+        </div>
+      </div>
+
+      {/* Row — Renouvellements */}
+      <div>
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Renouvellements</h2>
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">
+          <KpiCard
+            icon={RefreshCw}
+            label="Expirations imminentes"
+            value={dash.expiring_subscriptions}
+            sub="Dans les 7 prochains jours"
+            color="#f59e0b"
+          />
+          <KpiCard
+            icon={XCircle}
+            label="Expirés récemment"
+            value={dash.expired_subscriptions}
+            sub="Moins de 30 jours"
+            color="#ef4444"
           />
         </div>
       </div>

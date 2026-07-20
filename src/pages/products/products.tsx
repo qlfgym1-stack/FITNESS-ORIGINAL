@@ -25,8 +25,9 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { toUpper } from "../../lib/utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Package, Plus, Search, Edit, Trash2, Loader2, Download, Camera, ImageIcon, X,
+  Package, Plus, Search, Edit, Trash2, Loader2, Download, Upload, Camera, ImageIcon, X,
 } from "lucide-react"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
@@ -37,6 +38,9 @@ import type { Product } from "@/types/supabase"
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
   category: z.string().min(1, "Category is required"),
+  brand: z.string().optional().or(z.literal("")),
+  sku: z.string().optional().or(z.literal("")),
+  reference: z.string().optional().or(z.literal("")),
   price: z.coerce.number().min(0, "Min 0"),
   cost: z.coerce.number().min(0, "Min 0").optional().or(z.literal("")),
   stock: z.coerce.number().min(0, "Min 0").optional().or(z.literal("")),
@@ -59,8 +63,96 @@ export default function ProductsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState<Product | null>(null)
+  const [clearAllOpen, setClearAllOpen] = useState(false)
   const [imageUploading, setImageUploading] = useState(false)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [importData, setImportData] = useState<any[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
+  const importFileRef = useRef<HTMLInputElement>(null)
+
+  async function handleImportExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const ExcelJS = await import("exceljs")
+    const reader = new FileReader()
+    reader.onload = async (evt) => {
+      try {
+        const arrayBuf = evt.target?.result as ArrayBuffer
+        const wb = new ExcelJS.default.Workbook()
+        await wb.xlsx.load(arrayBuf)
+        const ws = wb.worksheets[0]
+        if (!ws || ws.rowCount === 0) {
+          toast({ title: 'Fichier vide', variant: 'destructive' })
+          return
+        }
+        const headerRow = ws.getRow(1)
+        const headers: string[] = []
+        headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          headers[colNumber - 1] = String(cell.value ?? '').trim()
+        })
+        const stockCount = headers.filter(h => h.toUpperCase().includes('STOCK')).length
+        const rows: Record<string, unknown>[] = []
+        for (let rowNum = 2; rowNum <= ws.rowCount; rowNum++) {
+          const row = ws.getRow(rowNum)
+          if (!row.hasValues) continue
+          const obj: Record<string, unknown> = {}
+          let stockIdx = 0
+          row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            let key = headers[colNumber - 1] || ''
+            if (key.toUpperCase().includes('STOCK') && stockCount > 1) {
+              key = stockIdx === 0 ? 'STOCK' : 'STOCK_2'
+              stockIdx++
+            }
+            const val = cell.value
+            if (val && typeof val === 'object' && 'richText' in val) {
+              obj[key] = (val as any).richText.map((t: any) => t.text).join('')
+            } else if (val && typeof val === 'object' && 'text' in val) {
+              obj[key] = (val as any).text
+            } else {
+              obj[key] = val ?? ''
+            }
+          })
+          if (Object.values(obj).some(v => v !== '' && v !== null)) {
+            rows.push(obj)
+          }
+        }
+        setImportData(rows)
+      } catch (err) {
+        toast({ title: 'Erreur de lecture', description: err instanceof Error ? err.message : String(err), variant: 'destructive' })
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  function handleConfirmImport() {
+    if (!orgId || importData.length === 0) return
+    let products = importData.map(r => ({
+      organization_id: orgId,
+      name: String(r.NOM || r.nom || r.Name || r.name || '').trim(),
+      category: String(r.CATEGORY || r.category || '').trim() || null,
+      brand: String(r.MARQUE || r.marque || r.Brand || r.brand || '').trim() || null,
+      sku: String(r.SKU || r.sku || '').trim() || null,
+      reference: String(r['REF*'] || r.REF || r.Ref || r.reference || '').trim() || null,
+      price: Number(r['PRICE DA'] ?? r.price ?? r.Price ?? 0),
+      cost: Number(r['COST (DA)'] ?? r.cost ?? r.Cost ?? 0) || null,
+      stock: Number(r.STOCK ?? r.stock ?? r.Stock ?? 0) || null,
+      barcode: String(r['CODE BARR*'] || r['CODE BARR'] || r.barcode || r.Barcode || '').trim() || null,
+      is_active: String(r.STATUS || r.status || '').toLowerCase() === 'inactif' || String(r.STATUS || r.status || '').toLowerCase() === 'inactive' ? false : true,
+    }))
+    const skipped = products.filter(p => !p.name).length
+    products = products.filter(p => p.name)
+    supabase.from("products").insert(products).then(({ error }) => {
+      if (error) {
+        toast({ title: t("errors.error") || "Error", description: error.message, variant: "destructive" })
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+      toast({ title: `${products.length} produit(s) importé(s)${skipped ? ` (${skipped} ignoré(s) sans nom)` : ''}` })
+      setImportDialogOpen(false)
+      setImportData([])
+      if (importFileRef.current) importFileRef.current.value = ''
+    })
+  }
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["products", orgId],
@@ -78,7 +170,7 @@ export default function ProductsPage() {
 
   const form = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
-    defaultValues: { name: "", category: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true },
+    defaultValues: { name: "", category: "", brand: "", sku: "", reference: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true },
   })
 
   const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort() as string[]
@@ -86,17 +178,26 @@ export default function ProductsPage() {
   const filtered = items.filter((i) =>
     i.name.toLowerCase().includes(search.toLowerCase()) ||
     (i.category ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (i.brand ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (i.sku ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (i.reference ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (i.barcode ?? "").toLowerCase().includes(search.toLowerCase())
   )
 
   const { page, setPage, totalPages, paginatedData: paginatedItems } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(i => ({ name: i.name, category: i.category ?? "", price: i.price, cost: i.cost ?? 0, stock: i.stock ?? 0, barcode: i.barcode ?? "", status: i.is_active ? "Active" : "Inactive" })),
+    filtered.map(i => ({
+      name: i.name, category: i.category ?? "", brand: i.brand ?? "", sku: i.sku ?? "", reference: i.reference ?? "",
+      price: i.price, cost: i.cost ?? 0, stock: i.stock ?? 0, barcode: i.barcode ?? "", status: i.is_active ? "Active" : "Inactive"
+    })),
     'products',
     [
       { key: 'name', label: t('products.name') || 'Name' },
       { key: 'category', label: t('products.category') || 'Category' },
+      { key: 'brand', label: t('products.brand') || 'Brand' },
+      { key: 'sku', label: t('products.sku') || 'SKU' },
+      { key: 'reference', label: t('products.reference') || 'Reference' },
       { key: 'price', label: t('products.price') || 'Price' },
       { key: 'cost', label: t('products.cost') || 'Cost' },
       { key: 'stock', label: t('products.stock') || 'Stock' },
@@ -111,6 +212,9 @@ export default function ProductsPage() {
       const payload: any = {
         name: values.name,
         category: values.category,
+        brand: values.brand || null,
+        sku: values.sku || null,
+        reference: values.reference || null,
         price: values.price,
         cost: values.cost || null,
         stock: values.stock || null,
@@ -150,9 +254,23 @@ export default function ProductsPage() {
     onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
   })
 
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      if (!orgId) return
+      const { error } = await supabase.from("products").delete().eq("organization_id", orgId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+      toast({ title: 'Tous les produits ont été supprimés' })
+      setClearAllOpen(false)
+    },
+    onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
+  })
+
   function openCreate() {
     setEditing(null)
-    form.reset({ name: "", category: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true })
+    form.reset({ name: "", category: "", brand: "", sku: "", reference: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true })
     setDialogOpen(true)
   }
 
@@ -161,6 +279,9 @@ export default function ProductsPage() {
     form.reset({
       name: item.name,
       category: item.category ?? "",
+      brand: item.brand ?? "",
+      sku: item.sku ?? "",
+      reference: item.reference ?? "",
       price: item.price,
       cost: item.cost ?? "" as any,
       stock: item.stock ?? "" as any,
@@ -212,6 +333,14 @@ export default function ProductsPage() {
               <Download className="mr-2 h-4 w-4" />
               {t("common.export") || "Export"}
             </Button>
+            <Button variant="outline" onClick={() => setClearAllOpen(true)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Vider
+            </Button>
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              {t("products.import") || "Import"}
+            </Button>
             <Button onClick={openCreate}>
               <Plus className="mr-2 h-4 w-4" /> {t("products.add") || "Add Product"}
             </Button>
@@ -231,13 +360,16 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="hidden md:block rounded-md border">
+      <div className="hidden md:block rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>{t("products.image") || "Image"}</TableHead>
               <TableHead>{t("products.name") || "Name"}</TableHead>
               <TableHead>{t("products.category") || "Category"}</TableHead>
+              <TableHead>{t("products.brand") || "Brand"}</TableHead>
+              <TableHead>{t("products.sku") || "SKU"}</TableHead>
+              <TableHead>{t("products.reference") || "Ref"}</TableHead>
               <TableHead className="text-right">{t("products.price") || "Price"}</TableHead>
               <TableHead className="text-right">{t("products.cost") || "Cost"}</TableHead>
               <TableHead className="text-right">{t("products.stock") || "Stock"}</TableHead>
@@ -249,7 +381,7 @@ export default function ProductsPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={12} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
@@ -269,6 +401,9 @@ export default function ProductsPage() {
                   </div>
                 </TableCell>
                 <TableCell><Badge variant="outline">{toUpper(item.category ?? "")}</Badge></TableCell>
+                <TableCell className="text-xs">{item.brand ?? "-"}</TableCell>
+                <TableCell className="font-mono text-xs">{item.sku ?? "-"}</TableCell>
+                <TableCell className="font-mono text-xs">{item.reference ?? "-"}</TableCell>
                 <TableCell className="text-right">{item.price.toLocaleString()} DA</TableCell>
                 <TableCell className="text-right">{item.cost ? `${item.cost.toLocaleString()} DA` : "-"}</TableCell>
                 <TableCell className="text-right">{item.stock ?? "-"}</TableCell>
@@ -292,7 +427,7 @@ export default function ProductsPage() {
             ))}
             {!isLoading && paginatedItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults") || "No results"}
                 </TableCell>
               </TableRow>
@@ -318,6 +453,9 @@ export default function ProductsPage() {
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground"><Badge variant="outline">{toUpper(item.category ?? "")}</Badge></p>
+              {item.brand && <p className="text-xs text-muted-foreground mt-1">Marque: {item.brand}</p>}
+              {item.sku && <p className="text-xs text-muted-foreground font-mono">SKU: {item.sku}</p>}
+              {item.reference && <p className="text-xs text-muted-foreground font-mono">Réf: {item.reference}</p>}
               <p className="text-sm text-muted-foreground mt-1">
                 {t("products.price") || "Price"}: {item.price.toLocaleString()} DA
                 {item.cost ? ` | ${t("products.cost") || "Cost"}: ${item.cost.toLocaleString()} DA` : ""}
@@ -339,7 +477,7 @@ export default function ProductsPage() {
       <Pagination page={page} totalPages={totalPages} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? t("products.edit") || "Edit Product" : t("products.add") || "Add Product"}</DialogTitle>
             <DialogDescription>{t("products.formDescription") || "Fill in the product details"}</DialogDescription>
@@ -396,7 +534,7 @@ export default function ProductsPage() {
                   <FormMessage />
                 </FormItem>
               )} />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <FormField control={form.control} name="category" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("products.category") || "Category"}</FormLabel>
@@ -418,6 +556,29 @@ export default function ProductsPage() {
                     <FormMessage />
                   </FormItem>
                 )} />
+                <FormField control={form.control} name="brand" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("products.brand") || "Brand"}</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="sku" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("products.sku") || "SKU"}</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <FormField control={form.control} name="reference" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("products.reference") || "Reference"}</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
                 <FormField control={form.control} name="barcode" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("products.barcode") || "Barcode"}</FormLabel>
@@ -425,8 +586,6 @@ export default function ProductsPage() {
                     <FormMessage />
                   </FormItem>
                 )} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="price" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("products.price") || "Price"}</FormLabel>
@@ -434,6 +593,8 @@ export default function ProductsPage() {
                     <FormMessage />
                   </FormItem>
                 )} />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
                 <FormField control={form.control} name="cost" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("products.cost") || "Cost"}</FormLabel>
@@ -441,8 +602,6 @@ export default function ProductsPage() {
                     <FormMessage />
                   </FormItem>
                 )} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="stock" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("products.stock") || "Stock"}</FormLabel>
@@ -485,6 +644,84 @@ export default function ProductsPage() {
             <Button variant="destructive" onClick={() => deleting && deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>
               {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t("common.delete") || "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importDialogOpen} onOpenChange={(v) => { setImportDialogOpen(v); if (!v) { setImportData([]); if (importFileRef.current) importFileRef.current.value = '' } }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{t("products.importFromExcel") || "Import from Excel"}</DialogTitle>
+            <DialogDescription>{t("products.importDescription") || "Upload an Excel file with product data"}</DialogDescription>
+          </DialogHeader>
+          {importData.length === 0 ? (
+            <div className="py-4">
+              <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={handleImportExcel} className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">{importData.length} ligne(s) trouvée(s)</p>
+              <ScrollArea className="h-64 rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50 whitespace-nowrap">
+                      <th className="text-left p-2 font-medium">Nom</th>
+                      <th className="text-left p-2 font-medium">Catégorie</th>
+                      <th className="text-left p-2 font-medium">Marque</th>
+                      <th className="p-2 font-medium">SKU</th>
+                      <th className="p-2 font-medium">Réf</th>
+                      <th className="text-right p-2 font-medium">Prix</th>
+                      <th className="text-right p-2 font-medium">Coût</th>
+                      <th className="text-right p-2 font-medium">Stock</th>
+                      <th className="p-2 font-medium">Code-barres</th>
+                      <th className="p-2 font-medium">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importData.map((r, i) => (
+                      <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
+                        <td className="p-2 whitespace-nowrap">{String(r.NOM || r.nom || '')}</td>
+                        <td className="p-2">{String(r.CATEGORY || r.category || '')}</td>
+                        <td className="p-2">{String(r.MARQUE || r.marque || '')}</td>
+                        <td className="p-2 font-mono text-xs">{String(r.SKU || '')}</td>
+                        <td className="p-2 font-mono text-xs">{String(r['REF*'] || r.REF || '')}</td>
+                        <td className="p-2 text-right">{Number(r['PRICE DA'] ?? 0).toLocaleString()}</td>
+                        <td className="p-2 text-right">{r['COST (DA)'] ?? '-'}</td>
+                        <td className="p-2 text-right">{r.STOCK ?? '-'}</td>
+                        <td className="p-2 font-mono text-xs">{String(r['CODE BARR*'] || '') || '-'}</td>
+                        <td className="p-2">{String(r.STATUS || '')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ScrollArea>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setImportData([]); if (importFileRef.current) importFileRef.current.value = '' }}>
+                  {t("common.cancel") || "Cancel"}
+                </Button>
+                <Button onClick={handleConfirmImport}>
+                  {t("common.confirm") || "Confirm"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vider le catalogue</DialogTitle>
+            <DialogDescription>
+              Êtes-vous sûr de vouloir supprimer <strong>tous les produits</strong> ({items.length}) ? Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearAllOpen(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={() => clearAllMutation.mutate()} disabled={clearAllMutation.isPending}>
+              {clearAllMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Supprimer tout
             </Button>
           </DialogFooter>
         </DialogContent>

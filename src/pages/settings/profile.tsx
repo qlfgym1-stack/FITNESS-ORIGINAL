@@ -16,7 +16,7 @@ import { User, Camera, Save, Lock, Mail } from "lucide-react"
 export default function ProfilePage() {
   const t = useT()
   const { toast } = useToast()
-  const { profile } = useAuth()
+  const { profile, organization } = useAuth()
   const supabase = useSupabase()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
@@ -39,7 +39,9 @@ export default function ProfilePage() {
     if (!file) return
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      const filePath = `avatars/${user?.id}/${file.name}`
+      const orgId = organization?.id
+      if (!orgId) throw new Error('No organization')
+      const filePath = "${orgId}/avatars/${user?.id}/${file.name}"
       const { error } = await supabase.storage.from('photos').upload(filePath, file)
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(filePath)
@@ -177,3 +179,4 @@ export default function ProfilePage() {
     </div>
   )
 }
+

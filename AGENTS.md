@@ -1,6 +1,6 @@
 ## Goal
-- Analyser et corriger les vulnérabilités sécurité, le fonctionnement hors-ligne et les performances  
-- Implémenter le workflow POS redirection après création d'un membre avec abonnement
+- Système de salaire coach (fixe + variable selon adhérents)
+- Persistance sidebar localStorage
 
 ## Constraints & Preferences
 - Ne pas modifier les fonctionnalités ni l'UI
@@ -59,6 +59,20 @@
 ### Blocked
 - **(none)**
 
+## Latest (20/07/2026)
+- **Nouvelle page `/coach-portal`** — "Portail Coach" : configuration salaires des coachs (admin seulement). Deux champs globaux (Fixe + Prime/adh) éditables sauvegardés dans `organizations.coach_default_salary` et `coach_default_rate_per_member`. Plus de liste de coachs.
+- **`/coach-mode` simplifié** — "Mode Coach" : version lecture seule pour coach et admin. Suppression de toutes les éditions inline.
+- **Sidebar** — "Portail Coach" → `/coach-portal` (admin/super_admin seulement). "Mode Coach" → `/coach-mode` (tout le monde). Filtrage par rôle via `adminOnly` sur les items.
+- **Bug import produits** — coercition cost/stock `Number()`, détection richText Excel (`richText.map(t=>t.text).join('')`), filtrage lignes sans nom
+- **Bug settings** — `<Form>` provider manquant ajouté dans `settings.tsx`
+- **Migration 00038** — `ALTER TABLE staff ADD COLUMN rate_per_member DECIMAL(10,2) DEFAULT 0`
+- **Migration 00039** — table `coach_salary_history` (snapshots mensuels) + RLS (admin CRUD, coach read-only own)
+- **Types** — `rate_per_member` ajouté à `staff`, `coach_salary_history` table type dans `supabase.ts`
+- **Migrations 00037–00040 appliquées remote** — coach_id dans members, rate_per_member, salary_history, brand/sku/reference
+- **Migration 00041 appliquée remote** — `coach_default_salary`, `coach_default_rate_per_member` dans `organizations`
+- **Nouvelle page `/rh`** — "Paie & RH" : liste des employés avec trois onglets (Salaire éditable, Paiements avec historique, Congés). Modification des salaires en inline pour admin/super_admin, lecture seule pour staff/coach. Sidebar groupe RH avec lien Paie.
+- **Migration 00043 appliquée remote** — table `staff_salary_payments` (staff_id, salary_amount, payment_date, status, notes) + RLS policies
+
 ## Key Decisions
 - `SECURITY DEFINER` retiré au lieu d'ajouter un check explicite dans `renew_subscription` : RLS s'applique automatiquement au caller
 - Trigger `after_organization_insert` plutôt que client-side `user_roles.insert()` : garantit que le rôle `super_admin` est créé même si le client est modifié
@@ -68,9 +82,9 @@
 - **Migration 00009** : les RPCs sont `SECURITY DEFINER` pour s'affranchir des contraintes RLS sur les tables membres/subscriptions/paiements ; le verrouillage `FOR UPDATE` dans `finalize_subscription_payment` empêche la double-activation
 - **POS redirection** : passage via `location.state` React Router plutôt que stockage local ou URL params — évite la persistance après refresh, pas de fuite dans l'URL
 - **Article virtuel** : préfixe `__subscription__` dans `product.id` pour distinguer les articles d'abonnement des produits physiques dans le panier
+- **Migration 00041** : `coach_default_salary` et `coach_default_rate_per_member` stockés dans `organizations` (paramètres globaux, pas per-coach)
 
 ## Next Steps
-- Déployer les 9 migrations (`00001`→`00009`) sur la base Supabase
 - Configurer les variables d'env Edge Functions (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
 - Remplacer `SUPABASE_PROJECT_REF` dans `00004_cron_jobs.sql` et activer les cron jobs
 - Ajouter un vrai système d'envoi d'email/SMS pour le recovery code
@@ -82,9 +96,9 @@
 
 ## Critical Context
 - `npx tsc --noEmit` ✅ zéro erreur
-- `npx vitest --run` ✅ 18/18 tests (utils, recovery, auth)
+- `npx vitest --run` ✅ 38/38 tests (utils, recovery, auth)
 - `npx vite build` ✅ succès
-- 9 migrations (`00001`→`00009`) à exécuter dans l'ordre
+- 43 migrations (`00001`→`00043`) appliquées remote
 - 3 Edge Functions (recovery, send-subscription-reminder, send-payment-reminder)
 - Le bucket `photos` Supabase Storage doit exister pour l'upload des avatars
 - RLS role-based : `admin`/`super_admin` peuvent tout modifier, `coach`/`staff` sont en lecture seule
@@ -111,14 +125,18 @@
 - `src/stores/auth.tsx` → signUp, signOut, slug collision, useMemo ctxValue, user_roles.insert() supprimé
 - `src/stores/theme.tsx` → ThemeProvider avec useCallback/useMemo
 - `src/i18n/index.tsx` → I18nProvider avec useMemo ctxValue
-- `src/i18n/en.ts` → clés `pos.subscriptionRedirect`, `pos.pendingSubscription`, `pos.finalizeSubscription`, `pos.subscriptionPaymentDesc`
+- `src/i18n/en.ts` → clés `pos.subscriptionRedirect`, `pos.pendingSubscription`, `pos.finalizeSubscription`, `pos.subscriptionPaymentDesc`, `nav.groups.rh`, `nav.payroll`, `rh.*`
+- `src/i18n/fr.ts` → clés `nav.groups.rh`, `nav.payroll`, `rh.*`
 - `src/hooks/useNetworkStatus.ts` → hook isOnline/recovering
 - `src/components/ui/offline-banner.tsx` → bannière offline/online
 - `src/components/layout/navbar.tsx` → avatar/user branchés sur useAuth, locale debug supprimé
-- `src/components/layout/sidebar.tsx` → avatar/user branchés sur useAuth, logout onClick signOut
+- `src/components/layout/sidebar.tsx` → avatar/user branchés sur useAuth, logout onClick signOut, "Portail Coach" lien vers /coach-portal (adminOnly), "Mode Coach" vers /coach-mode, groupe RH avec lien Paie
+- `src/pages/coach-mode/coach-mode.tsx` → salaire coach lecture seule, gestion des adhérents, historique salaires
+- `src/pages/coach-portal/coach-portal.tsx` → configuration salaires admin : Fixe + Prime/adh éditables, sauvegarde dans `organizations`
 - `src/pages/members/members.tsx` → ajout sélecteur abonnement + date début dans le formulaire, RPC create_member_with_pending_subscription, redirection vers `/pos` avec state
 - `src/pages/pos/pos.tsx` → détection pendingSubscription, ajout article virtuel abonnement, finalize_subscription_payment RPC après checkout
-- `src/types/supabase.ts` → member_subscriptions.status inclut `pending_payment`
+- `src/pages/rh/rh.tsx` → Paie & RH : staff list, 3 onglets (Salaire éditable, Paiements historique, Congés), mutations inline admin/super_admin
+- `src/types/supabase.ts` → member_subscriptions.status inclut `pending_payment`, StaffSalaryPayment type
 
 ## Audit Findings (Juillet 2026 — 6 phases, 60+ anomalies)
 

@@ -325,7 +325,7 @@ export default function ClassesPage() {
                 {t("classes.add")}
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingClass ? (t("classes.edit") || "Edit Class") : t("classes.add")}</DialogTitle>
                 <DialogDescription>{t("classes.dialogDescription")}</DialogDescription>

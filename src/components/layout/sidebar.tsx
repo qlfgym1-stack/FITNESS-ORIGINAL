@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useLocation, Link } from "react-router-dom"
 import { motion } from "framer-motion"
 import {
@@ -14,9 +14,9 @@ import {
   Boxes,
   Truck,
   Dumbbell,
+  Wrench,
   Clock,
   BarChart3,
-  ClipboardList,
   Shield,
   Award,
 
@@ -49,6 +49,7 @@ interface NavItem {
   key: string
   path: string
   icon: React.ElementType
+  adminOnly?: boolean
 }
 
 interface NavGroup {
@@ -65,6 +66,7 @@ const navGroups: NavGroup[] = [
       { key: "members", icon: Users, path: "/members" },
       { key: "subscriptions", icon: CreditCard, path: "/subscriptions" },
       { key: "payments", icon: Wallet, path: "/payments" },
+      { key: "encaissement", icon: Wallet, path: "/encaissement" },
     ],
   },
   {
@@ -81,14 +83,13 @@ const navGroups: NavGroup[] = [
       { key: "pos", icon: ShoppingCart, path: "/pos" },
       { key: "products", icon: Package, path: "/products" },
       { key: "inventory", icon: Boxes, path: "/inventory" },
-      { key: "stock", icon: ClipboardList, path: "/stock" },
       { key: "suppliers", icon: Truck, path: "/suppliers" },
     ],
   },
   {
-    groupKey: "equipment",
+    groupKey: "materiel",
     items: [
-      { key: "equipment", icon: Dumbbell, path: "/equipment" },
+      { key: "materiel", icon: Wrench, path: "/materiel" },
       { key: "reservations", icon: Clock, path: "/equipment/reservations" },
       { key: "reports", icon: BarChart3, path: "/reports" },
     ],
@@ -103,7 +104,7 @@ const navGroups: NavGroup[] = [
   {
     groupKey: "portal",
     items: [
-      { key: "memberPortal", icon: UserCircle, path: "/member-portal" },
+      { key: "memberPortal", icon: GraduationCap, path: "/coach-portal", adminOnly: true },
       { key: "coachMode", icon: GraduationCap, path: "/coach-mode" },
       { key: "display", icon: Monitor, path: "/display" },
     ],
@@ -119,6 +120,12 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    groupKey: "rh",
+    items: [
+      { key: "payroll", icon: Wallet, path: "/rh" },
+    ],
+  },
+  {
     groupKey: "superAdmin",
     items: [
       { key: "superAdmin", icon: ShieldCheck, path: "/super-admin" },
@@ -130,9 +137,9 @@ const navGroups: NavGroup[] = [
 
 const VISIBLE_GROUPS: Record<string, string[]> = {
   super_admin: navGroups.map(g => g.groupKey),
-  admin: ['main', 'planning', 'sales', 'equipment', 'access', 'portal', 'admin'],
+  admin: ['main', 'planning', 'sales', 'materiel', 'access', 'portal', 'admin', 'rh'],
   staff: ['main', 'planning'],
-  coach: ['main', 'planning'],
+  coach: ['main', 'planning', 'portal'],
 }
 
 function getTopRole(roles: { role: string }[]): string {
@@ -149,15 +156,27 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
   const { user, profile, signOut, roles } = useAuth()
   const topRole = getTopRole(roles)
   const visibleGroups = VISIBLE_GROUPS[topRole] ?? VISIBLE_GROUPS.admin
-  const filteredGroups = navGroups.filter(g => visibleGroups.includes(g.groupKey))
+  const isAdminOrSuper = topRole === 'admin' || topRole === 'super_admin'
+  const filteredGroups = navGroups
+    .filter(g => visibleGroups.includes(g.groupKey))
+    .map(g => ({
+      ...g,
+      items: g.items.filter(item => !item.adminOnly || isAdminOrSuper),
+    }))
+    .filter(g => g.items.length > 0)
   const initials = profile?.full_name
     ? profile.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     : user?.email?.slice(0, 2).toUpperCase() || 'AD'
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('FITMANAGER_SIDEBAR_GROUPS')
+    if (saved) {
+      try { return JSON.parse(saved) } catch {}
+    }
     const groups: Record<string, boolean> = {}
     filteredGroups.forEach((g) => { groups[g.groupKey] = true })
     return groups
   })
+  useEffect(() => { localStorage.setItem('FITMANAGER_SIDEBAR_GROUPS', JSON.stringify(openGroups)) }, [openGroups])
 
   const isActive = (path: string) => {
     if (path === "/dashboard") return pathname === path
@@ -296,7 +315,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('FITMANAGER_SIDEBAR_COLLAPSED') !== 'false')
+  useEffect(() => { localStorage.setItem('FITMANAGER_SIDEBAR_COLLAPSED', String(collapsed)) }, [collapsed])
 
   return (
     <motion.aside

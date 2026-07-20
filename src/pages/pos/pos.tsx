@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react"
+﻿import { useState, useMemo, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
@@ -27,7 +27,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Pagination } from "@/components/ui/pagination"
 import { useToast } from "@/components/ui/toast"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, ArrowUpDown } from "lucide-react"
+import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, ArrowUpDown, RefreshCw } from "lucide-react"
 import type { Product, Member } from "@/types/supabase"
 import { IS_MOCK } from "@/lib/config"
 
@@ -47,6 +47,9 @@ export default function POSPage() {
   const pendingSub = location.state?.pendingSubscription as {
     member_id: string; subscription_id: string; total_amount: number; subscription_name: string; organization_id: string; first_name: string; last_name: string
   } | undefined
+  const pendingRenewal = location.state?.pendingRenewal as {
+    member_id: string; old_subscription_id: string; member_name: string; subscription_type_id: string; total_amount: number; start_date: string; end_date: string; organization_id: string
+  } | undefined
 
   const currencySymbol = useMemo(() => {
     try { return new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).formatToParts(0).find(p => p.type === 'currency')?.value || 'DA' } catch { return 'DA' }
@@ -62,6 +65,7 @@ export default function POSPage() {
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [showCheckout, setShowCheckout] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState("cash")
+  const [amountGiven, setAmountGiven] = useState<number | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
   const [qrInput, setQrInput] = useState("")
   const [panelProductSearch, setPanelProductSearch] = useState("")
@@ -92,6 +96,9 @@ export default function POSPage() {
           organization_id: pendingSub.organization_id,
           name: pendingSub.subscription_name,
           category: null,
+          brand: null,
+          sku: null,
+          reference: null,
           price: pendingSub.total_amount,
           cost: null,
           stock: null,
@@ -106,6 +113,33 @@ export default function POSPage() {
       setMemberSearch(`${toUpper(pendingSub.first_name)} ${toUpper(pendingSub.last_name)}`)
     }
   }, [pendingSub])
+
+  useEffect(() => {
+    if (pendingRenewal) {
+      window.history.replaceState({}, "")
+      setCart([{
+        product: {
+          id: `__renewal__${pendingRenewal.old_subscription_id}`,
+          organization_id: pendingRenewal.organization_id,
+          name: `Renouvellement - ${pendingRenewal.member_name}`,
+          category: null,
+          brand: null,
+          sku: null,
+          reference: null,
+          price: pendingRenewal.total_amount,
+          cost: null,
+          stock: null,
+          image_url: null,
+          barcode: null,
+          is_active: true,
+          created_at: "",
+        },
+        quantity: 1,
+      }])
+      setSelectedMemberId(pendingRenewal.member_id)
+      setMemberSearch(pendingRenewal.member_name.toUpperCase())
+    }
+  }, [pendingRenewal])
 
   const { data: members } = useQuery({
     queryKey: ["members_minimal"],
@@ -184,6 +218,7 @@ export default function POSPage() {
   }, [subtotal, discountPercent, discountAmount])
 
   const total = Math.max(0, subtotal - discountValue)
+  const change = amountGiven != null && amountGiven >= total ? amountGiven - total : 0
 
   function addToCart(product: Product) {
     setCart(prev => {
@@ -234,7 +269,7 @@ export default function POSPage() {
       setQrInput("")
       return
     }
-    toast({ title: "Code non reconnu", description: `Aucun produit ou adhérent trouvé pour "${value}"`, variant: "destructive" })
+    toast({ title: "Code non reconnu", description: `Aucun produit ou adh�rent trouv� pour "${value}"`, variant: "destructive" })
     setQrInput("")
   }
 
@@ -247,7 +282,7 @@ export default function POSPage() {
 
       // First: decrement stock for physical items (atomic)
       for (const item of cart) {
-        if (item.product.id.startsWith("__subscription__")) continue
+        if (item.product.id.startsWith("__subscription__") || item.product.id.startsWith("__renewal__")) continue
         const { data: updated, error: stockError } = await (supabase.rpc as any)(
           'decrement_product_stock', { p_id: item.product.id, p_qty: item.quantity })
         if (stockError) throw stockError
@@ -275,8 +310,21 @@ export default function POSPage() {
       })
       if (txError) throw txError
 
-      // Finalize subscription payment if this was a pending subscription checkout
-      if (pendingSub) {
+      // Finalize renewal or subscription payment if applicable
+      if (pendingRenewal) {
+        const { error: renewError } = await (supabase.rpc as any)('pay_and_renew', {
+          p_old_subscription_id: pendingRenewal.old_subscription_id,
+          p_organization_id: orgId,
+          p_member_id: pendingRenewal.member_id,
+          p_subscription_type_id: pendingRenewal.subscription_type_id,
+          p_new_start_date: pendingRenewal.start_date,
+          p_new_end_date: pendingRenewal.end_date,
+          p_total_amount: total,
+          p_payment_method: paymentMethod,
+          p_payment_amount: total,
+        })
+        if (renewError) throw renewError
+      } else if (pendingSub) {
         const { error: finalizeError } = await (supabase.rpc as any)('finalize_subscription_payment', {
           p_subscription_id: pendingSub.subscription_id,
           p_organization_id: orgId,
@@ -293,6 +341,7 @@ export default function POSPage() {
       setCart([])
       setDiscountPercent(null)
       setDiscountAmount(null)
+      setAmountGiven(null)
       setSelectedMemberId(null)
       setMemberSearch("")
       setQrInput("")
@@ -332,14 +381,17 @@ export default function POSPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
                       {item.product.id.startsWith("__subscription__") && <CreditCard className="h-3 w-3 text-primary shrink-0" />}
+                      {item.product.id.startsWith("__renewal__") && <RefreshCw className="h-3 w-3 text-primary shrink-0" />}
                       <p className="text-sm font-medium truncate">{toUpper(item.product.name)}</p>
                     </div>
                     <p className="text-xs text-muted-foreground">{formatCurrency(item.product.price)}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {item.product.id.startsWith("__subscription__") ? (
+                    {item.product.id.startsWith("__subscription__") || item.product.id.startsWith("__renewal__") ? (
                       <>
-                        <Badge variant="secondary" className="text-xs">{t("pos.subscription")}</Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {item.product.id.startsWith("__renewal__") ? "Renouvellement" : t("pos.subscription")}
+                        </Badge>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.product.id)}>
                           <X className="h-3 w-3" />
                         </Button>
@@ -446,7 +498,7 @@ export default function POSPage() {
           onClick={() => setShowCheckout(true)}
         >
           {checkoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          {t("pos.checkout")} — {formatCurrency(total)}
+          {t("pos.checkout")} � {formatCurrency(total)}
         </Button>
       </CardContent>
     </Card>
@@ -496,8 +548,8 @@ export default function POSPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="name">{t("common.name") || "Name"}</SelectItem>
-                <SelectItem value="price_asc">{t("common.priceAsc") || "Prix ↑"}</SelectItem>
-                <SelectItem value="price_desc">{t("common.priceDesc") || "Prix ↓"}</SelectItem>
+                <SelectItem value="price_asc">{t("common.priceAsc") || "Prix ?"}</SelectItem>
+                <SelectItem value="price_desc">{t("common.priceDesc") || "Prix ?"}</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="icon" onClick={() => { setSearch(""); setCategory("snacks"); setSortBy("name"); setPage(1) }} title="Reset">
@@ -565,13 +617,34 @@ export default function POSPage() {
       <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{pendingSub ? t("pos.finalizeSubscription") : t("pos.payment")}</DialogTitle>
-            <DialogDescription>{pendingSub ? t("pos.subscriptionPaymentDesc") : t("pos.selectPaymentMethod")}</DialogDescription>
+            <DialogTitle>{pendingRenewal ? "Renouvellement" : pendingSub ? t("pos.finalizeSubscription") : t("pos.payment")}</DialogTitle>
+            <DialogDescription>{pendingRenewal ? "Paiement du renouvellement d'abonnement" : pendingSub ? t("pos.subscriptionPaymentDesc") : t("pos.selectPaymentMethod")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="text-center">
               <p className="text-3xl font-bold">{formatCurrency(total)}</p>
             </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t("pos.amountGiven")}</label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={amountGiven ?? ""}
+                  onChange={e => setAmountGiven(e.target.value ? Number(e.target.value) : null)}
+                  className="pr-12 h-9"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{t("pos.cash")}</span>
+              </div>
+            </div>
+            {change > 0 && (
+              <div className="flex justify-between items-center p-2 bg-success/10 rounded-md">
+                <span className="text-sm font-medium text-success">{t("pos.changeDue")}</span>
+                <span className="text-lg font-bold text-success">{formatCurrency(change)}</span>
+              </div>
+            )}
+            <Separator />
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("pos.paymentMethod")}</label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
@@ -608,10 +681,12 @@ export default function POSPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="text-center text-sm text-muted-foreground">
-            {pendingSub ? t("pos.subscriptionPaymentDesc") : t("pos.successMessage")}
+            {pendingRenewal ? "Renouvellement enregistre avec succes" : pendingSub ? t("pos.subscriptionPaymentDesc") : t("pos.successMessage")}
           </div>
           <DialogFooter className="justify-center">
-            {pendingSub ? (
+            {pendingRenewal ? (
+              <Button onClick={() => { setShowSuccess(false); navigate("/members") }}>{t("pos.newSale")}</Button>
+            ) : pendingSub ? (
               <Button onClick={() => { setShowSuccess(false); navigate("/members") }}>{t("pos.newSale")}</Button>
             ) : (
               <Button onClick={() => setShowSuccess(false)}>{t("pos.newSale")}</Button>

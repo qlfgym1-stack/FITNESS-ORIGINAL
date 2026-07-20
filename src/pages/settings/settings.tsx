@@ -107,7 +107,8 @@ export default function SettingsPage() {
     <div>
       <PageHeader title={t("settings.title")} description={t("settings.description")} />
 
-      <div className="space-y-6 max-w-2xl">
+      <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -269,7 +270,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={saveMutation.isPending} className="w-full sm:w-auto">
+        <Button type="submit" disabled={saveMutation.isPending} className="w-full sm:w-auto">
           {saveMutation.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
@@ -277,7 +278,8 @@ export default function SettingsPage() {
           )}{" "}
           {t("settings.saveSettings")}
         </Button>
-      </div>
+      </form>
+      </Form>
     </div>
   )
 }

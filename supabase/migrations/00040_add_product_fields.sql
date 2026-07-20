@@ -1,0 +1,3 @@
+ALTER TABLE products ADD COLUMN brand TEXT DEFAULT '';
+ALTER TABLE products ADD COLUMN sku TEXT DEFAULT '';
+ALTER TABLE products ADD COLUMN "reference" TEXT DEFAULT '';

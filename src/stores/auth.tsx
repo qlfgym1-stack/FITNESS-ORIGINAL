@@ -25,7 +25,7 @@ interface AuthContextValue extends AuthState {
 const MOCK_ADMIN: AuthState = {
   user: { id: 'mock-admin-id', email: 'MoussaMohamedelmabrouk@gmail.com', app_metadata: {}, user_metadata: { full_name: 'Moussa Mohamed Elmabrouk' }, aud: 'authenticated', created_at: new Date().toISOString() } as any,
   profile: { id: 'mock-admin-id', email: 'MoussaMohamedelmabrouk@gmail.com', full_name: 'Moussa Mohamed Elmabrouk' },
-  organization: { id: 'mock-org-id', name: 'DINATEK', slug: 'dinatek', logo_url: null, address: null, phone: null, email: 'MoussaMohamedelmabrouk@gmail.com', created_at: new Date().toISOString() },
+  organization: { id: 'mock-org-id', name: 'DINATEK', slug: 'dinatek', logo_url: null, address: null, phone: null, email: 'MoussaMohamedelmabrouk@gmail.com', created_at: new Date().toISOString(), coach_default_salary: 0, coach_default_rate_per_member: 0 },
   roles: [{ id: 'mock-role-id', user_id: 'mock-admin-id', organization_id: 'mock-org-id', role: 'super_admin', created_at: new Date().toISOString() }],
   isLoading: false, isAuthenticated: true, isSuperAdmin: true,
 }

@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@/hooks/useQuery'
 import { useSupabase } from '@/hooks/useSupabase'
 import { useAuth } from '@/stores/auth'
-import { useT } from '@/i18n'
 import { useToast } from '@/components/ui/toast'
+import { useT } from '@/i18n'
 import { PageHeader } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,7 +25,6 @@ import type { SubscriptionType, MemberSubscription } from '@/types/supabase'
 import { usePagination } from '@/hooks/usePagination'
 import { useExportCsv } from '@/hooks/useExportCsv'
 import { Pagination } from '@/components/ui/pagination'
-
 interface MemberSubWithDetails extends MemberSubscription {
   member_name?: string
   type_name?: string
@@ -36,6 +36,7 @@ export default function Subscriptions() {
   const queryClient = useQueryClient()
   const { organization } = useAuth()
   const { toast } = useToast()
+  const nav = useNavigate()
   const orgId = organization?.id
 
   const subTypeSchema = useMemo(() => z.object({
@@ -57,6 +58,10 @@ export default function Subscriptions() {
   const [cancellingSub, setCancellingSub] = useState<MemberSubWithDetails | null>(null)
   const [renewOpen, setRenewOpen] = useState(false)
   const [renewingSub, setRenewingSub] = useState<MemberSubWithDetails | null>(null)
+  const [renewTypeId, setRenewTypeId] = useState('')
+  const [renewStartDate, setRenewStartDate] = useState('')
+  const [renewEndDate, setRenewEndDate] = useState('')
+  const [renewAmount, setRenewAmount] = useState(0)
 
   const typeForm = useForm<SubTypeForm>({
     resolver: zodResolver(subTypeSchema),
@@ -91,7 +96,7 @@ export default function Subscriptions() {
       const { data } = await query
       return (data ?? []).map((sub: any) => ({
         ...sub,
-        member_name: `${sub.members?.first_name ?? ''} ${sub.members?.last_name ?? ''}`,
+        member_name: `${sub.members?.first_name ?? '} ${sub.members?.last_name ?? '}`,
         type_name: sub.subscription_types?.name ?? '',
       })) as MemberSubWithDetails[]
     },
@@ -164,29 +169,21 @@ export default function Subscriptions() {
     onError: (err) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
   })
 
-  const renewSubMutation = useMutation({
-    mutationFn: async (sub: MemberSubWithDetails) => {
-      if (!orgId) throw new Error('No organization')
-      const startDate = new Date()
-      const endDate = new Date(startDate)
-      const typeDef = subTypes?.find(t => t.id === sub.subscription_type_id)
-      endDate.setDate(endDate.getDate() + (typeDef?.duration_days ?? 30))
 
-      const { error } = await (supabase.rpc as any)('renew_subscription', {
-        p_old_subscription_id: sub.id,
-        p_organization_id: orgId,
-        p_member_id: sub.member_id,
-        p_subscription_type_id: sub.subscription_type_id,
-        p_start_date: startDate.toISOString().split('T')[0],
-        p_end_date: endDate.toISOString().split('T')[0],
-        p_total_amount: sub.total_amount,
-        p_amount_paid: sub.total_amount,
-      })
-      if (error) throw error
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['member-subscriptions'] }); queryClient.invalidateQueries({ queryKey: ['expiring-subscriptions'] }); queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }); setRenewOpen(false); setRenewingSub(null); toast({ title: t('subscriptions.subscriptionRenewed') }) },
-    onError: (err) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
-  })
+
+
+
+  useEffect(() => {
+    if (renewTypeId && renewStartDate) {
+      const typeDef = subTypes?.find(st => st.id === renewTypeId)
+      if (typeDef) {
+        const end = new Date(renewStartDate)
+        end.setDate(end.getDate() + typeDef.duration_days)
+        setRenewEndDate(end.toISOString().split('T')[0])
+        setRenewAmount(typeDef.price)
+      }
+    }
+  }, [renewTypeId, renewStartDate, subTypes])
 
   function openAddTypeDialog() {
     setEditingType(null)
@@ -393,9 +390,9 @@ export default function Subscriptions() {
                       <TableCell><Badge className={getStatusColor(sub.status)}>{toUpper(sub.status)}</Badge></TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {sub.status === 'active' && (
+                          {(sub.status === 'active' || sub.status === 'expired') && (
                             <>
-                              <Button variant="ghost" size="icon" onClick={() => { setRenewingSub(sub); setRenewOpen(true) }} title={t('subscriptions.renew')}>
+                              <Button variant="ghost" size="icon" onClick={() => { setRenewingSub(sub); setRenewTypeId(sub.subscription_type_id); const d = new Date(); setRenewStartDate(d.toISOString().split('T')[0]); setRenewOpen(true) }} title={t('subscriptions.renew')}>
                                 <RefreshCw className="h-4 w-4" />
                               </Button>
                               <Button variant="ghost" size="icon" onClick={() => { setCancellingSub(sub); setCancelOpen(true) }} title={t('subscriptions.cancel')}>
@@ -414,6 +411,7 @@ export default function Subscriptions() {
         </TabsContent>
       </Tabs>
 
+      {/* Subscription Type Dialog */}
       <Dialog open={typeDialogOpen} onOpenChange={setTypeDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -451,6 +449,7 @@ export default function Subscriptions() {
         </DialogContent>
       </Dialog>
 
+      {/* Cancel Subscription Dialog */}
       <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <DialogContent>
           <DialogHeader>
@@ -469,19 +468,93 @@ export default function Subscriptions() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={renewOpen} onOpenChange={setRenewOpen}>
-        <DialogContent>
+      {/* Dialog de renouvellement */}
+      <Dialog open={renewOpen} onOpenChange={(open) => { if (!open) { setRenewOpen(false); setRenewingSub(null) } }}>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>{t('subscriptions.renewSubscription')}</DialogTitle>
+            <DialogTitle>Renouveler l'abonnement</DialogTitle>
             <DialogDescription>
-              {t('subscriptions.renewConfirmMessage').replace('{name}', toUpper(renewingSub?.member_name ?? '')).replace('{type}', toUpper(renewingSub?.type_name ?? ''))}
+              {renewingSub?.status === 'expired'
+                ? "L'abonnement a expiré. Vous serez redirigé vers la caisse pour payer."
+                : `Renouvellement de ${renewingSub?.member_name ?? ''} — ${renewingSub?.type_name ?? ''}. Redirection vers la caisse.`
+              }
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setRenewOpen(false); setRenewingSub(null) }}>{t('common.cancel')}</Button>
-            <Button onClick={() => renewingSub && renewSubMutation.mutate(renewingSub)} disabled={renewSubMutation.isPending}>
-              {renewSubMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('subscriptions.renew')}
+
+          <div className="space-y-5 py-4">
+            {/* Membre + Ancien abo (infos) */}
+            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Membre</p>
+                <p className="font-medium">{toUpper(renewingSub?.member_name ?? '')}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Ancien abonnement</p>
+                <p className="font-medium">{toUpper(renewingSub?.type_name ?? '')}</p>
+              </div>
+            </div>
+
+            {/* Type d'abonnement */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Type d'abonnement</label>
+              <Select value={renewTypeId} onValueChange={setRenewTypeId}>
+                <SelectTrigger><SelectValue placeholder="Sélectionner un type" /></SelectTrigger>
+                <SelectContent>
+                  {(subTypes ?? []).filter(st => st.is_active).map(st => (
+                    <SelectItem key={st.id} value={st.id}>
+                      {toUpper(st.name)} — {formatCurrency(st.price)} / {st.duration_days} jours
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Date de début</label>
+                <Input type="date" value={renewStartDate} onChange={(e) => setRenewStartDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Date de fin</label>
+                <Input type="date" value={renewEndDate} disabled className="bg-muted text-muted-foreground" />
+              </div>
+            </div>
+
+            {/* Montant (lecture seule) */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Montant</label>
+              <div className="text-2xl font-bold text-primary">
+                {formatCurrency(renewAmount || renewingSub?.total_amount || 0)}
+                <span className="text-sm font-normal text-muted-foreground ml-2">payé en espèces</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-3 pt-2">
+            <Button variant="outline" size="lg" onClick={() => { setRenewOpen(false); setRenewingSub(null) }}>
+              Annuler
+            </Button>
+            <Button size="lg" onClick={() => {
+              if (!renewingSub || !orgId || !renewTypeId || !renewStartDate) return
+              nav('/pos', {
+                state: {
+                  pendingRenewal: {
+                    member_id: renewingSub.member_id,
+                    old_subscription_id: renewingSub.id,
+                    member_name: renewingSub.member_name,
+                    subscription_type_id: renewTypeId,
+                    total_amount: Number(renewAmount) || renewingSub.total_amount,
+                    start_date: renewStartDate,
+                    end_date: renewEndDate,
+                    organization_id: orgId,
+                  }
+                }
+              })
+              setRenewOpen(false)
+              setRenewingSub(null)
+            }} disabled={!renewTypeId || !renewStartDate}>
+              Payer à la caisse
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -489,3 +562,4 @@ export default function Subscriptions() {
     </div>
   )
 }
+
