@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@/hooks/useQuery'
+import { useAutoSave, SaveStatus } from '@/hooks/useAutoSave'
 import { useSupabase } from '@/hooks/useSupabase'
 import { useAuth } from '@/stores/auth'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/toast'
 import { getInitials, toUpper, formatPhone } from '@/lib/utils'
-import { Search, Users, Loader2, UserCheck, DollarSign, History, Calendar, Wallet, X, Plus, Save } from 'lucide-react'
+import { Search, Users, Loader2, UserCheck, DollarSign, History, Calendar, Wallet, X, Plus, Check } from 'lucide-react'
 
 interface StaffRow {
   id: string
@@ -68,6 +69,8 @@ export default function RhPage() {
   const [salary, setSalary] = useState('')
   const [rate, setRate] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const lastSavedSalaryRef = useRef('')
+  const lastSavedRateRef = useRef('')
 
   const [paymentDialog, setPaymentDialog] = useState(false)
   const [payAmount, setPayAmount] = useState('')
@@ -140,10 +143,17 @@ export default function RhPage() {
       if (error) throw error
     },
     onSuccess: () => {
+      lastSavedSalaryRef.current = salary
+      lastSavedRateRef.current = rate
       queryClient.invalidateQueries({ queryKey: ['rh-staff-list'] })
-      toast({ title: 'Salaire mis à jour' })
     },
     onError: (err: Error) => toast({ title: 'Erreur', description: err.message, variant: 'destructive' }),
+  })
+
+  const salaryDirty = salary !== lastSavedSalaryRef.current || rate !== lastSavedRateRef.current
+  const { status: saveStatus } = useAutoSave({
+    dirty: salaryDirty && !!selectedStaff,
+    onSave: () => updateSalaryMutation.mutateAsync(),
   })
 
   const addPaymentMutation = useMutation({
@@ -181,8 +191,12 @@ export default function RhPage() {
 
   const loadStaffData = (staff: StaffRow) => {
     setSelectedStaff(staff.id)
-    setSalary(staff.salary?.toString() ?? '')
-    setRate(staff.rate_per_member?.toString() ?? '')
+    const s = staff.salary?.toString() ?? ''
+    const r = staff.rate_per_member?.toString() ?? ''
+    setSalary(s)
+    setRate(r)
+    lastSavedSalaryRef.current = s
+    lastSavedRateRef.current = r
     setLoaded(true)
     setTab('salary')
   }
@@ -308,10 +322,25 @@ export default function RhPage() {
                         />
                       </div>
                     )}
-                    <Button className="w-full" onClick={() => updateSalaryMutation.mutate()} disabled={updateSalaryMutation.isPending}>
-                      {updateSalaryMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      <Save className="h-4 w-4 mr-2" />Enregistrer
-                    </Button>
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        {saveStatus === 'saving' && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Sauvegarde...
+                          </span>
+                        )}
+                        {saveStatus === 'saved' && (
+                          <span className="text-xs text-green-600 flex items-center gap-1">
+                            <Check className="h-3 w-3" /> Sauvegardé
+                          </span>
+                        )}
+                        {saveStatus === 'error' && (
+                          <span className="text-xs text-destructive flex items-center gap-1">
+                            <X className="h-3 w-3" /> Erreur
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>

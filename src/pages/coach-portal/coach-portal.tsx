@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@/hooks/useQuery'
+import { useAutoSave } from '@/hooks/useAutoSave'
 import { useSupabase } from '@/hooks/useSupabase'
 import { useAuth } from '@/stores/auth'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
-import { Loader2, DollarSign, Save } from 'lucide-react'
+import { Loader2, DollarSign, Check, X } from 'lucide-react'
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('fr-DZ', { style: 'decimal', maximumFractionDigits: 0 }).format(amount) + ' DA'
@@ -22,6 +22,8 @@ export default function CoachPortalPage() {
   const [salary, setSalary] = useState('')
   const [rate, setRate] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const lastSavedSalaryRef = useRef('')
+  const lastSavedRateRef = useRef('')
 
   const { isLoading } = useQuery({
     queryKey: ['org-coach-defaults', orgId],
@@ -33,8 +35,12 @@ export default function CoachPortalPage() {
         .eq('id', orgId)
         .single()
       if (data) {
-        setSalary(data.coach_default_salary?.toString() ?? '')
-        setRate(data.coach_default_rate_per_member?.toString() ?? '')
+        const s = data.coach_default_salary?.toString() ?? ''
+        const r = data.coach_default_rate_per_member?.toString() ?? ''
+        setSalary(s)
+        setRate(r)
+        lastSavedSalaryRef.current = s
+        lastSavedRateRef.current = r
         setLoaded(true)
       }
       return data
@@ -61,11 +67,18 @@ export default function CoachPortalPage() {
       if (staffError) throw staffError
     },
     onSuccess: () => {
+      lastSavedSalaryRef.current = salary
+      lastSavedRateRef.current = rate
       queryClient.invalidateQueries({ queryKey: ['org-coach-defaults'] })
       queryClient.invalidateQueries({ queryKey: ['coaches-with-count'] })
-      toast({ title: 'Paramètres coach enregistrés', description: `Fixe ${formatCurrency(Number(salary || 0))} · Prime ${formatCurrency(Number(rate || 0))}/adh` })
     },
     onError: (err: Error) => toast({ title: 'Erreur', description: err.message, variant: 'destructive' }),
+  })
+
+  const salaryDirty = salary !== lastSavedSalaryRef.current || rate !== lastSavedRateRef.current
+  const { status: saveStatus } = useAutoSave({
+    dirty: salaryDirty && loaded,
+    onSave: () => saveMutation.mutateAsync(),
   })
 
   return (
@@ -106,11 +119,25 @@ export default function CoachPortalPage() {
                   <span>Fixe {formatCurrency(Number(salary || 0))} × {formatCurrency(Number(rate || 0))}/adh</span>
                 </div>
               </div>
-              <Button className="w-full" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-                {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <Save className="h-4 w-4 mr-2" />
-                Enregistrer
-              </Button>
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  {saveStatus === 'saving' && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Sauvegarde...
+                    </span>
+                  )}
+                  {saveStatus === 'saved' && (
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <Check className="h-3 w-3" /> Sauvegardé
+                    </span>
+                  )}
+                  {saveStatus === 'error' && (
+                    <span className="text-xs text-destructive flex items-center gap-1">
+                      <X className="h-3 w-3" /> Erreur
+                    </span>
+                  )}
+                </div>
+              </div>
             </>
           )}
         </CardContent>
