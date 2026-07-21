@@ -139,7 +139,7 @@ export default function TimesheetPage() {
 
   return (
     <div>
-      <PageHeader title={t("timesheet.title") || "Timesheet"} description={t("timesheet.description") || "Track staff attendance"} />
+      <PageHeader title={t("timesheet.title") || "Feuille de temps"} description={t("timesheet.description") || "Suivi des heures du personnel"} />
 
       <Tabs value={currentTab} onValueChange={(v) => { const tab = TABS.find(t => t.value === v); if (tab) navigate(tab.path) }}>
         <TabsList className="mb-6">

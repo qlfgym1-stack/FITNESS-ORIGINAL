@@ -211,8 +211,8 @@ export default function ReservationsPage() {
   return (
     <div>
       <PageHeader
-        title={t("reservations.title") || "Equipment Reservations"}
-        description={t("reservations.description") || "Manage equipment reservations"}
+        title={t("reservations.title") || "Réservations"}
+        description={t("reservations.description") || "Gérer les réservations d'équipements"}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => exportCsv()}>

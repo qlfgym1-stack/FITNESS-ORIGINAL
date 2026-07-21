@@ -20,6 +20,7 @@ import {
   CreditCard, QrCode, Camera, History, Settings, X,
 } from "lucide-react"
 import { CameraCapture } from "@/components/ui/camera-capture"
+import { PageHeader } from "@/components/layout"
 import { getInitials, toUpper } from "@/lib/utils"
 
 const PAGE_TERMINAL = "pointage"
@@ -234,34 +235,31 @@ export default function PointagePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pointage</h1>
-          <p className="text-sm text-muted-foreground">
-            {checkInCount} check-in{checkInCount !== 1 ? "s" : ""} aujourd&apos;hui
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-sm bg-muted rounded-lg px-3 py-1.5">
-            <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">{dateFormatted}</span>
-            <span className="text-muted-foreground">→</span>
-            <span className="font-medium">{dateFormatted}</span>
+      <PageHeader
+        title={t('nav.pointage')}
+        actions={
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm bg-muted rounded-lg px-3 py-1.5">
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium">{dateFormatted}</span>
+              <span className="text-muted-foreground">→</span>
+              <span className="font-medium">{dateFormatted}</span>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => exportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              EXPORT
+            </Button>
+            <Button variant="outline" size="sm">
+              <Upload className="mr-2 h-4 w-4" />
+              IMPORT
+            </Button>
+            <Button variant="outline" size="sm">
+              <QrCode className="mr-2 h-4 w-4" />
+              QR CODE
+            </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => exportCsv()}>
-            <Download className="mr-2 h-4 w-4" />
-            EXPORT
-          </Button>
-          <Button variant="outline" size="sm">
-            <Upload className="mr-2 h-4 w-4" />
-            IMPORT
-          </Button>
-          <Button variant="outline" size="sm">
-            <QrCode className="mr-2 h-4 w-4" />
-            QR CODE
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

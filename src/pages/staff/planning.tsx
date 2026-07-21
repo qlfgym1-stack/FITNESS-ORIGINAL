@@ -163,7 +163,7 @@ export default function PlanningPage() {
     <div>
       <PageHeader
         title={t("planning.title") || "Planning"}
-        description={t("planning.description") || "Schedule staff shifts"}
+        description={t("planning.description") || "Planifier les horaires du personnel"}
         actions={
           <Button onClick={() => { form.reset(); setOpen(true) }}>
             <Plus className="mr-2 h-4 w-4" /> {t("planning.addShift") || "Add Shift"}

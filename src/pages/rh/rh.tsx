@@ -12,6 +12,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/toast'
 import { getInitials, toUpper, formatPhone } from '@/lib/utils'
 import { Search, Users, Loader2, UserCheck, DollarSign, History, Calendar, Wallet, X, Plus, Check } from 'lucide-react'
+import { useT } from '@/i18n'
+import { PageHeader } from '@/components/layout'
 
 interface StaffRow {
   id: string
@@ -61,6 +63,7 @@ export default function RhPage() {
   const queryClient = useQueryClient()
   const { organization, user } = useAuth()
   const { toast } = useToast()
+  const t = useT()
   const orgId = organization?.id
 
   const [search, setSearch] = useState('')
@@ -222,7 +225,9 @@ export default function RhPage() {
   }
 
   return (
-    <div className="flex h-full gap-6">
+    <div className="space-y-6">
+      <PageHeader title={t('rh.title')} description={t('rh.description')} />
+      <div className="flex h-full gap-6">
       <div className="w-72 shrink-0 flex flex-col gap-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -495,6 +500,7 @@ export default function RhPage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   )
 }

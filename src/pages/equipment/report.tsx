@@ -111,8 +111,8 @@ export default function ReportPage() {
   return (
     <div>
       <PageHeader
-        title={t("report.title") || "Equipment Report"}
-        description={t("report.description") || "View equipment usage statistics"}
+        title={t("report.title") || "Rapport équipement"}
+        description={t("report.description") || "Statistiques d'utilisation des équipements"}
         actions={
           <Button onClick={exportToExcel} variant="outline">
             <Download className="mr-2 h-4 w-4" /> {t("report.export") || "Export to Excel"}

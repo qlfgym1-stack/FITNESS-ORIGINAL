@@ -8,6 +8,7 @@ import { useT } from '@/i18n'
 import { useToast } from '@/components/ui/toast'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/layout'
 import {
   Users, UserCheck, DollarSign, CalendarDays, TrendingUp, Percent,
   Database, FileText, Activity, UserCog, Heart, BarChart3,
@@ -235,16 +236,16 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">TABLEAU DE BORD</h1>
-          <p className="text-sm text-muted-foreground mt-1">APERÇU DES PERFORMANCES DE VOTRE SALLE</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {t('dashboard.refresh') || 'Actualiser'}
-        </Button>
-      </div>
+      <PageHeader
+        title={t('dashboard.title')}
+        description={t('dashboard.overview')}
+        actions={
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {t('dashboard.refresh') || 'Actualiser'}
+          </Button>
+        }
+      />
 
       {/* Row 1 – Core KPIs */}
       <div>

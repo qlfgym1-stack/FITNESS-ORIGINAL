@@ -27,7 +27,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Pagination } from "@/components/ui/pagination"
 import { useToast } from "@/components/ui/toast"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, ArrowUpDown, RefreshCw } from "lucide-react"
+import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, RefreshCw } from "lucide-react"
 import type { Product, Member } from "@/types/supabase"
 import { IS_MOCK } from "@/lib/config"
 
@@ -70,7 +70,6 @@ export default function POSPage() {
   const [qrInput, setQrInput] = useState("")
   const [panelProductSearch, setPanelProductSearch] = useState("")
   const [mobileCartOpen, setMobileCartOpen] = useState(false)
-  const [sortBy, setSortBy] = useState<string>("name")
 
   const { data: products, isLoading, isError: productsError, error: productsQueryError } = useQuery({
     queryKey: ["products"],
@@ -169,13 +168,8 @@ export default function POSPage() {
       const matchesCategory = p.category === category || (!p.category && category === "snacks")
       const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
       return matchesCategory && matchesSearch
-    }).sort((a, b) => {
-      if (sortBy === "name") return a.name.localeCompare(b.name)
-      if (sortBy === "price_asc") return (a.price || 0) - (b.price || 0)
-      if (sortBy === "price_desc") return (b.price || 0) - (a.price || 0)
-      return 0
-    })
-  }, [products, category, search, sortBy])
+    }).sort((a, b) => a.name.localeCompare(b.name))
+  }, [products, category, search])
 
   const { page, setPage, totalPages, paginatedData: paginatedProducts } = usePagination(filteredProducts, 20)
 
@@ -540,23 +534,6 @@ export default function POSPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2 mb-4">
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[140px]">
-                <ArrowUpDown className="mr-2 h-4 w-4" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">{t("common.name") || "Name"}</SelectItem>
-                <SelectItem value="price_asc">{t("common.priceAsc") || "Prix ?"}</SelectItem>
-                <SelectItem value="price_desc">{t("common.priceDesc") || "Prix ?"}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="icon" onClick={() => { setSearch(""); setCategory("snacks"); setSortBy("name"); setPage(1) }} title="Reset">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
           <Tabs value={category} onValueChange={setCategory}>
             <TabsList className="mb-4 flex-wrap h-auto">
               {CATEGORIES.map(cat => (
@@ -584,8 +561,10 @@ export default function POSPage() {
                         <ImageIcon className="h-8 w-8 text-muted-foreground" />
                       )}
                     </div>
-                    <p className="text-sm font-medium truncate">{toUpper(product.name)}</p>
-                    <p className="text-sm font-bold text-primary">{formatCurrency(product.price)}</p>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <p className="text-xs font-medium truncate">{toUpper(product.name)}</p>
+                      <p className="text-xs font-bold text-primary shrink-0">{formatCurrency(product.price)}</p>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

@@ -157,8 +157,8 @@ export default function LeavesPage() {
   return (
     <div>
       <PageHeader
-        title={t("leaves.title") || "Leave Management"}
-        description={t("leaves.description") || "Manage staff leave requests"}
+        title={t("leaves.title") || "Gestion des congés"}
+        description={t("leaves.description") || "Gérer les demandes de congés"}
         actions={
           <Button onClick={() => { form.reset(); setOpen(true) }}>
             <Plus className="mr-2 h-4 w-4" /> {t("leaves.request") || "Request Leave"}

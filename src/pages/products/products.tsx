@@ -59,6 +59,18 @@ export default function ProductsPage() {
   const { organization } = useAuth()
   const orgId = organization?.id
   const [search, setSearch] = useState("")
+  const [filterCategory, setFilterCategory] = useState("")
+  const [filterBrand, setFilterBrand] = useState("")
+  const [filterStatus, setFilterStatus] = useState("")
+  const [filterSku, setFilterSku] = useState("")
+  const [filterBarcode, setFilterBarcode] = useState("")
+  const [filterPriceMin, setFilterPriceMin] = useState("")
+  const [filterPriceMax, setFilterPriceMax] = useState("")
+  const [filterCostMin, setFilterCostMin] = useState("")
+  const [filterCostMax, setFilterCostMax] = useState("")
+  const [filterStockMin, setFilterStockMin] = useState("")
+  const [filterStockMax, setFilterStockMax] = useState("")
+  const [filterHasImage, setFilterHasImage] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -174,21 +186,37 @@ export default function ProductsPage() {
   })
 
   const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort() as string[]
+  const brands = [...new Set(items.map(i => i.brand).filter(Boolean))].sort() as string[]
 
-  const filtered = items.filter((i) =>
-    i.name.toLowerCase().includes(search.toLowerCase()) ||
-    (i.category ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (i.brand ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (i.sku ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (i.reference ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (i.barcode ?? "").toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = items.filter((i) => {
+    const matchesSearch = !search ||
+      i.name.toLowerCase().includes(search.toLowerCase()) ||
+      (i.category ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (i.brand ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (i.sku ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (i.barcode ?? "").toLowerCase().includes(search.toLowerCase())
+    if (!matchesSearch) return false
+    if (filterCategory && i.category !== filterCategory) return false
+    if (filterBrand && i.brand !== filterBrand) return false
+    if (filterStatus === "active" && !i.is_active) return false
+    if (filterStatus === "inactive" && i.is_active) return false
+    if (filterSku && !(i.sku ?? "").toLowerCase().includes(filterSku.toLowerCase())) return false
+    if (filterBarcode && !(i.barcode ?? "").toLowerCase().includes(filterBarcode.toLowerCase())) return false
+    if (filterPriceMin && (i.price ?? 0) < Number(filterPriceMin)) return false
+    if (filterPriceMax && (i.price ?? 0) > Number(filterPriceMax)) return false
+    if (filterCostMin && (i.cost ?? 0) < Number(filterCostMin)) return false
+    if (filterCostMax && (i.cost ?? 0) > Number(filterCostMax)) return false
+    if (filterStockMin && (i.stock ?? 0) < Number(filterStockMin)) return false
+    if (filterStockMax && (i.stock ?? 0) > Number(filterStockMax)) return false
+    if (filterHasImage && !i.image_url) return false
+    return true
+  })
 
   const { page, setPage, totalPages, paginatedData: paginatedItems } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
     filtered.map(i => ({
-      name: i.name, category: i.category ?? "", brand: i.brand ?? "", sku: i.sku ?? "", reference: i.reference ?? "",
+      name: i.name, category: i.category ?? "", brand: i.brand ?? "", sku: i.sku ?? "",
       price: i.price, cost: i.cost ?? 0, stock: i.stock ?? 0, barcode: i.barcode ?? "", status: i.is_active ? "Active" : "Inactive"
     })),
     'products',
@@ -197,7 +225,6 @@ export default function ProductsPage() {
       { key: 'category', label: t('products.category') || 'Category' },
       { key: 'brand', label: t('products.brand') || 'Brand' },
       { key: 'sku', label: t('products.sku') || 'SKU' },
-      { key: 'reference', label: t('products.reference') || 'Reference' },
       { key: 'price', label: t('products.price') || 'Price' },
       { key: 'cost', label: t('products.cost') || 'Cost' },
       { key: 'stock', label: t('products.stock') || 'Stock' },
@@ -325,8 +352,8 @@ export default function ProductsPage() {
   return (
     <div>
       <PageHeader
-        title={t("products.title") || "Products"}
-        description={t("products.description") || "Manage sellable products"}
+        title={t("products.title") || "Produits"}
+        description={t("products.description") || "Gérer les produits vendables"}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => exportCsv()}>
@@ -348,15 +375,71 @@ export default function ProductsPage() {
         }
       />
 
-      <div className="mb-4 flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={t("common.search") || "Search..."}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      <div className="mb-4 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher nom, catégorie, marque, SKU, réf, code..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Catégorie" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Toutes</SelectItem>
+              {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterBrand} onValueChange={setFilterBrand}>
+            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Marque" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Toutes</SelectItem>
+              {brands.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[130px]"><SelectValue placeholder="Statut" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Tous</SelectItem>
+              <SelectItem value="active">Actif</SelectItem>
+              <SelectItem value="inactive">Inactif</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>SKU:</span>
+            <Input placeholder="SKU" value={filterSku} onChange={e => setFilterSku(e.target.value)} className="h-8 w-[120px]" />
+          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Code:</span>
+            <Input placeholder="Code-barres" value={filterBarcode} onChange={e => setFilterBarcode(e.target.value)} className="h-8 w-[130px]" />
+          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Prix:</span>
+            <Input type="number" min="0" placeholder="Min" value={filterPriceMin} onChange={e => setFilterPriceMin(e.target.value)} className="h-8 w-[80px]" />
+            <span>—</span>
+            <Input type="number" min="0" placeholder="Max" value={filterPriceMax} onChange={e => setFilterPriceMax(e.target.value)} className="h-8 w-[80px]" />
+          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Coût:</span>
+            <Input type="number" min="0" placeholder="Min" value={filterCostMin} onChange={e => setFilterCostMin(e.target.value)} className="h-8 w-[80px]" />
+            <span>—</span>
+            <Input type="number" min="0" placeholder="Max" value={filterCostMax} onChange={e => setFilterCostMax(e.target.value)} className="h-8 w-[80px]" />
+          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Stock:</span>
+            <Input type="number" min="0" placeholder="Min" value={filterStockMin} onChange={e => setFilterStockMin(e.target.value)} className="h-8 w-[80px]" />
+            <span>—</span>
+            <Input type="number" min="0" placeholder="Max" value={filterStockMax} onChange={e => setFilterStockMax(e.target.value)} className="h-8 w-[80px]" />
+          </div>
+          <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer">
+            <input type="checkbox" checked={filterHasImage} onChange={e => setFilterHasImage(e.target.checked)} className="rounded" />
+            Image
+          </label>
         </div>
       </div>
 
@@ -369,7 +452,6 @@ export default function ProductsPage() {
               <TableHead>{t("products.category") || "Category"}</TableHead>
               <TableHead>{t("products.brand") || "Brand"}</TableHead>
               <TableHead>{t("products.sku") || "SKU"}</TableHead>
-              <TableHead>{t("products.reference") || "Ref"}</TableHead>
               <TableHead className="text-right">{t("products.price") || "Price"}</TableHead>
               <TableHead className="text-right">{t("products.cost") || "Cost"}</TableHead>
               <TableHead className="text-right">{t("products.stock") || "Stock"}</TableHead>
@@ -381,7 +463,7 @@ export default function ProductsPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-8">
+                <TableCell colSpan={11} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
@@ -403,9 +485,8 @@ export default function ProductsPage() {
                 <TableCell><Badge variant="outline">{toUpper(item.category ?? "")}</Badge></TableCell>
                 <TableCell className="text-xs">{item.brand ?? "-"}</TableCell>
                 <TableCell className="font-mono text-xs">{item.sku ?? "-"}</TableCell>
-                <TableCell className="font-mono text-xs">{item.reference ?? "-"}</TableCell>
-                <TableCell className="text-right">{item.price.toLocaleString()} DA</TableCell>
-                <TableCell className="text-right">{item.cost ? `${item.cost.toLocaleString()} DA` : "-"}</TableCell>
+                <TableCell className="text-right">{item.price.toLocaleString()}</TableCell>
+                <TableCell className="text-right">{item.cost ? item.cost.toLocaleString() : "-"}</TableCell>
                 <TableCell className="text-right">{item.stock ?? "-"}</TableCell>
                 <TableCell className="font-mono text-xs">{item.barcode ?? "-"}</TableCell>
                 <TableCell>
@@ -427,7 +508,7 @@ export default function ProductsPage() {
             ))}
             {!isLoading && paginatedItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults") || "No results"}
                 </TableCell>
               </TableRow>
@@ -455,10 +536,9 @@ export default function ProductsPage() {
               <p className="text-sm text-muted-foreground"><Badge variant="outline">{toUpper(item.category ?? "")}</Badge></p>
               {item.brand && <p className="text-xs text-muted-foreground mt-1">Marque: {item.brand}</p>}
               {item.sku && <p className="text-xs text-muted-foreground font-mono">SKU: {item.sku}</p>}
-              {item.reference && <p className="text-xs text-muted-foreground font-mono">Réf: {item.reference}</p>}
               <p className="text-sm text-muted-foreground mt-1">
-                {t("products.price") || "Price"}: {item.price.toLocaleString()} DA
-                {item.cost ? ` | ${t("products.cost") || "Cost"}: ${item.cost.toLocaleString()} DA` : ""}
+                {t("products.price") || "Price"}: {item.price.toLocaleString()}
+                {item.cost ? ` | ${t("products.cost") || "Coût"}: ${item.cost.toLocaleString()}` : ""}
                 {item.stock != null ? ` | ${t("products.stock") || "Stock"}: ${item.stock}` : ""}
               </p>
               {item.barcode && <p className="text-xs text-muted-foreground font-mono mt-1">{t("products.barcode") || "Barcode"}: {item.barcode}</p>}

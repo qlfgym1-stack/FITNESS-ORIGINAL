@@ -184,8 +184,8 @@ export default function StockMovementsPage() {
   return (
     <div>
       <PageHeader
-        title={t("stock.title") || "Stock Movements"}
-        description={t("stock.description") || "Track inventory movements"}
+        title={t("stock.title") || "Mouvements de stock"}
+        description={t("stock.description") || "Suivi des mouvements de stock"}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => exportCsv()}>

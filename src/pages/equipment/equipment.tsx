@@ -180,8 +180,8 @@ export default function EquipmentPage() {
   return (
     <div>
       <PageHeader
-        title={t("equipment.title") || "Equipment"}
-        description={t("equipment.description") || "Manage gym equipment"}
+        title={t("equipment.title") || "Équipements"}
+        description={t("equipment.description") || "Gérer les équipements de la salle"}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => exportCsv()}>

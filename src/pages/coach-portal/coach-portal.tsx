@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { Loader2, DollarSign, Check, X } from 'lucide-react'
+import { PageHeader } from '@/components/layout'
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('fr-DZ', { style: 'decimal', maximumFractionDigits: 0 }).format(amount) + ' DA'
@@ -82,8 +83,10 @@ export default function CoachPortalPage() {
   })
 
   return (
-    <div className="max-w-lg mx-auto mt-8">
-      <Card>
+    <div className="space-y-6">
+      <PageHeader title="Portail Coach" description="Configuration des salaires des coachs" />
+      <div className="max-w-lg mx-auto">
+        <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
@@ -142,6 +145,7 @@ export default function CoachPortalPage() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }
