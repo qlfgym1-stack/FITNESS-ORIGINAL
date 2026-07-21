@@ -143,6 +143,7 @@ const navGroups: NavGroup[] = [
     groupKey: "profitability",
     items: [
       { key: "reports", icon: TrendingUp, path: "/reports" },
+      { key: "rentabilite", icon: TrendingUp, path: "/rentabilite" },
     ],
   },
   {

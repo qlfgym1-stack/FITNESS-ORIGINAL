@@ -52,33 +52,44 @@
 - **`npx tsc --noEmit`** ✅ zéro erreur
 - **`npx vitest --run`** ✅ 38/38 tests (20 tests phone, 4 recovery, 1 auth, 13 utils legacy)
 - **`npx vite build`** ✅ succès
+- **Migration 00044 - Dépenses** — table `expenses` (10 catégories), RLS (admin CRUD, staff read-only), indexes — appliquée Supabase
+- **Page Dépenses `/expenses`** — CRUD, catégories, import/export Excel, filtres, résumé Total · nbr entrées, responsive
+- **Migration 00045 - Lien Salaires→Dépenses** — trigger `sync_salary_payment_to_expense`, colonnes `reference_type`/`reference_id` sur `expenses`, backfill — appliquée Supabase
+- **Migration 00046 - Rentabilité** — tables `investments` (9 catégories RLS) + `profitability_objectives` (monthly/yearly) — appliquée Supabase
+- **Refactor Assistant Comptable** — Architecture 8 modules : hook `useAccountingData` + 6 composants (KPI, Revenus, Dépenses, Historique, Journaux, Alertes) + page principale
+- **Agrégation multi-sources** — Revenus depuis `payments` (abonnements) + `pos_transactions` (ventes), dépenses depuis `expenses` (10 catégories)
+- **6 journaux comptables** — Ventes, Dépenses, Encaissements, Grand Livre, Balance Générale, TVA (19% collectée/déductible)
+- **Module Rentabilité & Profitabilité `/rentabilite`** — 13 agents parallèles, 10 composants :
+  - `useProfitabilityData` hook : 11 requêtes Supabase + calculs ROI/marges/prévisions/insights
+  - KpiCards (6 KPI), RevenueSection (CA par source), ProfitSection (brut/net/marges)
+  - InvestmentSection (catégories + ROI), ProfitabilityBreakdown (7 onglets)
+  - ForecastsSection (6 prévisions IA), ObjectivesSection (4 objectifs)
+  - ChartsSection (6 graphiques recharts), AiInsights (8 règles d'analyse)
+- **Fix TypeScript** — generics `useQuery<T>` retirés, casts `unknown` résolus — `npx tsc --noEmit` ✅ zéro erreur
+- **Commit `231bc83`** + `3a93849` + `bd436bb` + `acb3818` poussés sur GitHub
 
 ### In Progress
-- **(none)**
+- Intégration des anomalies de l'audit (JWT, RPCs SECURITY DEFINER, xlsx CVE, etc.)
 
 ### Blocked
 - **(none)**
 
 ## Latest (21/07/2026)
+- **Migration 00044 - Dépenses** — table `expenses` (10 catégories), RLS (admin CRUD, staff read-only), indexes — appliquée Supabase
+- **Page Dépenses `/expenses`** — CRUD, catégories, import/export Excel, filtres, résumé Total · nbr entrées, responsive
+- **Migration 00045 - Lien Salaires→Dépenses** — trigger `sync_salary_payment_to_expense`, colonnes `reference_type`/`reference_id` sur `expenses`, backfill — appliquée Supabase
+- **Migration 00046 - Rentabilité** — tables `investments` (9 catégories RLS) + `profitability_objectives` (monthly/yearly) — appliquée Supabase
 - **Refactor Assistant Comptable** — Architecture 8 modules : hook `useAccountingData` + 6 composants (KPI, Revenus, Dépenses, Historique, Journaux, Alertes) + page principale
 - **Agrégation multi-sources** — Revenus depuis `payments` (abonnements) + `pos_transactions` (ventes), dépenses depuis `expenses` (10 catégories)
 - **6 journaux comptables** — Ventes, Dépenses, Encaissements, Grand Livre, Balance Générale, TVA (19% collectée/déductible)
-- **Alertes automatiques** — 6 règles (dépenses >80% revenus, solde négatif, trésorerie, charge >40%, baisse revenus, situation saine)
-- **Analyse IA comptable** — Résumés journalier/hebdomadaire/mensuel + recommandations automatiques + tendance (hausse/baisse/stable)
-- **Exports CSV + impression** — Export transactions filtrées, impression responsive avec styles @media print
-- **i18n enrichi** — 80+ clés français/anglais pour tous les nouveaux composants
-- **Commit `231bc83`** poussé sur GitHub, aucune migration nécessaire (frontend uniquement)
-- **`/coach-mode` simplifié** — "Mode Coach" : version lecture seule pour coach et admin. Suppression de toutes les éditions inline.
-- **Sidebar** — "Portail Coach" → `/coach-portal` (admin/super_admin seulement). "Mode Coach" → `/coach-mode` (tout le monde). Filtrage par rôle via `adminOnly` sur les items.
-- **Bug import produits** — coercition cost/stock `Number()`, détection richText Excel (`richText.map(t=>t.text).join('')`), filtrage lignes sans nom
-- **Bug settings** — `<Form>` provider manquant ajouté dans `settings.tsx`
-- **Migration 00038** — `ALTER TABLE staff ADD COLUMN rate_per_member DECIMAL(10,2) DEFAULT 0`
-- **Migration 00039** — table `coach_salary_history` (snapshots mensuels) + RLS (admin CRUD, coach read-only own)
-- **Types** — `rate_per_member` ajouté à `staff`, `coach_salary_history` table type dans `supabase.ts`
-- **Migrations 00037–00040 appliquées remote** — coach_id dans members, rate_per_member, salary_history, brand/sku/reference
-- **Migration 00041 appliquée remote** — `coach_default_salary`, `coach_default_rate_per_member` dans `organizations`
-- **Nouvelle page `/rh`** — "Paie & RH" : liste des employés avec trois onglets (Salaire éditable, Paiements avec historique, Congés). Modification des salaires en inline pour admin/super_admin, lecture seule pour staff/coach. Sidebar groupe RH avec lien Paie.
-- **Migration 00043 appliquée remote** — table `staff_salary_payments` (staff_id, salary_amount, payment_date, status, notes) + RLS policies
+- **Module Rentabilité & Profitabilité `/rentabilite`** — 13 agents parallèles, 10 composants :
+  - `useProfitabilityData` hook : 11 requêtes Supabase + calculs ROI/marges/prévisions/insights
+  - KpiCards (6 KPI), RevenueSection (CA par source), ProfitSection (brut/net/marges)
+  - InvestmentSection (catégories + ROI), ProfitabilityBreakdown (7 onglets)
+  - ForecastsSection (6 prévisions IA), ObjectivesSection (4 objectifs)
+  - ChartsSection (6 graphiques recharts), AiInsights (8 règles d'analyse)
+- **Fix TypeScript** — generics `useQuery<T>` retirés, casts `unknown` résolus — `npx tsc --noEmit` ✅ zéro erreur
+- **Commit `231bc83`** + `3a93849` + `bd436bb` + `acb3818` poussés sur GitHub
 
 ## Key Decisions
 - `SECURITY DEFINER` retiré au lieu d'ajouter un check explicite dans `renew_subscription` : RLS s'applique automatiquement au caller
@@ -92,20 +103,16 @@
 - **Migration 00041** : `coach_default_salary` et `coach_default_rate_per_member` stockés dans `organizations` (paramètres globaux, pas per-coach)
 
 ## Next Steps
+- Corriger les anomalies d'audit (phase IMMÉDIAT : JWT EFs, RPCs authorization, xlsx CVE, recovery exposure, hash constant-time, payment-reminder fix)
 - Configurer les variables d'env Edge Functions (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
 - Remplacer `SUPABASE_PROJECT_REF` dans `00004_cron_jobs.sql` et activer les cron jobs
-- Ajouter un vrai système d'envoi d'email/SMS pour le recovery code
-- Upload photos membres (bucket Storage + UI)
-- Realtime Supabase `subscribe()` (attendances, notifications)
-- PDF facture pro structuré (logo, TVA, numéro séquentiel)
-- File d'attente UI pour mutations offline
-- Ajouter bouton "Encaisser l'abonnement" dans la fiche membre détail pour les subscriptions `pending_payment`
+- Vérifier que la migration 00046 est appliquée sur Supabase
 
 ## Critical Context
 - `npx tsc --noEmit` ✅ zéro erreur
 - `npx vitest --run` ✅ 38/38 tests (utils, recovery, auth)
 - `npx vite build` ✅ succès
-- 43 migrations (`00001`→`00043`) appliquées remote
+- 46 migrations (`00001`→`00046`) — 00044, 00045, 00046 appliquées remote
 - 3 Edge Functions (recovery, send-subscription-reminder, send-payment-reminder)
 - Le bucket `photos` Supabase Storage doit exister pour l'upload des avatars
 - RLS role-based : `admin`/`super_admin` peuvent tout modifier, `coach`/`staff` sont en lecture seule
@@ -113,6 +120,9 @@
 - Cache offline : localStorage clé `FITMANAGER_QUERY_CACHE` (maxAge 24h)
 - Mutations offline : mises en pause automatiquement, rejouées au retour réseau
 - **Workflow POS redirection** : création membre → sélection abonnement → redirection `/pos` → checkout → activation abonnement + enregistrement paiement en une transaction atomique DB
+- **Dépenses** : 10 catégories, synchro auto depuis salaires (trigger), CRUD complet
+- **Assistant Comptable** : agrège payments + pos_transactions + expenses (pas de saisie manuelle)
+- **Rentabilité** : ROI calculé depuis investissements, prévisions IA (moyenne mobile 3 mois), 6 graphiques recharts, insights IA
 
 ## Relevant Files
 - `supabase/migrations/00001_init.sql` → schéma initial (22 tables, RLS, trigger auto_assign_owner_role, user_roles INSERT policy restreinte)
@@ -124,6 +134,9 @@
 - `supabase/migrations/00007_renew_subscription.sql` → RPC renewal (SECURITY DEFINER retiré)
 - `supabase/migrations/00008_atomic_stock_decrement.sql` → RPC atomique POS
 - `supabase/migrations/00009_subscription_payment_flow.sql` → pending_payment status, RPCs create_member_with_pending_subscription / finalize_subscription_payment
+- `supabase/migrations/00044_expenses.sql` → table `expenses` (10 catégories, RLS)
+- `supabase/migrations/00045_link_salary_expenses.sql` → trigger sync salaires→dépenses
+- `supabase/migrations/00046_profitability.sql` → tables `investments` + `profitability_objectives`
 - `supabase/functions/recovery/index.ts` → Edge Function recovery
 - `supabase/functions/send-subscription-reminder/index.ts` → Edge Function rappel abonnement
 - `supabase/functions/send-payment-reminder/index.ts` → Edge Function rappel paiement
@@ -132,18 +145,26 @@
 - `src/stores/auth.tsx` → signUp, signOut, slug collision, useMemo ctxValue, user_roles.insert() supprimé
 - `src/stores/theme.tsx` → ThemeProvider avec useCallback/useMemo
 - `src/i18n/index.tsx` → I18nProvider avec useMemo ctxValue
-- `src/i18n/en.ts` → clés `pos.subscriptionRedirect`, `pos.pendingSubscription`, `pos.finalizeSubscription`, `pos.subscriptionPaymentDesc`, `nav.groups.rh`, `nav.payroll`, `rh.*`
-- `src/i18n/fr.ts` → clés `nav.groups.rh`, `nav.payroll`, `rh.*`
+- `src/i18n/en.ts` → clés `pos.subscriptionRedirect`, `pos.pendingSubscription`, `pos.finalizeSubscription`, `pos.subscriptionPaymentDesc`, `nav.groups.rh`, `nav.payroll`, `rh.*`, `expenses.*`, `assistantComptable.*`, `rentabilite.*`
+- `src/i18n/fr.ts` → clés `nav.groups.rh`, `nav.payroll`, `rh.*`, `expenses.*`, `assistantComptable.*`, `rentabilite.*`
 - `src/hooks/useNetworkStatus.ts` → hook isOnline/recovering
 - `src/components/ui/offline-banner.tsx` → bannière offline/online
 - `src/components/layout/navbar.tsx` → avatar/user branchés sur useAuth, locale debug supprimé
-- `src/components/layout/sidebar.tsx` → avatar/user branchés sur useAuth, logout onClick signOut, "Portail Coach" lien vers /coach-portal (adminOnly), "Mode Coach" vers /coach-mode, groupe RH avec lien Paie
+- `src/components/layout/sidebar.tsx` → avatar/user branchés sur useAuth, logout onClick signOut, items `expenses`, `assistantComptable`, `rentabilite` dans FINANCES & PROFITABILITY
+- `src/pages/expenses/expenses.tsx` → CRUD Dépenses complet
+- `src/pages/assistant-comptable/assistant-comptable.tsx` → tableau de bord comptable (8 modules)
+- `src/pages/assistant-comptable/hooks/useAccountingData.ts` → agrégation données comptables
+- `src/pages/assistant-comptable/components/*.tsx` → 6 composants (KPI, Revenus, Dépenses, Historique, Journaux, Alertes)
+- `src/pages/rentabilite/rentabilite.tsx` → page principale Rentabilité & Profitabilité
+- `src/pages/rentabilite/hooks/useProfitabilityData.ts` → agrégation + calculs ROI/marges/prévisions/insights (11 requêtes)
+- `src/pages/rentabilite/hooks/types.ts` → interfaces partagées
+- `src/pages/rentabilite/components/*.tsx` → 10 composants (KPI, CA, Profit, Investissements, Breakdown, Forecasts, Objectives, Charts, Insights)
 - `src/pages/coach-mode/coach-mode.tsx` → salaire coach lecture seule, gestion des adhérents, historique salaires
 - `src/pages/coach-portal/coach-portal.tsx` → configuration salaires admin : Fixe + Prime/adh éditables, sauvegarde dans `organizations`
 - `src/pages/members/members.tsx` → ajout sélecteur abonnement + date début dans le formulaire, RPC create_member_with_pending_subscription, redirection vers `/pos` avec state
 - `src/pages/pos/pos.tsx` → détection pendingSubscription, ajout article virtuel abonnement, finalize_subscription_payment RPC après checkout
 - `src/pages/rh/rh.tsx` → Paie & RH : staff list, 3 onglets (Salaire éditable, Paiements historique, Congés), mutations inline admin/super_admin
-- `src/types/supabase.ts` → member_subscriptions.status inclut `pending_payment`, StaffSalaryPayment type
+- `src/types/supabase.ts` → member_subscriptions.status inclut `pending_payment`, StaffSalaryPayment, Expense, Investment, ProfitabilityObjective
 
 ## Audit Findings (Juillet 2026 — 6 phases, 60+ anomalies)
 

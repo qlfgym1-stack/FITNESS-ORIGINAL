@@ -255,6 +255,18 @@ export interface Database {
         Update: { id?: string; organization_id?: string; name?: string; description?: string | null; duration_days?: number; price?: number; max_participants?: number | null; is_active?: boolean; created_at?: string }
         Relationships: []
       }
+      investments: {
+        Row: { id: string; organization_id: string; category: 'produits' | 'materiel' | 'travaux' | 'amenagement' | 'logiciels' | 'marketing' | 'publicite' | 'formation' | 'autres'; description: string; amount: number; investment_date: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; organization_id: string; category: 'produits' | 'materiel' | 'travaux' | 'amenagement' | 'logiciels' | 'marketing' | 'publicite' | 'formation' | 'autres'; description?: string; amount?: number; investment_date?: string; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; organization_id?: string; category?: 'produits' | 'materiel' | 'travaux' | 'amenagement' | 'logiciels' | 'marketing' | 'publicite' | 'formation' | 'autres'; description?: string; amount?: number; investment_date?: string; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      profitability_objectives: {
+        Row: { id: string; organization_id: string; period_type: 'monthly' | 'yearly'; period_label: string; revenue_target: number; profit_target: number; investment_budget: number; member_target: number; created_at: string; updated_at: string }
+        Insert: { id?: string; organization_id: string; period_type: 'monthly' | 'yearly'; period_label: string; revenue_target?: number; profit_target?: number; investment_budget?: number; member_target?: number; created_at?: string; updated_at?: string }
+        Update: { id?: string; organization_id?: string; period_type?: 'monthly' | 'yearly'; period_label?: string; revenue_target?: number; profit_target?: number; investment_budget?: number; member_target?: number; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
