@@ -188,7 +188,7 @@ export default function SignIn() {
             <div className="flex justify-center mb-4">
               <picture>
                 <source srcSet="/LOGO QLForiginal.webp" type="image/webp" />
-                <img src="/LOGO QLForiginal-opt.png" alt="FitManager" className="h-28 w-auto drop-shadow-xl" />
+                <img src="/LOGO QLForiginal-opt.png" alt="FitManagerPro" className="h-28 w-auto drop-shadow-xl" />
               </picture>
             </div>
 

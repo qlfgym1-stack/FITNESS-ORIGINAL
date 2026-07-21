@@ -176,8 +176,7 @@ export default function Recovery() {
               <Dumbbell className="h-5 w-5 text-white" />
             </div>
             <span className="text-lg font-bold">
-              <span className="text-gradient">FitManager</span>
-              <span className="ml-1 text-xs font-semibold text-muted-foreground tracking-widest uppercase">Pro</span>
+              <span className="text-gradient">FitManagerPro</span>
             </span>
           </div>
 

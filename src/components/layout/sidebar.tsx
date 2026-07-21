@@ -237,13 +237,10 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="flex h-14 items-center gap-2 border-b border-border/50 px-4"
       >
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20">
-          <Dumbbell className="h-4 w-4 text-white" />
-        </div>
-        <span className="text-lg font-bold tracking-tight">
-          <span className="text-gradient">FitManager</span>
-          <span className="ml-1 text-xs font-semibold text-muted-foreground tracking-wider uppercase">Pro</span>
-        </span>
+        <picture className="h-8 w-auto">
+          <source srcSet="/LOGO QLForiginal.webp" type="image/webp" />
+          <img src="/LOGO QLForiginal-opt.png" alt="FitManagerPro" className="h-8 w-auto" />
+        </picture>
       </motion.div>
       <ScrollArea className="flex-1 px-3 py-2">
         <nav className="space-y-1">

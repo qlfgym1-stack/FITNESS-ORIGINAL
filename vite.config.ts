@@ -26,8 +26,8 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'FitManager Pro - Gestion de Salle de Sport',
-        short_name: 'FitManager Pro',
+        name: 'FitManagerPro - Gestion de Salle de Sport',
+        short_name: 'FitManagerPro',
         description: 'Application de gestion complète pour salles de sport en Algérie',
         theme_color: '#10b981',
         background_color: '#0a0a0a',
