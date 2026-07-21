@@ -13,7 +13,9 @@ import {
   Package,
   Boxes,
   Truck,
+  TrendingUp,
   Dumbbell,
+  Sparkles,
   Wrench,
   Clock,
   BarChart3,
@@ -59,39 +61,57 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    groupKey: "main",
+    groupKey: "dashboard",
     items: [
       { key: "dashboard", icon: LayoutDashboard, path: "/dashboard" },
+    ],
+  },
+  {
+    groupKey: "checkin",
+    items: [
       { key: "pointage", icon: Clock, path: "/pointage" },
+      { key: "attendance", icon: ClipboardCheck, path: "/attendance" },
+    ],
+  },
+  {
+    groupKey: "members",
+    items: [
       { key: "members", icon: Users, path: "/members" },
       { key: "subscriptions", icon: CreditCard, path: "/subscriptions" },
-      { key: "payments", icon: Wallet, path: "/payments" },
+    ],
+  },
+  {
+    groupKey: "pos",
+    items: [
+      { key: "pos", icon: ShoppingCart, path: "/pos" },
       { key: "encaissement", icon: Wallet, path: "/encaissement" },
     ],
   },
   {
-    groupKey: "planning",
+    groupKey: "sport",
     items: [
       { key: "classes", icon: Calendar, path: "/classes" },
-      { key: "attendance", icon: ClipboardCheck, path: "/attendance" },
-      { key: "staff", icon: UsersRound, path: "/staff" },
+      { key: "staffPlanning", icon: Calendar, path: "/staff/planning" },
+      { key: "coachPortal", icon: GraduationCap, path: "/coach-portal", adminOnly: true },
+      { key: "coachMode", icon: GraduationCap, path: "/coach-mode" },
+      { key: "memberPortal", icon: GraduationCap, path: "/member-portal" },
     ],
   },
   {
-    groupKey: "sales",
+    groupKey: "stock",
     items: [
-      { key: "pos", icon: ShoppingCart, path: "/pos" },
       { key: "products", icon: Package, path: "/products" },
       { key: "inventory", icon: Boxes, path: "/inventory" },
       { key: "suppliers", icon: Truck, path: "/suppliers" },
     ],
   },
   {
-    groupKey: "materiel",
+    groupKey: "equipment",
     items: [
       { key: "materiel", icon: Wrench, path: "/materiel" },
+      { key: "equipment", icon: Wrench, path: "/equipment" },
       { key: "reservations", icon: Clock, path: "/equipment/reservations" },
-      { key: "reports", icon: BarChart3, path: "/reports" },
+      { key: "equipmentReport", icon: BarChart3, path: "/equipment/report" },
     ],
   },
   {
@@ -102,11 +122,38 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    groupKey: "portal",
+    groupKey: "hr",
     items: [
-      { key: "memberPortal", icon: GraduationCap, path: "/coach-portal", adminOnly: true },
-      { key: "coachMode", icon: GraduationCap, path: "/coach-mode" },
-      { key: "display", icon: Monitor, path: "/display" },
+      { key: "staff", icon: UsersRound, path: "/staff" },
+      { key: "staffTimesheet", icon: Clock, path: "/staff/timesheet" },
+      { key: "staffLeaves", icon: Calendar, path: "/staff/leaves" },
+      { key: "payroll", icon: Wallet, path: "/rh" },
+    ],
+  },
+  {
+    groupKey: "finance",
+    items: [
+      { key: "reports", icon: Wallet, path: "/reports" },
+      { key: "payments", icon: Wallet, path: "/payments" },
+      { key: "expenses", icon: Wallet, path: "/expenses" },
+    ],
+  },
+  {
+    groupKey: "profitability",
+    items: [
+      { key: "reports", icon: TrendingUp, path: "/reports" },
+    ],
+  },
+  {
+    groupKey: "reports",
+    items: [
+      { key: "equipmentReport", icon: BarChart3, path: "/equipment/report" },
+    ],
+  },
+  {
+    groupKey: "marketing",
+    items: [
+      { key: "notifications", icon: Bell, path: "/notifications" },
     ],
   },
   {
@@ -115,14 +162,15 @@ const navGroups: NavGroup[] = [
       { key: "settings", icon: Settings, path: "/settings" },
       { key: "profile", icon: UserCog, path: "/profile" },
       { key: "gyms", icon: Building2, path: "/gyms" },
-      { key: "notifications", icon: Bell, path: "/notifications" },
       { key: "users", icon: Users, path: "/admin/users" },
+      { key: "corporate", icon: Briefcase, path: "/corporate" },
+      { key: "display", icon: Monitor, path: "/display" },
     ],
   },
   {
-    groupKey: "rh",
+    groupKey: "ai",
     items: [
-      { key: "payroll", icon: Wallet, path: "/rh" },
+      { key: "aiAssistant", icon: Sparkles, path: "/ai-assistant" },
     ],
   },
   {
@@ -130,16 +178,15 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "superAdmin", icon: ShieldCheck, path: "/super-admin" },
       { key: "licenses", icon: Key, path: "/licenses" },
-      { key: "corporate", icon: Briefcase, path: "/corporate" },
     ],
   },
 ]
 
 const VISIBLE_GROUPS: Record<string, string[]> = {
-  super_admin: navGroups.map(g => g.groupKey),
-  admin: ['main', 'planning', 'sales', 'materiel', 'access', 'portal', 'admin', 'rh'],
-  staff: ['main', 'planning'],
-  coach: ['main', 'planning', 'portal'],
+  super_admin: ['dashboard', 'checkin', 'members', 'pos', 'sport', 'stock', 'equipment', 'access', 'hr', 'finance', 'profitability', 'reports', 'marketing', 'admin', 'ai', 'superAdmin'],
+  admin: ['dashboard', 'checkin', 'members', 'pos', 'stock', 'equipment', 'access', 'hr', 'finance', 'profitability', 'reports', 'marketing', 'admin', 'ai'],
+  staff: ['dashboard', 'checkin', 'members', 'pos'],
+  coach: ['dashboard', 'checkin', 'members', 'pos', 'sport'],
 }
 
 function getTopRole(roles: { role: string }[]): string {
@@ -178,10 +225,7 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
   })
   useEffect(() => { localStorage.setItem('FITMANAGER_SIDEBAR_GROUPS', JSON.stringify(openGroups)) }, [openGroups])
 
-  const isActive = (path: string) => {
-    if (path === "/dashboard") return pathname === path
-    return pathname.startsWith(path) || pathname === path
-  }
+  const isActive = (path: string) => pathname === path
 
   const toggleGroup = (key: string) => {
     setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -200,7 +244,10 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
             {filteredGroups.map((group) => (
               <div key={group.groupKey} className="space-y-0.5">
                 {group.items.map((item) => (
-                  <motion.li key={item.path} whileHover={{ scale: 1.05 }} transition={{ duration: 0.15 }} className="list-none">
+                  <motion.li key={item.path} whileHover={{ scale: 1.03, x: 3 }} transition={{ type: "spring", damping: 15, stiffness: 200 }} className="relative list-none">
+                    {isActive(item.path) && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-primary to-amber-400 shadow-lg shadow-primary/30" />
+                    )}
                     <Link
                       to={item.path}
                       onClick={onNavClick}
@@ -220,7 +267,7 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
         </ScrollArea>
         <Separator />
         <div className="p-2">
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-8 w-8 ring-2 ring-primary/30 ring-offset-2 ring-offset-background">
             <AvatarImage src={profile?.avatar_url || ''} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
@@ -251,38 +298,42 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
             <div key={group.groupKey}>
               <button
                 onClick={() => toggleGroup(group.groupKey)}
-                className="flex w-full items-center justify-between rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                className="flex w-full items-center justify-between rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors"
               >
                 {t(`nav.groups.${group.groupKey}`)}
-                <ChevronDown
-                  className={cn(
-                    "h-3 w-3 transition-transform",
-                    openGroups[group.groupKey] ? "rotate-0" : "-rotate-90"
-                  )}
-                />
+                <motion.div
+                  animate={{ rotate: openGroups[group.groupKey] ? 0 : -90 }}
+                  transition={{ type: "spring", damping: 20, stiffness: 200 }}
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </motion.div>
               </button>
               {openGroups[group.groupKey] && (
                 <ul className="space-y-0.5 mt-0.5">
                   {group.items.map((item) => (
                     <motion.li
                       key={item.path}
-                      whileHover={{ scale: 1.05 }}
-                      transition={{ duration: 0.15 }}
+                      whileHover={{ scale: 1.03, x: 3 }}
+                      transition={{ type: "spring", damping: 15, stiffness: 200 }}
+                      className="relative"
                     >
-                      <Link
-                        to={item.path}
-                        onClick={onNavClick}
-                        className={cn(
-                          "flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                          isActive(item.path)
-                            ? "bg-accent text-accent-foreground"
-                            : "text-muted-foreground"
-                        )}
-                      >
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        {t(`nav.${item.key}`)}
-                      </Link>
-                    </motion.li>
+                      {isActive(item.path) && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-primary to-amber-400 shadow-lg shadow-primary/30" />
+                      )}
+                    <Link
+                      to={item.path}
+                      onClick={onNavClick}
+                      className={cn(
+                        "flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                        isActive(item.path)
+                          ? "bg-accent text-accent-foreground"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      {t(`nav.${item.key}`)}
+                    </Link>
+                  </motion.li>
                   ))}
                 </ul>
               )}
@@ -293,7 +344,7 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
       <Separator />
       <div className="p-3">
         <div className="flex items-center gap-3 rounded-md px-2 py-1.5">
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-8 w-8 ring-2 ring-primary/30 ring-offset-2 ring-offset-background">
             <AvatarImage src={profile?.avatar_url || ''} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
@@ -323,7 +374,7 @@ export function Sidebar({ className }: SidebarProps) {
       animate={{ width: collapsed ? 64 : 240 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
       className={cn(
-        "hidden lg:flex lg:flex-col lg:border-r lg:bg-card relative",
+        "hidden lg:flex lg:flex-col lg:border-r bg-background/80 backdrop-blur-xl relative",
         collapsed ? "lg:w-16" : "lg:w-60",
         className
       )}
@@ -333,7 +384,7 @@ export function Sidebar({ className }: SidebarProps) {
         variant="ghost"
         size="icon"
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-16 h-6 w-6 rounded-full border bg-background shadow-sm z-20"
+        className="absolute -right-3 top-16 h-6 w-6 rounded-full border bg-background/80 backdrop-blur-sm shadow-sm z-20"
       >
         {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
       </Button>
@@ -351,7 +402,7 @@ export function MobileSidebar({ open, onOpenChange }: MobileSidebarProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side={locale === "ar" ? "right" : "left"} className="w-72 p-0">
+      <SheetContent side={locale === "ar" ? "right" : "left"} className="w-72 p-0 bg-background/90 backdrop-blur-xl">
         <SidebarNav onNavClick={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>

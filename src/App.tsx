@@ -48,6 +48,8 @@ const Profile = lazy(() => import('@/pages/settings/profile'))
 const SuperAdmin = lazy(() => import('@/pages/super-admin/super-admin'))
 const AdminUsers = lazy(() => import('@/pages/admin/users'))
 const Display = lazy(() => import('@/pages/display/display'))
+const Expenses = lazy(() => import('@/pages/expenses/expenses'))
+const AiAssistant = lazy(() => import('@/pages/display/display'))
 const Install = lazy(() => import('@/pages/install/install'))
 
 function Loading() {
@@ -133,6 +135,7 @@ export default function App() {
               <Route path="coach-mode" element={<PageTransition><Suspense fallback={<Loading />}><CoachMode /></Suspense></PageTransition>} />
               <Route path="coach-portal" element={<PageTransition><Suspense fallback={<Loading />}><CoachPortal /></Suspense></PageTransition>} />
               <Route path="rh" element={<PageTransition><Suspense fallback={<Loading />}><Rh /></Suspense></PageTransition>} />
+              <Route path="expenses" element={<PageTransition><Suspense fallback={<Loading />}><Expenses /></Suspense></PageTransition>} />
               <Route path="reports" element={<PageTransition><Suspense fallback={<Loading />}><Reports /></Suspense></PageTransition>} />
               <Route path="corporate" element={<PageTransition><Suspense fallback={<Loading />}><Corporate /></Suspense></PageTransition>} />
               <Route path="gyms" element={<PageTransition><Suspense fallback={<Loading />}><Gyms /></Suspense></PageTransition>} />
@@ -143,6 +146,7 @@ export default function App() {
               <Route path="super-admin" element={<PageTransition><Suspense fallback={<Loading />}><SuperAdmin /></Suspense></PageTransition>} />
               <Route path="admin/users" element={<PageTransition><Suspense fallback={<Loading />}><AdminUsers /></Suspense></PageTransition>} />
               <Route path="display" element={<PageTransition><Suspense fallback={<Loading />}><Display /></Suspense></PageTransition>} />
+              <Route path="ai-assistant" element={<PageTransition><Suspense fallback={<Loading />}><AiAssistant /></Suspense></PageTransition>} />
               <Route path="install" element={<PageTransition><Suspense fallback={<Loading />}><Install /></Suspense></PageTransition>} />
             </Route>
             <Route path="*" element={<NotFound />} />

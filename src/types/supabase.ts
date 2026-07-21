@@ -243,6 +243,12 @@ export interface Database {
         Update: { id?: string; user_id?: string; attempted_at?: string; success?: boolean; ip_address?: string | null; user_agent?: string | null }
         Relationships: []
       }
+      expenses: {
+        Row: { id: string; organization_id: string; category: 'rent' | 'salaries' | 'electricity' | 'water' | 'equipment' | 'maintenance' | 'marketing' | 'insurance' | 'taxes' | 'other'; description: string; amount: number; expense_date: string; created_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; organization_id: string; category: 'rent' | 'salaries' | 'electricity' | 'water' | 'equipment' | 'maintenance' | 'marketing' | 'insurance' | 'taxes' | 'other'; description: string; amount: number; expense_date?: string; created_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; organization_id?: string; category?: 'rent' | 'salaries' | 'electricity' | 'water' | 'equipment' | 'maintenance' | 'marketing' | 'insurance' | 'taxes' | 'other'; description?: string; amount?: number; expense_date?: string; created_by?: string | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
       wedding_programs: {
         Row: { id: string; organization_id: string; name: string; description: string | null; duration_days: number; price: number; max_participants: number | null; is_active: boolean; created_at: string }
         Insert: { id?: string; organization_id: string; name: string; description?: string | null; duration_days: number; price: number; max_participants?: number | null; is_active?: boolean; created_at?: string }
@@ -288,4 +294,5 @@ export type RfidCardAudit = Tables<'rfid_audit_log'>
 export type RfidReadLog = Tables<'rfid_read_logs'>
 export type TurnstileStatus = Tables<'turnstile_status'>
 export type ManualValidation = Tables<'manual_validations'>
+export type Expense = Tables<'expenses'>
 export type StaffSalaryPayment = Tables<'staff_salary_payments'>
