@@ -59,8 +59,15 @@
 ### Blocked
 - **(none)**
 
-## Latest (20/07/2026)
-- **Nouvelle page `/coach-portal`** — "Portail Coach" : configuration salaires des coachs (admin seulement). Deux champs globaux (Fixe + Prime/adh) éditables sauvegardés dans `organizations.coach_default_salary` et `coach_default_rate_per_member`. Plus de liste de coachs.
+## Latest (21/07/2026)
+- **Refactor Assistant Comptable** — Architecture 8 modules : hook `useAccountingData` + 6 composants (KPI, Revenus, Dépenses, Historique, Journaux, Alertes) + page principale
+- **Agrégation multi-sources** — Revenus depuis `payments` (abonnements) + `pos_transactions` (ventes), dépenses depuis `expenses` (10 catégories)
+- **6 journaux comptables** — Ventes, Dépenses, Encaissements, Grand Livre, Balance Générale, TVA (19% collectée/déductible)
+- **Alertes automatiques** — 6 règles (dépenses >80% revenus, solde négatif, trésorerie, charge >40%, baisse revenus, situation saine)
+- **Analyse IA comptable** — Résumés journalier/hebdomadaire/mensuel + recommandations automatiques + tendance (hausse/baisse/stable)
+- **Exports CSV + impression** — Export transactions filtrées, impression responsive avec styles @media print
+- **i18n enrichi** — 80+ clés français/anglais pour tous les nouveaux composants
+- **Commit `231bc83`** poussé sur GitHub, aucune migration nécessaire (frontend uniquement)
 - **`/coach-mode` simplifié** — "Mode Coach" : version lecture seule pour coach et admin. Suppression de toutes les éditions inline.
 - **Sidebar** — "Portail Coach" → `/coach-portal` (admin/super_admin seulement). "Mode Coach" → `/coach-mode` (tout le monde). Filtrage par rôle via `adminOnly` sur les items.
 - **Bug import produits** — coercition cost/stock `Number()`, détection richText Excel (`richText.map(t=>t.text).join('')`), filtrage lignes sans nom
