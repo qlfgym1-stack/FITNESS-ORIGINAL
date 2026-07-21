@@ -49,6 +49,7 @@ const SuperAdmin = lazy(() => import('@/pages/super-admin/super-admin'))
 const AdminUsers = lazy(() => import('@/pages/admin/users'))
 const Display = lazy(() => import('@/pages/display/display'))
 const Expenses = lazy(() => import('@/pages/expenses/expenses'))
+const AssistantComptable = lazy(() => import('@/pages/assistant-comptable/assistant-comptable'))
 const AiAssistant = lazy(() => import('@/pages/display/display'))
 const Install = lazy(() => import('@/pages/install/install'))
 
@@ -136,6 +137,7 @@ export default function App() {
               <Route path="coach-portal" element={<PageTransition><Suspense fallback={<Loading />}><CoachPortal /></Suspense></PageTransition>} />
               <Route path="rh" element={<PageTransition><Suspense fallback={<Loading />}><Rh /></Suspense></PageTransition>} />
               <Route path="expenses" element={<PageTransition><Suspense fallback={<Loading />}><Expenses /></Suspense></PageTransition>} />
+              <Route path="assistant-comptable" element={<PageTransition><Suspense fallback={<Loading />}><AssistantComptable /></Suspense></PageTransition>} />
               <Route path="reports" element={<PageTransition><Suspense fallback={<Loading />}><Reports /></Suspense></PageTransition>} />
               <Route path="corporate" element={<PageTransition><Suspense fallback={<Loading />}><Corporate /></Suspense></PageTransition>} />
               <Route path="gyms" element={<PageTransition><Suspense fallback={<Loading />}><Gyms /></Suspense></PageTransition>} />

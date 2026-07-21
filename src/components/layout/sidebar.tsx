@@ -136,6 +136,7 @@ const navGroups: NavGroup[] = [
       { key: "reports", icon: Wallet, path: "/reports" },
       { key: "payments", icon: Wallet, path: "/payments" },
       { key: "expenses", icon: Wallet, path: "/expenses" },
+      { key: "assistantComptable", icon: Wallet, path: "/assistant-comptable" },
     ],
   },
   {
