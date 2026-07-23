@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useRef, useEffect, useCallback } from "react"
 import { useT } from "@/i18n"
 import { useAuth } from "@/stores/auth"
 import { useSupabase } from "@/hooks/useSupabase"
@@ -18,7 +18,7 @@ import {
   Clock, UserCheck, CalendarDays,
   Download, Upload, CheckCircle2, XCircle, Loader2,
   CreditCard, QrCode, Camera, History, Settings, X,
-  Phone, Search,
+  Phone, LogOut, Activity, Keyboard, Zap, Search,
 } from "lucide-react"
 import { CameraCapture } from "@/components/ui/camera-capture"
 import { PageHeader } from "@/components/layout"
@@ -40,6 +40,15 @@ type PhoneMember = {
   last_name: string
   phone: string | null
   photo_url: string | null
+  member_subscriptions?: { status: string }[] | null
+}
+
+type ScanLog = {
+  id: number
+  time: string
+  name: string
+  action: string
+  type: "granted" | "denied"
 }
 
 function formatTime(d: string | null) {
@@ -62,14 +71,17 @@ export default function PointagePage() {
   const { organization, user, roles } = useAuth()
   const { toast } = useToast()
   const orgId = organization?.id
-  const userId = user?.id
 
   const today = new Date()
   const todayStr = today.toISOString().split("T")[0]
   const dateLabel = today.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
   const dateFormatted = today.toLocaleDateString("fr-FR")
 
-  const canManualValidate = roles?.some(r => r.role === "admin" || r.role === "super_admin" || r.role === "staff")
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   useRealtime({ table: "attendance", queryKey: ["pointage-today", orgId ?? "", todayStr], filter: orgId ? `organization_id=eq.${orgId}` : undefined })
 
@@ -77,7 +89,6 @@ export default function PointagePage() {
   const [rfidInput, setRfidInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
   const [scanResult, setScanResult] = useState<{ result: "granted" | "denied"; reason?: string; action?: string; memberName?: string } | null>(null)
-
   const [birthDate, setBirthDate] = useState("")
   const [codeRfid, setCodeRfid] = useState("")
   const [phone, setPhone] = useState("")
@@ -85,11 +96,12 @@ export default function PointagePage() {
   const [qrCameraActive, setQrCameraActive] = useState(false)
   const qrVideoRef = useRef<HTMLVideoElement>(null)
   const qrStreamRef = useRef<MediaStream | null>(null)
-
   const [activeCheckinTab, setActiveCheckinTab] = useState<"manual" | "phone">("manual")
   const [phoneQuery, setPhoneQuery] = useState("")
-
   const rfidInputRef = useRef<HTMLInputElement>(null)
+  const [scanLogs, setScanLogs] = useState<ScanLog[]>([])
+  const [scanLogCounter, setScanLogCounter] = useState(0)
+  const scanResultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { data: todayAttendance } = useQuery({
     queryKey: ["pointage-today", orgId, todayStr],
@@ -113,7 +125,7 @@ export default function PointagePage() {
       if (!orgId || !phoneQuery.trim()) return []
       const { data } = await supabase
         .from("members")
-        .select("id, first_name, last_name, phone, photo_url")
+        .select("id, first_name, last_name, phone, photo_url, member_subscriptions(status)")
         .eq("organization_id", orgId)
         .ilike("phone", `%${phoneQuery.trim()}%`)
         .limit(8)
@@ -183,28 +195,69 @@ export default function PointagePage() {
     ]
   )
 
+  const addScanLog = useCallback((name: string, action: string, type: "granted" | "denied") => {
+    setScanLogCounter(prev => prev + 1)
+    setScanLogs(prev => [
+      { id: scanLogCounter + 1, time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }), name, action, type },
+      ...prev,
+    ].slice(0, 10))
+  }, [scanLogCounter])
+
+  const focusRfid = useCallback(() => {
+    setTimeout(() => rfidInputRef.current?.focus(), 50)
+  }, [])
+
   const rfidMutation = useMutation({
     mutationFn: async (uid: string) => {
       const { data } = await (supabase.rpc as any)("rfid_check_in", {
         p_card_uid: uid,
         p_terminal: PAGE_TERMINAL,
       })
-      return data as { result: string; reason?: string; member_id?: string }
+      return data as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string }
     },
     onSuccess: (data) => {
-      setScanResult({ result: data.result === "granted" ? "granted" : "denied", reason: data.reason })
+      const isGranted = data.result === "granted"
+      setScanResult({
+        result: isGranted ? "granted" : "denied",
+        reason: data.reason,
+        action: data.action,
+        memberName: data.member_name,
+      })
       setIsScanning(false)
       setRfidInput("")
-      if (data.result === "granted") {
+      if (isGranted) {
         setCheckedInMemberId(data.member_id ?? null)
-        toast({ title: "Accès autorisé" })
+        const actionLabel = data.action === "check_out" ? "Départ enregistré" : "Entrée enregistrée"
+        addScanLog(data.member_name ?? "—", actionLabel, "granted")
+        toast({ title: actionLabel, description: data.member_name })
       } else {
+        addScanLog("Inconnu", data.reason ?? "Accès refusé", "denied")
         toast({ title: "Accès refusé", description: data.reason, variant: "destructive" })
       }
-      setTimeout(() => setScanResult(null), 3000)
+      if (scanResultTimeoutRef.current) clearTimeout(scanResultTimeoutRef.current)
+      scanResultTimeoutRef.current = setTimeout(() => setScanResult(null), 4000)
+      focusRfid()
     },
     onError: (err: Error) => {
       setIsScanning(false)
+      setRfidInput("")
+      toast({ title: "Erreur", description: err.message, variant: "destructive" })
+      focusRfid()
+    },
+  })
+
+  const checkoutMutation = useMutation({
+    mutationFn: async (attendanceId: string) => {
+      const { error } = await supabase
+        .from("attendance")
+        .update({ check_out: new Date().toISOString() })
+        .eq("id", attendanceId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast({ title: "Check-out effectué" })
+    },
+    onError: (err: Error) => {
       toast({ title: "Erreur", description: err.message, variant: "destructive" })
     },
   })
@@ -220,9 +273,11 @@ export default function PointagePage() {
     onSuccess: (data) => {
       if (data.result === "granted") {
         setCheckedInMemberId(data.member_id ?? null)
-        const actionLabel = data.action === "check_out" ? "Check-out effectué" : "Check-in effectué"
+        const actionLabel = data.action === "check_out" ? "Départ enregistré" : "Entrée enregistrée"
+        addScanLog(data.member_name ?? "—", actionLabel, "granted")
         toast({ title: actionLabel, description: data.member_name })
       } else {
+        addScanLog("Inconnu", data.reason ?? "Accès refusé", "denied")
         toast({ title: "Accès refusé", description: data.reason, variant: "destructive" })
       }
     },
@@ -231,12 +286,12 @@ export default function PointagePage() {
     },
   })
 
-  const handleRfidValidate = () => {
+  const handleRfidValidate = useCallback(() => {
     const uid = rfidInput.trim()
     if (!uid) return
     setIsScanning(true)
     rfidMutation.mutate(uid)
-  }
+  }, [rfidInput, rfidMutation])
 
   const handleFormValidate = () => {
     if (!codeRfid && !phone && !birthDate) {
@@ -260,7 +315,10 @@ export default function PointagePage() {
   }
 
   useEffect(() => {
-    return () => { stopQrCamera() }
+    return () => {
+      stopQrCamera()
+      if (scanResultTimeoutRef.current) clearTimeout(scanResultTimeoutRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -290,12 +348,17 @@ export default function PointagePage() {
     const handleGlobalKey = (e: KeyboardEvent) => {
       if (e.key === "F2") {
         e.preventDefault()
-        rfidInputRef.current?.focus()
+        focusRfid()
+      }
+      if (e.key === "Escape") {
+        setRfidInput("")
+        setScanResult(null)
+        focusRfid()
       }
     }
     window.addEventListener("keydown", handleGlobalKey)
     return () => window.removeEventListener("keydown", handleGlobalKey)
-  }, [])
+  }, [focusRfid])
 
   return (
     <div className="space-y-6">
@@ -304,10 +367,14 @@ export default function PointagePage() {
         actions={
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-sm bg-muted rounded-lg px-3 py-1.5">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="font-mono font-semibold text-lg tabular-nums">
+                {now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-sm bg-muted rounded-lg px-3 py-1.5">
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">{dateFormatted}</span>
-              <span className="text-muted-foreground">→</span>
-              <span className="font-medium">{dateFormatted}</span>
+              <span className="font-medium">{dateLabel}</span>
             </div>
             <Button variant="outline" size="sm" onClick={() => exportCsv()}>
               <Download className="mr-2 h-4 w-4" />
@@ -325,8 +392,8 @@ export default function PointagePage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
           <CardContent className="pt-6 space-y-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-2">
@@ -336,7 +403,7 @@ export default function PointagePage() {
               <div className="flex gap-2">
                 <Input
                   ref={rfidInputRef}
-                  placeholder="QLF:123 ou QLF-..."
+                  placeholder="Scannez ou tapez le code..."
                   value={rfidInput}
                   onChange={e => setRfidInput(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter") handleRfidValidate() }}
@@ -351,14 +418,34 @@ export default function PointagePage() {
                   {isScanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
                 </Button>
               </div>
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Keyboard className="h-3 w-3" />
+                <span><kbd className="px-1 py-0.5 bg-muted rounded text-[9px] font-mono">F2</kbd> Focus · <kbd className="px-1 py-0.5 bg-muted rounded text-[9px] font-mono">Esc</kbd> Effacer</span>
+              </div>
             </div>
 
             {scanResult && (
-              <div className={`flex items-center gap-2 text-sm p-3 rounded-lg ${
-                scanResult.result === "granted" ? "bg-success/10 text-success border border-success/20" : "bg-destructive/10 text-destructive border border-destructive/20"
+              <div className={`flex items-center gap-3 p-3 rounded-lg border transition-all animate-in fade-in duration-200 ${
+                scanResult.result === "granted"
+                  ? "bg-success/10 text-success border-success/30"
+                  : "bg-destructive/10 text-destructive border-destructive/30"
               }`}>
-                {scanResult.result === "granted" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                {scanResult.result === "granted" ? "Accès autorisé" : "Accès refusé" + (scanResult.reason ? ` : ${scanResult.reason}` : "")}
+                <div className={`rounded-full p-1.5 ${scanResult.result === "granted" ? "bg-success/20" : "bg-destructive/20"}`}>
+                  {scanResult.result === "granted"
+                    ? <CheckCircle2 className="h-5 w-5" />
+                    : <XCircle className="h-5 w-5" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">
+                    {scanResult.result === "granted" ? "Accès autorisé" : "Accès refusé"}
+                  </p>
+                  {scanResult.memberName && (
+                    <p className="text-xs opacity-80 truncate">{scanResult.memberName}</p>
+                  )}
+                  {scanResult.reason && (
+                    <p className="text-xs opacity-70">{scanResult.reason}</p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -376,7 +463,7 @@ export default function PointagePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-1">
           <CardContent className="pt-6 space-y-4">
             <div className="flex border-b">
               <button
@@ -437,12 +524,7 @@ export default function PointagePage() {
                       }
                     }}
                   />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setPhoneQuery("")}
-                    disabled={!phoneQuery}
-                  >
+                  <Button variant="outline" size="icon" onClick={() => setPhoneQuery("")} disabled={!phoneQuery}>
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
@@ -455,30 +537,38 @@ export default function PointagePage() {
 
                 {phoneMembers && phoneMembers.length > 0 && (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {phoneMembers.map(m => (
-                      <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                        <Avatar className="h-9 w-9">
-                          {m.photo_url ? <AvatarImage src={m.photo_url} /> : null}
-                          <AvatarFallback>{getInitials(m.first_name, m.last_name)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{toUpper(`${m.first_name} ${m.last_name}`)}</p>
-                          <p className="text-xs text-muted-foreground">{m.phone}</p>
+                    {phoneMembers.map(m => {
+                      const hasActiveSub = m.member_subscriptions?.some(s => s.status === "active" || s.status === "trial")
+                      return (
+                        <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                          <Avatar className="h-9 w-9">
+                            {m.photo_url ? <AvatarImage src={m.photo_url} /> : null}
+                            <AvatarFallback>{getInitials(m.first_name, m.last_name)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm">{toUpper(`${m.first_name} ${m.last_name}`)}</p>
+                              <Badge variant={hasActiveSub ? "default" : "secondary"} className="text-[9px] px-1 py-0 h-3.5">
+                                {hasActiveSub ? "Actif" : "Inactif"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{m.phone}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => handlePhoneCheckIn(m.id)}
+                            disabled={phoneCheckInMutation.isPending}
+                          >
+                            {phoneCheckInMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4 mr-1" />
+                            )}
+                            Check-in
+                          </Button>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handlePhoneCheckIn(m.id)}
-                          disabled={phoneCheckInMutation.isPending}
-                        >
-                          {phoneCheckInMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4 mr-1" />
-                          )}
-                          Check-in
-                        </Button>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
 
@@ -487,6 +577,35 @@ export default function PointagePage() {
                     Aucun membre trouvé avec ce numéro
                   </p>
                 )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1">
+          <CardContent className="pt-6 space-y-3">
+            <h3 className="text-sm font-medium flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              Activité récente
+            </h3>
+            {scanLogs.length === 0 ? (
+              <div className="text-center py-8">
+                <Zap className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                <p className="text-xs text-muted-foreground">Aucun scan récent</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                {scanLogs.map(log => (
+                  <div key={log.id} className={`flex items-center gap-2 p-2 rounded text-xs ${
+                    log.type === "granted" ? "bg-success/5" : "bg-destructive/5"
+                  }`}>
+                    <span className="text-muted-foreground font-mono shrink-0">{log.time}</span>
+                    <span className="flex-1 truncate font-medium">{log.name}</span>
+                    {log.type === "granted"
+                      ? <CheckCircle2 className="h-3 w-3 text-success shrink-0" />
+                      : <XCircle className="h-3 w-3 text-destructive shrink-0" />}
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
@@ -565,12 +684,15 @@ export default function PointagePage() {
           </div>
 
           <div className="flex items-center gap-2 mb-4">
-            <Input
-              placeholder="Rechercher..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="flex-1"
-            />
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher un membre..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
             {searchQuery && (
               <Button variant="outline" size="icon" onClick={() => { setSearchQuery(""); setPage(1) }} title="Reset filters">
                 <X className="h-4 w-4" />
@@ -586,7 +708,7 @@ export default function PointagePage() {
           ) : (
             <div className="space-y-2">
               {paginatedAttendance.map(a => (
-                <div key={a.id} className="flex items-center gap-4 p-3 rounded-lg border bg-card">
+                <div key={a.id} className="flex items-center gap-4 p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors">
                   <Avatar className="h-9 w-9">
                     {a.member?.photo_url ? <AvatarImage src={a.member.photo_url} /> : null}
                     <AvatarFallback>{getInitials(a.member?.first_name ?? "", a.member?.last_name ?? "")}</AvatarFallback>
@@ -597,12 +719,23 @@ export default function PointagePage() {
                       Arrivée: {formatTime(a.check_in)} · Départ: {formatTime(a.check_out)}
                     </p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <Badge variant={a.check_out ? "secondary" : "default"} className="text-[10px]">
-                      {a.check_out ? "Terminé" : "En cours"}
-                    </Badge>
+                  <div className="flex items-center gap-3 shrink-0">
                     {computeStay(a) && (
-                      <p className="text-xs text-muted-foreground mt-1">{computeStay(a)}</p>
+                      <span className="text-xs text-muted-foreground">{computeStay(a)}</span>
+                    )}
+                    {!a.check_out ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                        onClick={() => checkoutMutation.mutate(a.id)}
+                        disabled={checkoutMutation.isPending}
+                      >
+                        <LogOut className="h-3.5 w-3.5 mr-1" />
+                        Sortie
+                      </Button>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px]">Terminé</Badge>
                     )}
                   </div>
                 </div>
