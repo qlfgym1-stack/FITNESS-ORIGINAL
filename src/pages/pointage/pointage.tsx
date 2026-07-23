@@ -18,6 +18,7 @@ import {
   Clock, UserCheck, CalendarDays,
   Download, Upload, CheckCircle2, XCircle, Loader2,
   CreditCard, QrCode, Camera, History, Settings, X,
+  Phone, Search,
 } from "lucide-react"
 import { CameraCapture } from "@/components/ui/camera-capture"
 import { PageHeader } from "@/components/layout"
@@ -31,6 +32,14 @@ type AttendanceRow = {
   check_in: string | null
   check_out: string | null
   member: { first_name: string; last_name: string; photo_url: string | null } | null
+}
+
+type PhoneMember = {
+  id: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  photo_url: string | null
 }
 
 function formatTime(d: string | null) {
@@ -67,7 +76,7 @@ export default function PointagePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [rfidInput, setRfidInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
-  const [scanResult, setScanResult] = useState<{ result: "granted" | "denied"; reason?: string } | null>(null)
+  const [scanResult, setScanResult] = useState<{ result: "granted" | "denied"; reason?: string; action?: string; memberName?: string } | null>(null)
 
   const [birthDate, setBirthDate] = useState("")
   const [codeRfid, setCodeRfid] = useState("")
@@ -76,6 +85,11 @@ export default function PointagePage() {
   const [qrCameraActive, setQrCameraActive] = useState(false)
   const qrVideoRef = useRef<HTMLVideoElement>(null)
   const qrStreamRef = useRef<MediaStream | null>(null)
+
+  const [activeCheckinTab, setActiveCheckinTab] = useState<"manual" | "phone">("manual")
+  const [phoneQuery, setPhoneQuery] = useState("")
+
+  const rfidInputRef = useRef<HTMLInputElement>(null)
 
   const { data: todayAttendance } = useQuery({
     queryKey: ["pointage-today", orgId, todayStr],
@@ -91,6 +105,22 @@ export default function PointagePage() {
       return data ?? []
     },
     enabled: !!orgId,
+  })
+
+  const { data: phoneMembers, isFetching: isSearchingPhone } = useQuery({
+    queryKey: ["pointage-phone", orgId, phoneQuery],
+    queryFn: async () => {
+      if (!orgId || !phoneQuery.trim()) return []
+      const { data } = await supabase
+        .from("members")
+        .select("id, first_name, last_name, phone, photo_url")
+        .eq("organization_id", orgId)
+        .ilike("phone", `%${phoneQuery.trim()}%`)
+        .limit(8)
+        .returns<PhoneMember[]>()
+      return data ?? []
+    },
+    enabled: !!orgId && phoneQuery.trim().length >= 2,
   })
 
   const checkedInToday = todayAttendance ?? []
@@ -179,6 +209,28 @@ export default function PointagePage() {
     },
   })
 
+  const phoneCheckInMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      const { data } = await (supabase.rpc as any)("phone_check_in", {
+        p_phone: phoneMembers?.find(m => m.id === memberId)?.phone ?? "",
+        p_org_id: orgId,
+      })
+      return data as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string }
+    },
+    onSuccess: (data) => {
+      if (data.result === "granted") {
+        setCheckedInMemberId(data.member_id ?? null)
+        const actionLabel = data.action === "check_out" ? "Check-out effectué" : "Check-in effectué"
+        toast({ title: actionLabel, description: data.member_name })
+      } else {
+        toast({ title: "Accès refusé", description: data.reason, variant: "destructive" })
+      }
+    },
+    onError: (err: Error) => {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" })
+    },
+  })
+
   const handleRfidValidate = () => {
     const uid = rfidInput.trim()
     if (!uid) return
@@ -194,6 +246,10 @@ export default function PointagePage() {
     const uid = codeRfid.trim()
     if (uid) rfidMutation.mutate(uid)
     else toast({ title: "Code RFID requis pour le check-in", variant: "destructive" })
+  }
+
+  const handlePhoneCheckIn = (memberId: string) => {
+    phoneCheckInMutation.mutate(memberId)
   }
 
   function stopQrCamera() {
@@ -230,8 +286,16 @@ export default function PointagePage() {
     setQrCameraActive(false)
   }
 
-  const checkInCount = checkedInToday.length
-  const isPro = false
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (e.key === "F2") {
+        e.preventDefault()
+        rfidInputRef.current?.focus()
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKey)
+    return () => window.removeEventListener("keydown", handleGlobalKey)
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -247,15 +311,15 @@ export default function PointagePage() {
             </div>
             <Button variant="outline" size="sm" onClick={() => exportCsv()}>
               <Download className="mr-2 h-4 w-4" />
-              EXPORT
+              Export
             </Button>
             <Button variant="outline" size="sm">
               <Upload className="mr-2 h-4 w-4" />
-              IMPORT
+              Import
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={qrCameraActive ? handleQrCameraClose : startQrCamera}>
               <QrCode className="mr-2 h-4 w-4" />
-              QR CODE
+              QR Code
             </Button>
           </div>
         }
@@ -263,30 +327,48 @@ export default function PointagePage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Check-in manuel</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6 space-y-4">
             <div className="space-y-2">
-              <Label>Date naissance</Label>
-              <Input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Scanner badge RFID
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  ref={rfidInputRef}
+                  placeholder="QLF:123 ou QLF-..."
+                  value={rfidInput}
+                  onChange={e => setRfidInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") handleRfidValidate() }}
+                  className="font-mono text-lg h-12"
+                  autoFocus
+                />
+                <Button
+                  onClick={handleRfidValidate}
+                  disabled={!rfidInput.trim() || isScanning}
+                  className="h-12 px-6"
+                >
+                  {isScanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Code RFID</Label>
-              <Input placeholder="QLF:123 ou QLF-..." value={codeRfid} onChange={e => setCodeRfid(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleFormValidate() }} />
-            </div>
-            <div className="space-y-2">
-              <Label>Téléphone</Label>
-              <Input placeholder="05XX XX XX XX" value={phone} onChange={e => setPhone(e.target.value)} />
-            </div>
-            <Button className="w-full" onClick={handleFormValidate} disabled={isScanning}>
-              {isScanning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCheck className="mr-2 h-4 w-4" />}
-              VALIDER
-            </Button>
+
+            {scanResult && (
+              <div className={`flex items-center gap-2 text-sm p-3 rounded-lg ${
+                scanResult.result === "granted" ? "bg-success/10 text-success border border-success/20" : "bg-destructive/10 text-destructive border border-destructive/20"
+              }`}>
+                {scanResult.result === "granted" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                {scanResult.result === "granted" ? "Accès autorisé" : "Accès refusé" + (scanResult.reason ? ` : ${scanResult.reason}` : "")}
+              </div>
+            )}
+
             <div className="pt-3 border-t">
-              <p className="text-xs text-muted-foreground mb-2">Photo adhérent</p>
+              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                <Camera className="h-3 w-3" />
+                Check-ins du jour : {insideCount}
+              </p>
               {checkedInMemberId ? (
-                <CameraCapture orgId={orgId!} memberId={checkedInMemberId} onPhotoUploaded={(url) => toast({ title: "Photo enregistrée" })} />
+                <CameraCapture orgId={orgId!} memberId={checkedInMemberId} onPhotoUploaded={() => toast({ title: "Photo enregistrée" })} />
               ) : (
                 <p className="text-xs text-muted-foreground">Effectuez un check-in pour prendre une photo</p>
               )}
@@ -295,6 +377,124 @@ export default function PointagePage() {
         </Card>
 
         <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex border-b">
+              <button
+                className={`flex-1 pb-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeCheckinTab === "manual"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setActiveCheckinTab("manual")}
+              >
+                Manuel
+              </button>
+              <button
+                className={`flex-1 pb-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeCheckinTab === "phone"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setActiveCheckinTab("phone")}
+              >
+                <Phone className="inline h-3.5 w-3.5 mr-1" />
+                Par téléphone
+              </button>
+            </div>
+
+            {activeCheckinTab === "manual" ? (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Date naissance</Label>
+                  <Input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Code RFID</Label>
+                  <Input placeholder="QLF:123 ou QLF-..." value={codeRfid} onChange={e => setCodeRfid(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleFormValidate() }} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Téléphone</Label>
+                  <Input placeholder="05XX XX XX XX" value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleFormValidate() }} />
+                </div>
+                <Button className="w-full" onClick={handleFormValidate} disabled={isScanning}>
+                  {isScanning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCheck className="mr-2 h-4 w-4" />}
+                  VALIDER
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Saisissez le numéro de téléphone du membre (recherche partielle)
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ex: 0678, 0551, 06..."
+                    value={phoneQuery}
+                    onChange={e => setPhoneQuery(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && phoneMembers && phoneMembers.length === 1) {
+                        handlePhoneCheckIn(phoneMembers[0].id)
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setPhoneQuery("")}
+                    disabled={!phoneQuery}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {isSearchingPhone && (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+
+                {phoneMembers && phoneMembers.length > 0 && (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {phoneMembers.map(m => (
+                      <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                        <Avatar className="h-9 w-9">
+                          {m.photo_url ? <AvatarImage src={m.photo_url} /> : null}
+                          <AvatarFallback>{getInitials(m.first_name, m.last_name)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{toUpper(`${m.first_name} ${m.last_name}`)}</p>
+                          <p className="text-xs text-muted-foreground">{m.phone}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handlePhoneCheckIn(m.id)}
+                          disabled={phoneCheckInMutation.isPending}
+                        >
+                          {phoneCheckInMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 mr-1" />
+                          )}
+                          Check-in
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {phoneQuery.trim().length >= 2 && !isSearchingPhone && phoneMembers && phoneMembers.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    Aucun membre trouvé avec ce numéro
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {qrCameraActive && (
+        <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <QrCode className="h-4 w-4" />
@@ -302,49 +502,26 @@ export default function PointagePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="relative rounded-lg overflow-hidden bg-black">
+              <video ref={qrVideoRef} autoPlay playsInline muted className="w-full h-48 object-cover" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Problème de caméra ? Saisissez le code QR manuellement :
+            </p>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => toast({ title: "QR Code généré" })}>
-                <QrCode className="mr-2 h-4 w-4" />
-                Generer QR
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={qrCameraActive ? handleQrCameraClose : startQrCamera}>
-                <Camera className="mr-2 h-4 w-4" />
-                {qrCameraActive ? "Fermer caméra" : "Activer la caméra"}
+              <Input
+                placeholder="IGC:123 ou INF-..."
+                value={rfidInput}
+                onChange={e => setRfidInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleRfidValidate() }}
+              />
+              <Button onClick={handleRfidValidate} disabled={!rfidInput.trim() || isScanning}>
+                {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               </Button>
             </div>
-            {qrCameraActive && (
-              <div className="relative rounded-lg overflow-hidden bg-black">
-                <video ref={qrVideoRef} autoPlay playsInline muted className="w-full h-48 object-cover" />
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Probleme de camera ? Saisissez le code QR manuellement :
-            </p>
-            <Input
-              placeholder="IGC:123 ou INF-..."
-              value={rfidInput}
-              onChange={e => setRfidInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") handleRfidValidate() }}
-            />
-            {scanResult && (
-              <div className={`flex items-center gap-2 text-sm p-2 rounded ${
-                scanResult.result === "granted" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
-              }`}>
-                {scanResult.result === "granted" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                {scanResult.result === "granted" ? "Accès autorisé" : "Accès refusé" + (scanResult.reason ? ` : ${scanResult.reason}` : "")}
-              </div>
-            )}
-            <Button
-              className="w-full"
-              onClick={handleRfidValidate}
-              disabled={!rfidInput.trim() || isScanning}
-            >
-              {isScanning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-              VALIDER
-            </Button>
           </CardContent>
         </Card>
-      </div>
+      )}
 
       <Card>
         <CardHeader className="pb-3">
