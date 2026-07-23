@@ -273,7 +273,7 @@ export default function PointagePage() {
             </div>
             <div className="space-y-2">
               <Label>Code RFID</Label>
-              <Input placeholder="QLF:123 ou QLF-..." value={codeRfid} onChange={e => setCodeRfid(e.target.value)} />
+              <Input placeholder="QLF:123 ou QLF-..." value={codeRfid} onChange={e => setCodeRfid(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleFormValidate() }} />
             </div>
             <div className="space-y-2">
               <Label>Téléphone</Label>
