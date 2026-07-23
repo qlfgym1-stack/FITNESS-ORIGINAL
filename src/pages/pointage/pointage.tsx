@@ -19,6 +19,7 @@ import {
   Download, Upload, CheckCircle2, XCircle, Loader2,
   CreditCard, QrCode, Camera, History, Settings, X,
   Phone, LogOut, Activity, Keyboard, Zap, Search,
+  Timer,
 } from "lucide-react"
 import { CameraCapture } from "@/components/ui/camera-capture"
 import { PageHeader } from "@/components/layout"
@@ -43,12 +44,22 @@ type PhoneMember = {
   member_subscriptions?: { status: string }[] | null
 }
 
+type ScanLogMember = {
+  name: string
+  photo_url: string | null
+  subscription_name: string | null
+  end_date: string | null
+  days_remaining: number | null
+  max_classes: number | null
+}
+
 type ScanLog = {
   id: number
   time: string
-  name: string
   action: string
   type: "granted" | "denied"
+  member: ScanLogMember | null
+  reason?: string
 }
 
 function formatTime(d: string | null) {
@@ -65,6 +76,11 @@ function computeStay(a: { check_in: string | null; check_out: string | null }) {
   return `${hrs}h ${mins % 60}min`
 }
 
+function daysBetween(dateStr: string) {
+  const d = new Date(dateStr).getTime() - Date.now()
+  return Math.ceil(d / 86400000)
+}
+
 export default function PointagePage() {
   const t = useT()
   const supabase = useSupabase()
@@ -75,7 +91,6 @@ export default function PointagePage() {
   const today = new Date()
   const todayStr = today.toISOString().split("T")[0]
   const dateLabel = today.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
-  const dateFormatted = today.toLocaleDateString("fr-FR")
 
   const [now, setNow] = useState(new Date())
   useEffect(() => {
@@ -100,7 +115,7 @@ export default function PointagePage() {
   const [phoneQuery, setPhoneQuery] = useState("")
   const rfidInputRef = useRef<HTMLInputElement>(null)
   const [scanLogs, setScanLogs] = useState<ScanLog[]>([])
-  const [scanLogCounter, setScanLogCounter] = useState(0)
+  const scanLogIdRef = useRef(0)
   const scanResultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { data: todayAttendance } = useQuery({
@@ -195,13 +210,60 @@ export default function PointagePage() {
     ]
   )
 
-  const addScanLog = useCallback((name: string, action: string, type: "granted" | "denied") => {
-    setScanLogCounter(prev => prev + 1)
+  const fetchMemberInfo = useCallback(async (memberId: string): Promise<ScanLogMember | null> => {
+    if (!orgId) return null
+    try {
+      const { data: member } = await supabase
+        .from("members")
+        .select("first_name, last_name, photo_url")
+        .eq("id", memberId)
+        .single()
+
+      if (!member) return null
+
+      const subRes = await supabase
+        .from("member_subscriptions")
+        .select("end_date, status, subscription_type:subscription_types(name, max_classes)")
+        .eq("member_id", memberId)
+        .eq("organization_id", orgId)
+        .in("status", ["active"])
+        .order("end_date", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const sub = subRes.data as unknown as { end_date: string; status: string; subscription_type: { name: string; max_classes: number | null } | null } | null
+
+      const endDate = sub?.end_date ?? null
+      const daysLeft = endDate ? daysBetween(endDate) : null
+      const subType = sub?.subscription_type ?? null
+
+      return {
+        name: `${member.first_name} ${member.last_name}`,
+        photo_url: member.photo_url,
+        subscription_name: subType?.name ?? null,
+        end_date: endDate,
+        days_remaining: daysLeft,
+        max_classes: subType?.max_classes ?? null,
+      }
+    } catch {
+      return null
+    }
+  }, [orgId, supabase])
+
+  const addScanLog = useCallback((member: ScanLogMember | null, action: string, type: "granted" | "denied", reason?: string) => {
+    scanLogIdRef.current += 1
     setScanLogs(prev => [
-      { id: scanLogCounter + 1, time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }), name, action, type },
+      {
+        id: scanLogIdRef.current,
+        time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        action,
+        type,
+        member,
+        reason,
+      },
       ...prev,
     ].slice(0, 10))
-  }, [scanLogCounter])
+  }, [])
 
   const focusRfid = useCallback(() => {
     setTimeout(() => rfidInputRef.current?.focus(), 50)
@@ -215,7 +277,7 @@ export default function PointagePage() {
       })
       return data as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string }
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const isGranted = data.result === "granted"
       setScanResult({
         result: isGranted ? "granted" : "denied",
@@ -225,15 +287,25 @@ export default function PointagePage() {
       })
       setIsScanning(false)
       setRfidInput("")
+
+      let memberInfo: ScanLogMember | null = null
+      if (isGranted && data.member_id) {
+        memberInfo = await fetchMemberInfo(data.member_id)
+        setCheckedInMemberId(data.member_id)
+      }
+
+      const actionLabel = isGranted
+        ? (data.action === "check_out" ? "Départ enregistré" : "Entrée enregistrée")
+        : (data.reason ?? "Accès refusé")
+
+      addScanLog(memberInfo, actionLabel, isGranted ? "granted" : "denied", isGranted ? undefined : data.reason)
+
       if (isGranted) {
-        setCheckedInMemberId(data.member_id ?? null)
-        const actionLabel = data.action === "check_out" ? "Départ enregistré" : "Entrée enregistrée"
-        addScanLog(data.member_name ?? "—", actionLabel, "granted")
         toast({ title: actionLabel, description: data.member_name })
       } else {
-        addScanLog("Inconnu", data.reason ?? "Accès refusé", "denied")
         toast({ title: "Accès refusé", description: data.reason, variant: "destructive" })
       }
+
       if (scanResultTimeoutRef.current) clearTimeout(scanResultTimeoutRef.current)
       scanResultTimeoutRef.current = setTimeout(() => setScanResult(null), 4000)
       focusRfid()
@@ -241,6 +313,7 @@ export default function PointagePage() {
     onError: (err: Error) => {
       setIsScanning(false)
       setRfidInput("")
+      addScanLog(null, "Erreur", "denied", err.message)
       toast({ title: "Erreur", description: err.message, variant: "destructive" })
       focusRfid()
     },
@@ -248,13 +321,15 @@ export default function PointagePage() {
 
   const checkoutMutation = useMutation({
     mutationFn: async (attendanceId: string) => {
+      const row = checkedInToday.find(a => a.id === attendanceId)
       const { error } = await supabase
         .from("attendance")
         .update({ check_out: new Date().toISOString() })
         .eq("id", attendanceId)
       if (error) throw error
+      return { memberName: row?.member ? `${row.member.first_name} ${row.member.last_name}` : null }
     },
-    onSuccess: () => {
+    onSuccess: (_data) => {
       toast({ title: "Check-out effectué" })
     },
     onError: (err: Error) => {
@@ -268,16 +343,21 @@ export default function PointagePage() {
         p_phone: phoneMembers?.find(m => m.id === memberId)?.phone ?? "",
         p_org_id: orgId,
       })
-      return data as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string }
+      return { ...data, _memberId: memberId } as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string; _memberId: string }
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      let memberInfo: ScanLogMember | null = null
+      if (data.result === "granted" && data._memberId) {
+        memberInfo = await fetchMemberInfo(data._memberId)
+        setCheckedInMemberId(data.member_id ?? data._memberId)
+      }
+
       if (data.result === "granted") {
-        setCheckedInMemberId(data.member_id ?? null)
         const actionLabel = data.action === "check_out" ? "Départ enregistré" : "Entrée enregistrée"
-        addScanLog(data.member_name ?? "—", actionLabel, "granted")
+        addScanLog(memberInfo, actionLabel, "granted")
         toast({ title: actionLabel, description: data.member_name })
       } else {
-        addScanLog("Inconnu", data.reason ?? "Accès refusé", "denied")
+        addScanLog(null, data.reason ?? "Accès refusé", "denied")
         toast({ title: "Accès refusé", description: data.reason, variant: "destructive" })
       }
     },
@@ -374,7 +454,7 @@ export default function PointagePage() {
             </div>
             <div className="flex items-center gap-2 text-sm bg-muted rounded-lg px-3 py-1.5">
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">{dateLabel}</span>
+              <span className="font-medium capitalize">{dateLabel}</span>
             </div>
             <Button variant="outline" size="sm" onClick={() => exportCsv()}>
               <Download className="mr-2 h-4 w-4" />
@@ -594,16 +674,61 @@ export default function PointagePage() {
                 <p className="text-xs text-muted-foreground">Aucun scan récent</p>
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-56 overflow-y-auto">
+              <div className="space-y-2 max-h-[480px] overflow-y-auto">
                 {scanLogs.map(log => (
-                  <div key={log.id} className={`flex items-center gap-2 p-2 rounded text-xs ${
-                    log.type === "granted" ? "bg-success/5" : "bg-destructive/5"
+                  <div key={log.id} className={`p-2.5 rounded-lg border transition-colors ${
+                    log.type === "granted" ? "bg-success/5 border-success/20" : "bg-destructive/5 border-destructive/20"
                   }`}>
-                    <span className="text-muted-foreground font-mono shrink-0">{log.time}</span>
-                    <span className="flex-1 truncate font-medium">{log.name}</span>
-                    {log.type === "granted"
-                      ? <CheckCircle2 className="h-3 w-3 text-success shrink-0" />
-                      : <XCircle className="h-3 w-3 text-destructive shrink-0" />}
+                    <div className="flex items-start gap-2.5">
+                      {log.member ? (
+                        <Avatar className="h-8 w-8 shrink-0">
+                          {log.member.photo_url ? <AvatarImage src={log.member.photo_url} /> : null}
+                          <AvatarFallback className="text-[10px]">{getInitials(log.member.name.split(" ")[0] ?? "", log.member.name.split(" ").slice(1).join(" ") ?? "")}</AvatarFallback>
+                        </Avatar>
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                          <XCircle className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-xs truncate">
+                            {log.member?.name ?? "Inconnu"}
+                          </p>
+                          {log.type === "granted"
+                            ? <CheckCircle2 className="h-3 w-3 text-success shrink-0" />
+                            : <XCircle className="h-3 w-3 text-destructive shrink-0" />}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{log.action}</p>
+                        {log.member?.subscription_name && (
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal">
+                              {log.member.subscription_name}
+                            </Badge>
+                            {log.member.end_date && (
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                <Timer className="h-2.5 w-2.5" />
+                                {log.member.days_remaining !== null && log.member.days_remaining > 0
+                                  ? `${log.member.days_remaining}j restants`
+                                  : log.member.days_remaining !== null && log.member.days_remaining <= 0
+                                    ? <span className="text-destructive font-medium">Expiré</span>
+                                    : `Exp: ${new Date(log.member.end_date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}`
+                                }
+                              </span>
+                            )}
+                            {log.member.max_classes != null && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {log.member.max_classes} séances
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {log.member === null && log.reason && (
+                          <p className="text-[10px] text-destructive mt-0.5">{log.reason}</p>
+                        )}
+                      </div>
+                      <span className="text-[9px] text-muted-foreground font-mono shrink-0">{log.time}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -649,7 +774,10 @@ export default function PointagePage() {
               <Clock className="h-5 w-5 text-primary" />
               Pointages du Jour
             </CardTitle>
-            <span className="text-sm text-muted-foreground capitalize">{dateLabel}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">{filteredToday.length} membre{filteredToday.length !== 1 ? "s" : ""}</span>
+              <span className="text-sm text-muted-foreground capitalize">{dateLabel}</span>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -707,39 +835,56 @@ export default function PointagePage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {paginatedAttendance.map(a => (
-                <div key={a.id} className="flex items-center gap-4 p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors">
-                  <Avatar className="h-9 w-9">
-                    {a.member?.photo_url ? <AvatarImage src={a.member.photo_url} /> : null}
-                    <AvatarFallback>{getInitials(a.member?.first_name ?? "", a.member?.last_name ?? "")}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{toUpper(`${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Arrivée: {formatTime(a.check_in)} · Départ: {formatTime(a.check_out)}
-                    </p>
+              {paginatedAttendance.map(a => {
+                const isInside = a.check_in && !a.check_out
+                return (
+                  <div key={a.id} className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${
+                    isInside ? "bg-primary/5 border-primary/20" : "bg-card hover:bg-accent/30"
+                  }`}>
+                    <Avatar className="h-9 w-9">
+                      {a.member?.photo_url ? <AvatarImage src={a.member.photo_url} /> : null}
+                      <AvatarFallback>{getInitials(a.member?.first_name ?? "", a.member?.last_name ?? "")}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{toUpper(`${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Arrivée: {formatTime(a.check_in)}{a.check_out ? ` · Départ: ${formatTime(a.check_out)}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {isInside && computeStay({ check_in: a.check_in, check_out: null }) && (
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {(() => {
+                            const diff = Date.now() - new Date(a.check_in!).getTime()
+                            const mins = Math.floor(diff / 60000)
+                            if (mins < 60) return `${mins}min`
+                            return `${Math.floor(mins / 60)}h${mins % 60 > 0 ? ` ${mins % 60}m` : ""}`
+                          })()}
+                        </span>
+                      )}
+                      {!a.check_out ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                          onClick={() => checkoutMutation.mutate(a.id)}
+                          disabled={checkoutMutation.isPending}
+                        >
+                          <LogOut className="h-3.5 w-3.5 mr-1" />
+                          Sortie
+                        </Button>
+                      ) : (
+                        <>
+                          {computeStay(a) && (
+                            <span className="text-xs text-muted-foreground font-mono">{computeStay(a)}</span>
+                          )}
+                          <Badge variant="secondary" className="text-[10px]">Terminé</Badge>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    {computeStay(a) && (
-                      <span className="text-xs text-muted-foreground">{computeStay(a)}</span>
-                    )}
-                    {!a.check_out ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                        onClick={() => checkoutMutation.mutate(a.id)}
-                        disabled={checkoutMutation.isPending}
-                      >
-                        <LogOut className="h-3.5 w-3.5 mr-1" />
-                        Sortie
-                      </Button>
-                    ) : (
-                      <Badge variant="secondary" className="text-[10px]">Terminé</Badge>
-                    )}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
           <Pagination page={page} totalPages={totalPages} totalItems={filteredToday.length} pageSize={20} onPageChange={setPage} />
