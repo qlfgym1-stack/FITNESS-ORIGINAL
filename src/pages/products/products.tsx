@@ -626,10 +626,10 @@ export default function ProductsPage() {
                             <SelectItem key={cat} value={cat}>{toUpper(cat)}</SelectItem>
                           ))}
                           <SelectItem value="snacks">Snacks</SelectItem>
-                          <SelectItem value="drinks">Drinks</SelectItem>
-                          <SelectItem value="supplements">Supplements</SelectItem>
-                          <SelectItem value="apparel">Apparel</SelectItem>
-                          <SelectItem value="equipment">Equipment</SelectItem>
+                          <SelectItem value="boissons">Boissons</SelectItem>
+                          <SelectItem value="complements">Compléments</SelectItem>
+                          <SelectItem value="vetements">Vêtements</SelectItem>
+                          <SelectItem value="equipement">Équipement</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormControl>

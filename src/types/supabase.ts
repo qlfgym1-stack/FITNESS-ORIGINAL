@@ -10,21 +10,21 @@ export interface Database {
         Relationships: []
       }
       user_roles: {
-        Row: { id: string; user_id: string; organization_id: string; role: 'admin' | 'super_admin' | 'coach' | 'staff'; created_at: string }
-        Insert: { id?: string; user_id: string; organization_id: string; role: 'admin' | 'super_admin' | 'coach' | 'staff'; created_at?: string }
-        Update: { id?: string; user_id?: string; organization_id?: string; role?: 'admin' | 'super_admin' | 'coach' | 'staff'; created_at?: string }
+        Row: { id: string; user_id: string; organization_id: string; role: 'admin' | 'coach' | 'staff'; created_at: string }
+        Insert: { id?: string; user_id: string; organization_id: string; role: 'admin' | 'coach' | 'staff'; created_at?: string }
+        Update: { id?: string; user_id?: string; organization_id?: string; role?: 'admin' | 'coach' | 'staff'; created_at?: string }
         Relationships: []
       }
       members: {
-        Row: { id: string; organization_id: string; first_name: string; last_name: string; email: string | null; phone: string | null; gender: string | null; birth_date: string | null; address: string | null; emergency_contact: string | null; emergency_phone: string | null; photo_url: string | null; status: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit: string | null; notes: string | null; created_at: string; updated_at: string; member_number: string | null; coach_id: string | null }
-        Insert: { id?: string; organization_id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null; coach_id?: string | null }
-        Update: { id?: string; organization_id?: string; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null; coach_id?: string | null }
+        Row: { id: string; organization_id: string; first_name: string; last_name: string; email: string | null; phone: string | null; gender: string | null; birth_date: string | null; address: string | null; emergency_contact: string | null; emergency_phone: string | null; photo_url: string | null; status: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit: string | null; notes: string | null; created_at: string; updated_at: string; member_number: string | null; coach_id: string | null; corporate_id: string | null }
+        Insert: { id?: string; organization_id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null; coach_id?: string | null; corporate_id?: string | null }
+        Update: { id?: string; organization_id?: string; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; gender?: string | null; birth_date?: string | null; address?: string | null; emergency_contact?: string | null; emergency_phone?: string | null; photo_url?: string | null; status?: 'active' | 'inactive' | 'suspended' | 'blocked'; last_visit?: string | null; notes?: string | null; created_at?: string; updated_at?: string; member_number?: string | null; coach_id?: string | null; corporate_id?: string | null }
         Relationships: []
       }
       subscription_types: {
-        Row: { id: string; organization_id: string; name: string; description: string | null; duration_days: number; price: number; max_classes: number | null; is_active: boolean; created_at: string }
-        Insert: { id?: string; organization_id: string; name: string; description?: string | null; duration_days: number; price: number; max_classes?: number | null; is_active?: boolean; created_at?: string }
-        Update: { id?: string; organization_id?: string; name?: string; description?: string | null; duration_days?: number; price?: number; max_classes?: number | null; is_active?: boolean; created_at?: string }
+        Row: { id: string; organization_id: string; name: string; description: string | null; duration_days: number; price: number; max_classes: number | null; is_active: boolean; is_drop_in: boolean; created_at: string }
+        Insert: { id?: string; organization_id: string; name: string; description?: string | null; duration_days: number; price: number; max_classes?: number | null; is_active?: boolean; is_drop_in?: boolean; created_at?: string }
+        Update: { id?: string; organization_id?: string; name?: string; description?: string | null; duration_days?: number; price?: number; max_classes?: number | null; is_active?: boolean; is_drop_in?: boolean; created_at?: string }
         Relationships: []
       }
       member_subscriptions: {
@@ -88,9 +88,9 @@ export interface Database {
         Relationships: []
       }
       staff: {
-        Row: { id: string; organization_id: string; user_id: string | null; first_name: string; last_name: string; email: string | null; phone: string | null; role: string | null; salary: number | null; rate_per_member: number | null; hire_date: string | null; is_active: boolean; created_at: string }
-        Insert: { id?: string; organization_id: string; user_id?: string | null; first_name: string; last_name: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
-        Update: { id?: string; organization_id?: string; user_id?: string | null; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
+        Row: { id: string; organization_id: string; user_id: string | null; first_name: string; last_name: string; email: string | null; phone: string | null; role: string | null; salary: number | null; rate_per_member: number | null; bonus: number | null; hire_date: string | null; is_active: boolean; created_at: string }
+        Insert: { id?: string; organization_id: string; user_id?: string | null; first_name: string; last_name: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
+        Update: { id?: string; organization_id?: string; user_id?: string | null; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
         Relationships: []
       }
       staff_timesheet: {
@@ -124,9 +124,9 @@ export interface Database {
         Relationships: []
       }
       equipment: {
-        Row: { id: string; organization_id: string; name: string; description: string | null; category: string | null; quantity: number; available_quantity: number; purchase_price: number | null; status: string | null; purchase_date: string | null; last_maintenance: string | null; created_at: string }
-        Insert: { id?: string; organization_id: string; name: string; description?: string | null; category?: string | null; quantity?: number; available_quantity?: number; purchase_price?: number | null; status?: string | null; purchase_date?: string | null; last_maintenance?: string | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; name?: string; description?: string | null; category?: string | null; quantity?: number; available_quantity?: number; purchase_price?: number | null; status?: string | null; purchase_date?: string | null; last_maintenance?: string | null; created_at?: string }
+        Row: { id: string; organization_id: string; name: string; description: string | null; category: string | null; quantity: number; available_quantity: number; purchase_price: number | null; status: string | null; purchase_date: string | null; last_maintenance: string | null; brand: string | null; location: string | null; next_maintenance: string | null; notes: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; name: string; description?: string | null; category?: string | null; quantity?: number; available_quantity?: number; purchase_price?: number | null; status?: string | null; purchase_date?: string | null; last_maintenance?: string | null; brand?: string | null; location?: string | null; next_maintenance?: string | null; notes?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; name?: string; description?: string | null; category?: string | null; quantity?: number; available_quantity?: number; purchase_price?: number | null; status?: string | null; purchase_date?: string | null; last_maintenance?: string | null; brand?: string | null; location?: string | null; next_maintenance?: string | null; notes?: string | null; created_at?: string }
         Relationships: []
       }
       equipment_reservations: {

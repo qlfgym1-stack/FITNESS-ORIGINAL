@@ -120,6 +120,8 @@ export default function StaffPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] })
       queryClient.invalidateQueries({ queryKey: ["coaches-list"] })
+      queryClient.invalidateQueries({ queryKey: ["coaches-with-count"] })
+      queryClient.invalidateQueries({ queryKey: ["planning-coaches"] })
       toast({ title: editing ? t("staff.updated") : t("staff.created") })
       setOpen(false)
       setEditing(null)
@@ -136,6 +138,8 @@ export default function StaffPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] })
       queryClient.invalidateQueries({ queryKey: ["coaches-list"] })
+      queryClient.invalidateQueries({ queryKey: ["coaches-with-count"] })
+      queryClient.invalidateQueries({ queryKey: ["planning-coaches"] })
       toast({ title: t("staff.statusUpdated") })
     },
     onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),

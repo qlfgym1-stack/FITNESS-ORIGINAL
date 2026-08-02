@@ -25,10 +25,10 @@ BEGIN
   ON CONFLICT (slug) DO UPDATE SET name = 'DINATEK'
   RETURNING id INTO v_org_id;
 
-  -- Assign super_admin role
+  -- Assign admin role
   INSERT INTO user_roles (user_id, organization_id, role)
-  VALUES (v_user_id, v_org_id, 'super_admin')
-  ON CONFLICT (user_id, organization_id) DO UPDATE SET role = 'super_admin';
+  VALUES (v_user_id, v_org_id, 'admin')
+  ON CONFLICT (user_id, organization_id) DO UPDATE SET role = 'admin';
 
-  RAISE NOTICE 'Admin user MoussaMohamedelmabrouk@gmail.com assigned super_admin for organization DINATEK';
+  RAISE NOTICE 'Admin user MoussaMohamedelmabrouk@gmail.com assigned admin for organization DINATEK';
 END $$;

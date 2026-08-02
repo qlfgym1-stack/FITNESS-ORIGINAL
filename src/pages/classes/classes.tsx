@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -32,15 +32,16 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import React from "react"
 import {
-  Plus, CalendarDays, List, Users, Clock, Loader2, Trash2, UserPlus, UserMinus, Pencil, Download,
+  Plus, CalendarDays, List, Users, Clock, Loader2, Trash2, UserPlus, UserMinus, Pencil, Download, ChevronLeft, ChevronRight,
 } from "lucide-react"
-import { format } from "date-fns"
+import { format, startOfWeek, addDays, parseISO, getDay } from "date-fns"
 import { cn, toUpper } from "@/lib/utils"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
 import { Pagination } from "@/components/ui/pagination"
-import type { Class, Staff, Member } from "@/types/supabase"
+import type { Class, Staff, Member, StaffShift } from "@/types/supabase"
 
 const HOURS = Array.from({ length: 14 }, (_, i) => `${String(i + 7).padStart(2, "0")}:00`)
 
@@ -62,6 +63,43 @@ const colorOptions = [
   "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
 ]
 
+const PLANNING_DAYS = [
+  { key: "Monday", label: "Lundi", color: "bg-blue-500" },
+  { key: "Tuesday", label: "Mardi", color: "bg-emerald-500" },
+  { key: "Wednesday", label: "Mercredi", color: "bg-amber-500" },
+  { key: "Thursday", label: "Jeudi", color: "bg-purple-500" },
+  { key: "Friday", label: "Vendredi", color: "bg-rose-500" },
+  { key: "Saturday", label: "Samedi", color: "bg-cyan-500" },
+  { key: "Sunday", label: "Dimanche", color: "bg-orange-500" },
+]
+
+const DAY_INDEX = [1, 2, 3, 4, 5, 6, 0]
+
+function dayKeyToDate(dayKey: string, weekStart: Date): string {
+  const idx = PLANNING_DAYS.findIndex(d => d.key === dayKey)
+  if (idx < 0) return ""
+  return format(addDays(weekStart, idx), "yyyy-MM-dd")
+}
+
+function dateToDayKey(dateStr: string): string | null {
+  try {
+    const d = parseISO(dateStr)
+    const jsDay = getDay(d)
+    const idx = DAY_INDEX.indexOf(jsDay)
+    return idx >= 0 ? PLANNING_DAYS[idx].key : null
+  } catch { return null }
+}
+
+const shiftSchema = z.object({
+  staffId: z.string().min(1, "Required"),
+  day: z.string().min(1, "Required"),
+  startTime: z.string().min(1, "Required"),
+  endTime: z.string().min(1, "Required"),
+  notes: z.string().optional().or(z.literal("")),
+})
+
+type ShiftForm = z.infer<typeof shiftSchema>
+
 export default function ClassesPage() {
   const t = useT()
   const DAYS = [
@@ -79,13 +117,23 @@ export default function ClassesPage() {
   const { toast } = useToast()
   const orgId = organization?.id
 
-  const [view, setView] = useState<"calendar" | "list">("calendar")
+  const [view, setView] = useState<"calendar" | "planning" | "list">("calendar")
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
   const [selectedClass, setSelectedClass] = useState<Class | null>(null)
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState("")
   const [editingClass, setEditingClass] = useState<Class | null>(null)
+
+  const [weekOffset, setWeekOffset] = useState(0)
+  const [planningOpen, setPlanningOpen] = useState(false)
+  const [draggingStaff, setDraggingStaff] = useState<string | null>(null)
+  const [deleteShiftConfirmOpen, setDeleteShiftConfirmOpen] = useState(false)
+  const [deleteShiftConfirmId, setDeleteShiftConfirmId] = useState<string | null>(null)
+
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const currentWeekStart = addDays(weekStart, weekOffset * 7)
+  const weekEnd = addDays(currentWeekStart, 6)
 
   const form = useForm<ClassFormValues>({
     resolver: zodResolver(classSchema),
@@ -100,6 +148,11 @@ export default function ClassesPage() {
       recurring: true,
       day_of_week: new Date().getDay() === 0 ? 6 : new Date().getDay() - 1,
     },
+  })
+
+  const planningForm = useForm<ShiftForm>({
+    resolver: zodResolver(shiftSchema),
+    defaultValues: { staffId: "", day: "Monday", startTime: "09:00", endTime: "17:00", notes: "" },
   })
 
   const { data: classes, isLoading, isError: classesError, error: classesQueryError } = useQuery({
@@ -165,6 +218,60 @@ export default function ClassesPage() {
     },
     enabled: !!orgId,
   })
+
+  const { data: planningCoaches } = useQuery({
+    queryKey: ["planning-coaches", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase.from("staff").select("*").eq("organization_id", orgId).eq("is_active", true).ilike("role", "%coach%").order("first_name")
+      return data ?? []
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: shifts, isLoading: shiftsLoading } = useQuery({
+    queryKey: ["staff_shifts", format(currentWeekStart, "yyyy-MM-dd"), orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await (supabase.from("staff_shifts") as any)
+        .select("*")
+        .eq("organization_id", orgId)
+        .gte("date", format(currentWeekStart, "yyyy-MM-dd"))
+        .lte("date", format(weekEnd, "yyyy-MM-dd"))
+      return (data ?? []) as StaffShift[]
+    },
+    enabled: !!orgId,
+  })
+
+  const shiftsByStaffAndDay = useMemo(() => {
+    const map = new Map<string, StaffShift[]>()
+    shifts?.forEach(s => {
+      const dayName = dateToDayKey(s.date)
+      if (!dayName) return
+      const key = `${s.staff_id}-${dayName}`
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(s)
+    })
+    return map
+  }, [shifts])
+
+  const shiftsByDayHour = useMemo(() => {
+    const map = new Map<string, StaffShift[]>()
+    shifts?.forEach(s => {
+      const dayName = dateToDayKey(s.date)
+      if (!dayName) return
+      const dayIdx = PLANNING_DAYS.findIndex(d => d.key === dayName)
+      if (dayIdx < 0) return
+      const startH = Number(s.start_time.split(":")[0])
+      const endH = Number(s.end_time.split(":")[0])
+      for (let h = startH; h <= endH; h++) {
+        const key = `${dayIdx}-${h}`
+        if (!map.has(key)) map.set(key, [])
+        map.get(key)!.push(s)
+      }
+    })
+    return map
+  }, [shifts])
 
   const addMutation = useMutation({
     mutationFn: async (values: ClassFormValues) => {
@@ -278,6 +385,46 @@ export default function ClassesPage() {
     },
   })
 
+  const shiftMutation = useMutation({
+    mutationFn: async (values: ShiftForm) => {
+      const dateStr = dayKeyToDate(values.day, currentWeekStart)
+      const { error } = await supabase.from("staff_shifts").insert({
+        staff_id: values.staffId,
+        date: dateStr,
+        start_time: values.startTime,
+        end_time: values.endTime,
+        notes: values.notes || null,
+        organization_id: orgId ?? "",
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff_shifts"] })
+      queryClient.invalidateQueries({ queryKey: ["coaches-with-count"] })
+      queryClient.invalidateQueries({ queryKey: ["coaches-list"] })
+      queryClient.invalidateQueries({ queryKey: ["planning-coaches"] })
+      toast({ title: "Créneau ajouté" })
+      setPlanningOpen(false)
+      planningForm.reset()
+    },
+    onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
+  })
+
+  const deleteShiftMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("staff_shifts").delete().eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff_shifts"] })
+      queryClient.invalidateQueries({ queryKey: ["coaches-with-count"] })
+      queryClient.invalidateQueries({ queryKey: ["coaches-list"] })
+      queryClient.invalidateQueries({ queryKey: ["planning-coaches"] })
+      toast({ title: "Créneau supprimé" })
+    },
+    onError: (err: Error) => toast({ title: "Erreur", description: err.message, variant: "destructive" }),
+  })
+
   const classEnrollments = (classId: string) =>
     enrollments?.filter((e) => e.class_id === classId) ?? []
 
@@ -286,6 +433,21 @@ export default function ClassesPage() {
 
   const classesByDay = (day: number) =>
     classes?.filter((c) => c.day_of_week === day && c.recurring) ?? []
+
+  function handleCellClick(staffId: string, dayKey: string) {
+    const existing = shiftsByStaffAndDay.get(`${staffId}-${dayKey}`) || []
+    if (existing.length > 0) return
+    shiftMutation.mutate({ staffId, day: dayKey, startTime: "09:00", endTime: "17:00", notes: "" })
+  }
+
+  function handlePlanningDrop(dayKey: string) {
+    if (draggingStaff) {
+      planningForm.setValue("staffId", draggingStaff)
+      planningForm.setValue("day", dayKey)
+      setPlanningOpen(true)
+      setDraggingStaff(null)
+    }
+  }
 
   const { page, setPage, totalPages, paginatedData: paginatedClasses } = usePagination(classes, 20)
 
@@ -500,11 +662,15 @@ export default function ClassesPage() {
         }
       />
 
-      <Tabs value={view} onValueChange={(v) => setView(v as "calendar" | "list")} className="mb-6">
+      <Tabs value={view} onValueChange={(v) => setView(v as "calendar" | "planning" | "list")} className="mb-6">
         <TabsList>
           <TabsTrigger value="calendar">
             <CalendarDays className="mr-2 h-4 w-4" />
             {t("classes.planningTab")}
+          </TabsTrigger>
+          <TabsTrigger value="planning">
+            <Users className="mr-2 h-4 w-4" />
+            Planning
           </TabsTrigger>
           <TabsTrigger value="list">
             <List className="mr-2 h-4 w-4" />
@@ -563,6 +729,78 @@ export default function ClassesPage() {
             </div>
           </CardContent>
         </Card>
+      ) : view === "planning" ? (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={() => setWeekOffset(wo => wo - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="font-medium">
+                {format(currentWeekStart, "MMM d")} - {format(addDays(currentWeekStart, 6), "MMM d, yyyy")}
+              </span>
+              <Button variant="outline" size="icon" onClick={() => setWeekOffset(wo => wo + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setWeekOffset(0)}>Aujourd'hui</Button>
+            </div>
+            <Button onClick={() => { planningForm.reset(); setPlanningOpen(true) }}>
+              <Plus className="mr-2 h-4 w-4" /> Ajouter un créneau
+            </Button>
+          </div>
+
+          {shiftsLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
+          ) : (
+            <div className="overflow-x-auto">
+              <div className="grid grid-cols-[200px_repeat(7,1fr)] gap-px bg-border rounded-lg overflow-hidden min-w-[800px]">
+                <div className="bg-muted p-3 font-medium">Coach</div>
+                {PLANNING_DAYS.map(day => (
+                  <div key={day.key} className="bg-muted p-3 font-medium text-center text-sm">{day.label}</div>
+                ))}
+                {planningCoaches?.map(staff => (
+                  <React.Fragment key={staff.id}>
+                    <div
+                      className="bg-background p-3 text-sm font-medium flex items-center"
+                      draggable
+                      onDragStart={() => setDraggingStaff(staff.id)}
+                    >
+                      {toUpper(staff.first_name)} {toUpper(staff.last_name)}
+                    </div>
+                    {PLANNING_DAYS.map(day => {
+                      const staffShifts = shiftsByStaffAndDay.get(`${staff.id}-${day.key}`) || []
+                      return (
+                        <div
+                          key={`${staff.id}-${day.key}`}
+                          className={cn(
+                            "bg-background p-2 min-h-[60px] border-l border-t cursor-pointer hover:bg-accent/20 transition-colors",
+                            staffShifts.length > 0 && `${day.color}/10 border-l-2`
+                          )}
+                          onClick={() => handleCellClick(staff.id, day.key)}
+                          onDragOver={e => e.preventDefault()}
+                          onDrop={() => handlePlanningDrop(day.key)}
+                        >
+                          {staffShifts.map(shift => (
+                            <div
+                              key={shift.id}
+                              className={cn("text-white text-xs rounded px-2 py-1 mb-1 flex justify-between items-center group", day.color)}
+                            >
+                              <span>{shift.start_time}-{shift.end_time}</span>
+                              <button
+                                className="opacity-0 group-hover:opacity-100 text-white/80 hover:text-white ml-1"
+                                onClick={(e) => { e.stopPropagation(); setDeleteShiftConfirmId(shift.id); setDeleteShiftConfirmOpen(true) }}
+                              >&times;</button>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <>
         <Card>
@@ -812,6 +1050,96 @@ export default function ClassesPage() {
               </Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={planningOpen} onOpenChange={(v) => { setPlanningOpen(v); if (!v) planningForm.reset() }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter un créneau</DialogTitle>
+            <DialogDescription>Assigner un créneau à un coach</DialogDescription>
+          </DialogHeader>
+          <Form {...planningForm}>
+            <form onSubmit={planningForm.handleSubmit((v) => shiftMutation.mutate(v))} className="space-y-4">
+              <FormField control={planningForm.control} name="staffId" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Coach</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Sélectionner un coach" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {planningCoaches?.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{toUpper(s.first_name)} {toUpper(s.last_name)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={planningForm.control} name="day" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Jour</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Sélectionner le jour" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {PLANNING_DAYS.map(d => (
+                        <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={planningForm.control} name="startTime" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Heure début</FormLabel>
+                    <FormControl><Input type="time" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={planningForm.control} name="endTime" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Heure fin</FormLabel>
+                    <FormControl><Input type="time" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <FormField control={planningForm.control} name="notes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes</FormLabel>
+                  <FormControl><Textarea {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setPlanningOpen(false); planningForm.reset() }}>Annuler</Button>
+                <Button type="submit" disabled={shiftMutation.isPending}>
+                  {shiftMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Enregistrer
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteShiftConfirmOpen} onOpenChange={setDeleteShiftConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmer</DialogTitle>
+            <DialogDescription>Voulez-vous vraiment supprimer ce créneau ?</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteShiftConfirmOpen(false); setDeleteShiftConfirmId(null) }}>Annuler</Button>
+            <Button variant="destructive" onClick={() => { if (deleteShiftConfirmId) deleteShiftMutation.mutate(deleteShiftConfirmId); setDeleteShiftConfirmOpen(false); setDeleteShiftConfirmId(null) }}>
+              Supprimer
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

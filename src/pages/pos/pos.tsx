@@ -27,7 +27,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Pagination } from "@/components/ui/pagination"
 import { useToast } from "@/components/ui/toast"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, RefreshCw } from "lucide-react"
+import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, RefreshCw, Ticket, Building2, RotateCcw } from "lucide-react"
 import type { Product, Member } from "@/types/supabase"
 import { IS_MOCK } from "@/lib/config"
 
@@ -55,7 +55,7 @@ export default function POSPage() {
     try { return new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).formatToParts(0).find(p => p.type === 'currency')?.value || 'DA' } catch { return 'DA' }
   }, [])
 
-  const CATEGORIES = ["snacks", "drinks", "supplements", "apparel", "equipment"]
+  const CATEGORIES = ["snacks", "boissons", "complements", "vetements", "equipement"]
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("snacks")
   const [cart, setCart] = useState<CartItem[]>([])
@@ -70,6 +70,7 @@ export default function POSPage() {
   const [qrInput, setQrInput] = useState("")
   const [panelProductSearch, setPanelProductSearch] = useState("")
   const [mobileCartOpen, setMobileCartOpen] = useState(false)
+  const [corporateRemoved, setCorporateRemoved] = useState(false)
 
   const { data: products, isLoading, isError: productsError, error: productsQueryError } = useQuery({
     queryKey: ["products"],
@@ -77,6 +78,28 @@ export default function POSPage() {
       if (IS_MOCK) return []
       const { data } = await supabase.from("products").select("*").eq("is_active", true).order("name")
       return data ?? []
+    },
+  })
+
+  const { data: dropInType } = useQuery({
+    queryKey: ["subscription-types-dropin", organization?.id],
+    queryFn: async () => {
+      if (IS_MOCK) return null
+      const orgId = organization?.id
+      if (!orgId) return null
+      const { data } = await supabase.from("subscription_types").select("*").eq("organization_id", orgId).eq("is_drop_in", true).maybeSingle()
+      return (data as { id: string; name: string; price: number } | null) ?? null
+    },
+  })
+
+  const { data: visitorMember } = useQuery({
+    queryKey: ["visitor-member", organization?.id],
+    queryFn: async () => {
+      if (IS_MOCK) return null
+      const orgId = organization?.id
+      if (!orgId) return null
+      const { data } = await supabase.from("members").select("id, first_name, last_name").eq("organization_id", orgId).eq("member_number", "QLF-VISITEUR").maybeSingle()
+      return data ?? null
     },
   })
 
@@ -140,11 +163,26 @@ export default function POSPage() {
     }
   }, [pendingRenewal])
 
+  useEffect(() => {
+    setCorporateRemoved(false)
+  }, [selectedMemberId])
+
   const { data: members } = useQuery({
     queryKey: ["members_minimal"],
     queryFn: async () => {
       if (IS_MOCK) return []
-      const { data } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url, member_number").eq("status", "active").order("first_name")
+      const { data } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url, member_number, corporate_id").eq("status", "active").order("first_name")
+      return data ?? []
+    },
+  })
+
+  const { data: corporateAccounts } = useQuery({
+    queryKey: ["corporate-accounts", organization?.id],
+    queryFn: async () => {
+      if (IS_MOCK) return []
+      const orgId = organization?.id
+      if (!orgId) return []
+      const { data } = await supabase.from("corporate").select("id, company_name, discount_rate, is_active, contract_start, contract_end").eq("organization_id", orgId)
       return data ?? []
     },
   })
@@ -154,7 +192,7 @@ export default function POSPage() {
     queryFn: async () => {
       if (IS_MOCK) return null
       if (!selectedMemberId) return null
-      const { data: member } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url, member_number").eq("id", selectedMemberId).single()
+      const { data: member } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url, member_number, corporate_id").eq("id", selectedMemberId).single()
       if (!member) return null
       const { data: sub } = await supabase.from("member_subscriptions").select("status, start_date, end_date, subscription_types(name)").eq("member_id", selectedMemberId).eq("status", "active").maybeSingle()
       return { ...member, subscription: sub as { status: string; start_date: string; end_date: string; subscription_types: { name: string } | null } | null ?? null }
@@ -165,7 +203,7 @@ export default function POSPage() {
   const filteredProducts = useMemo(() => {
     if (!products) return []
     return products.filter(p => {
-      const matchesCategory = p.category === category || (!p.category && category === "snacks")
+      const matchesCategory = p.category?.toLowerCase() === category || (!p.category && category === "snacks")
       const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
       return matchesCategory && matchesSearch
     }).sort((a, b) => a.name.localeCompare(b.name))
@@ -198,8 +236,9 @@ export default function POSPage() {
   const filteredMembers = useMemo(() => {
     if (!members) return []
     return members.filter(m =>
-      `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase()) ||
-      (m.phone && m.phone.includes(memberSearch))
+      !m.member_number?.startsWith("QLF-VISITEUR") &&
+      (`${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase()) ||
+      (m.phone && m.phone.includes(memberSearch)))
     )
   }, [members, memberSearch])
 
@@ -211,7 +250,31 @@ export default function POSPage() {
     return Math.round((subtotal * (discountPercent ?? 0) / 100) + (discountAmount ?? 0))
   }, [subtotal, discountPercent, discountAmount])
 
-  const total = Math.max(0, subtotal - discountValue)
+  const subscriptionSubtotal = useMemo(() => {
+    return cart.reduce((sum, item) =>
+      (item.product.id.startsWith("__subscription__") || item.product.id.startsWith("__renewal__"))
+        ? sum + item.product.price * item.quantity
+        : sum, 0)
+  }, [cart])
+
+  const selectedCorporate = useMemo(() => {
+    const member = members?.find(m => m.id === selectedMemberId)
+    if (!member?.corporate_id || !corporateAccounts) return null
+    return corporateAccounts.find(c => c.id === member.corporate_id) ?? null
+  }, [members, selectedMemberId, corporateAccounts])
+
+  const corporateDiscount = useMemo(() => {
+    if (corporateRemoved || !selectedCorporate || subscriptionSubtotal <= 0) return 0
+    if (!selectedCorporate.is_active) return 0
+    const today = new Date().toISOString().split('T')[0]
+    if (selectedCorporate.contract_start && today < selectedCorporate.contract_start) return 0
+    if (selectedCorporate.contract_end && today > selectedCorporate.contract_end) return 0
+    return Math.round(subscriptionSubtotal * (Number(selectedCorporate.discount_rate ?? 0) / 100))
+  }, [corporateRemoved, selectedCorporate, subscriptionSubtotal])
+
+  const subscriptionPaid = Math.max(0, subscriptionSubtotal - corporateDiscount)
+
+  const total = Math.max(0, subtotal - discountValue - corporateDiscount)
   const change = amountGiven != null && amountGiven >= total ? amountGiven - total : 0
 
   function addToCart(product: Product) {
@@ -245,6 +308,42 @@ export default function POSPage() {
     setCart(prev => prev.filter(item => item.product.id !== productId))
   }
 
+  function addDropInSession() {
+    if (!dropInType) return
+    const visitorId = visitorMember?.id
+    setCart(prev => {
+      const existing = prev.find(item => item.product.id === `__dropin__${dropInType.id}`)
+      if (existing) {
+        return prev.map(item =>
+          item.product.id === `__dropin__${dropInType.id}` ? { ...item, quantity: item.quantity + 1 } : item
+        )
+      }
+      return [...prev, {
+        product: {
+          id: `__dropin__${dropInType.id}`,
+          organization_id: organization?.id ?? "",
+          name: dropInType.name,
+          category: null,
+          brand: null,
+          sku: null,
+          reference: null,
+          price: dropInType.price,
+          cost: null,
+          stock: null,
+          image_url: null,
+          barcode: null,
+          is_active: true,
+          created_at: "",
+        },
+        quantity: 1,
+      }]
+    })
+    if (visitorId) {
+      setSelectedMemberId(visitorId)
+      setMemberSearch("")
+    }
+  }
+
   function handleScan(value: string) {
     if (!value) return
     const trimmed = value.trim().toLowerCase()
@@ -276,7 +375,7 @@ export default function POSPage() {
 
       // First: decrement stock for physical items (atomic)
       for (const item of cart) {
-        if (item.product.id.startsWith("__subscription__") || item.product.id.startsWith("__renewal__")) continue
+        if (item.product.id.startsWith("__subscription__") || item.product.id.startsWith("__renewal__") || item.product.id.startsWith("__dropin__")) continue
         const { data: updated, error: stockError } = await (supabase.rpc as any)(
           'decrement_product_stock', { p_id: item.product.id, p_qty: item.quantity })
         if (stockError) throw stockError
@@ -297,12 +396,27 @@ export default function POSPage() {
         member_id: selectedMemberId,
         items: cart.map(item => ({ id: item.product.id, name: item.product.name, price: item.product.price, quantity: item.quantity })),
         subtotal,
-        discount: discountValue || null,
+        discount: (discountValue || 0) + corporateDiscount || null,
         total,
         payment_method: paymentMethod,
         payment_status: "completed",
       })
       if (txError) throw txError
+
+      // Record attendance for drop-in sessions (Visiteur)
+      const dropInItems = cart.filter(item => item.product.id.startsWith("__dropin__"))
+      if (dropInItems.length > 0 && visitorMember?.id) {
+        for (let i = 0; i < dropInItems.reduce((sum, it) => sum + it.quantity, 0); i++) {
+          const { error: attError } = await supabase.from("attendance").insert({
+            organization_id: orgId,
+            member_id: visitorMember.id,
+            check_in: new Date().toISOString(),
+            type: "check-in",
+            source: "manual",
+          })
+          if (attError) throw attError
+        }
+      }
 
       // Finalize renewal or subscription payment if applicable
       if (pendingRenewal) {
@@ -313,9 +427,9 @@ export default function POSPage() {
           p_subscription_type_id: pendingRenewal.subscription_type_id,
           p_new_start_date: pendingRenewal.start_date,
           p_new_end_date: pendingRenewal.end_date,
-          p_total_amount: total,
+          p_total_amount: subscriptionPaid,
           p_payment_method: paymentMethod,
-          p_payment_amount: total,
+          p_payment_amount: subscriptionPaid,
         })
         if (renewError) throw renewError
       } else if (pendingSub) {
@@ -324,7 +438,7 @@ export default function POSPage() {
           p_organization_id: orgId,
           p_member_id: pendingSub.member_id,
           p_payment_method: paymentMethod,
-          p_amount: total,
+          p_amount: subscriptionPaid,
         })
         if (finalizeError) throw finalizeError
       }
@@ -376,6 +490,7 @@ export default function POSPage() {
                     <div className="flex items-center gap-1">
                       {item.product.id.startsWith("__subscription__") && <CreditCard className="h-3 w-3 text-primary shrink-0" />}
                       {item.product.id.startsWith("__renewal__") && <RefreshCw className="h-3 w-3 text-primary shrink-0" />}
+                      {item.product.id.startsWith("__dropin__") && <Ticket className="h-3 w-3 text-primary shrink-0" />}
                       <p className="text-sm font-medium truncate">{toUpper(item.product.name)}</p>
                     </div>
                     <p className="text-xs text-muted-foreground">{formatCurrency(item.product.price)}</p>
@@ -451,6 +566,31 @@ export default function POSPage() {
               />
             </div>
           </div>
+
+          {/* Corporate discount (auto from member's corporate card) */}
+          {selectedCorporate && subscriptionSubtotal > 0 && (corporateDiscount > 0 || corporateRemoved) && (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Badge className="bg-emerald-600">
+                  <Building2 className="h-3 w-3" />
+                  {selectedCorporate.company_name}
+                </Badge>
+                <span className="text-xs text-emerald-700 whitespace-nowrap">{t("pos.corporateDiscount")} {Number(selectedCorporate.discount_rate ?? 0)}%</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-emerald-700">−{formatCurrency(corporateDiscount)}</span>
+                {corporateRemoved ? (
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setCorporateRemoved(false)} title={t("pos.restoreCorporate")}>
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setCorporateRemoved(true)} title={t("pos.removeCorporate")}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
 
           <Separator />
           <div className="flex justify-between font-bold text-base">
@@ -546,6 +686,28 @@ export default function POSPage() {
             <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
           ) : (
             <>
+            {dropInType && (
+              <Card
+                className="cursor-pointer hover:border-primary transition-colors mb-3 border-dashed bg-primary/5"
+                onClick={addDropInSession}
+              >
+                <CardContent className="p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Ticket className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">{toUpper(dropInType.name)}</p>
+                      <p className="text-[10px] text-muted-foreground">{t("pos.dropInDesc")}</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-lg font-bold text-primary">{formatCurrency(dropInType.price)}</p>
+                    <p className="text-[10px] text-muted-foreground">Aucun membre requis</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {paginatedProducts.map(product => (
                 <Card

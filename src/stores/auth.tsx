@@ -11,7 +11,7 @@ interface Profile {
 
 interface AuthState {
   user: User | null; profile: Profile | null; organization: Organization | null
-  roles: UserRole[]; isLoading: boolean; isAuthenticated: boolean; isSuperAdmin: boolean
+  roles: UserRole[]; isLoading: boolean; isAuthenticated: boolean
 }
 
 interface AuthContextValue extends AuthState {
@@ -26,13 +26,13 @@ const MOCK_ADMIN: AuthState = {
   user: { id: 'mock-admin-id', email: 'MoussaMohamedelmabrouk@gmail.com', app_metadata: {}, user_metadata: { full_name: 'Moussa Mohamed Elmabrouk' }, aud: 'authenticated', created_at: new Date().toISOString() } as any,
   profile: { id: 'mock-admin-id', email: 'MoussaMohamedelmabrouk@gmail.com', full_name: 'Moussa Mohamed Elmabrouk' },
   organization: { id: 'mock-org-id', name: 'DINATEK', slug: 'dinatek', logo_url: null, address: null, phone: null, email: 'MoussaMohamedelmabrouk@gmail.com', created_at: new Date().toISOString(), coach_default_salary: 0, coach_default_rate_per_member: 0 },
-  roles: [{ id: 'mock-role-id', user_id: 'mock-admin-id', organization_id: 'mock-org-id', role: 'super_admin', created_at: new Date().toISOString() }],
-  isLoading: false, isAuthenticated: true, isSuperAdmin: true,
+  roles: [{ id: 'mock-role-id', user_id: 'mock-admin-id', organization_id: 'mock-org-id', role: 'admin', created_at: new Date().toISOString() }],
+  isLoading: false, isAuthenticated: true,
 }
 
 const initialState: AuthState = {
   user: null, profile: null, organization: null, roles: [],
-  isLoading: true, isAuthenticated: false, isSuperAdmin: false,
+  isLoading: true, isAuthenticated: false,
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: orgData } = await supabase.from('organizations').select('*').eq('id', orgId).single()
       org = orgData
     }
-    setState({ user, profile, organization: org, roles: userRoles, isLoading: false, isAuthenticated: true, isSuperAdmin: userRoles.some(r => r.role === 'super_admin') })
+    setState({ user, profile, organization: org, roles: userRoles, isLoading: false, isAuthenticated: true })
   }, [])
 
   useEffect(() => {
@@ -141,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (orgError) return { error: orgError }
     const { data: org } = await supabase.from('organizations').select('*').eq('slug', slug).single()
     if (!org) return { error: new Error('Failed to create organization') }
-    // Role 'super_admin' is auto-assigned by the database trigger after_organization_insert
+    // Role 'admin' is auto-assigned by the database trigger after_organization_insert
     const { plainText, hash } = await generateRecoveryCode();
     await storeRecoveryCode(data.user.id, hash);
     return { error: null, recoveryCode: plainText }
@@ -151,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await supabase.auth.signOut()
     } finally {
-      setState(s => ({ ...s, user: null, profile: null, organization: null, roles: [], isAuthenticated: false, isSuperAdmin: false }))
+      setState(s => ({ ...s, user: null, profile: null, organization: null, roles: [], isAuthenticated: false }))
     }
   }, [])
 

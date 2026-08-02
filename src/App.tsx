@@ -19,13 +19,9 @@ const Classes = lazy(() => import('@/pages/classes/classes'))
 const Attendance = lazy(() => import('@/pages/attendance/attendance'))
 const Staff = lazy(() => import('@/pages/staff/staff'))
 const StaffTimesheet = lazy(() => import('@/pages/staff/timesheet'))
-const StaffPlanning = lazy(() => import('@/pages/staff/planning'))
 const StaffLeaves = lazy(() => import('@/pages/staff/leaves'))
 const POS = lazy(() => import('@/pages/pos/pos'))
 const Materiel = lazy(() => import('@/pages/materiel/materiel'))
-const Equipment = lazy(() => import('@/pages/equipment/equipment'))
-const EquipmentReservations = lazy(() => import('@/pages/equipment/reservations'))
-const EquipmentReport = lazy(() => import('@/pages/equipment/report'))
 const Inventory = lazy(() => import('@/pages/inventory/inventory'))
 const Products = lazy(() => import('@/pages/products/products'))
 const Suppliers = lazy(() => import('@/pages/suppliers/suppliers'))
@@ -40,18 +36,15 @@ const CoachPortal = lazy(() => import('@/pages/coach-portal/coach-portal'))
 const Rh = lazy(() => import('@/pages/rh/rh'))
 const Reports = lazy(() => import('@/pages/reports/reports'))
 const Corporate = lazy(() => import('@/pages/corporate/corporate'))
-const Gyms = lazy(() => import('@/pages/gyms/gyms'))
-const Licenses = lazy(() => import('@/pages/licenses/licenses'))
 const Notifications = lazy(() => import('@/pages/notifications/notifications'))
 const Settings = lazy(() => import('@/pages/settings/settings'))
 const Profile = lazy(() => import('@/pages/settings/profile'))
-const SuperAdmin = lazy(() => import('@/pages/super-admin/super-admin'))
 const AdminUsers = lazy(() => import('@/pages/admin/users'))
 const Display = lazy(() => import('@/pages/display/display'))
 const Expenses = lazy(() => import('@/pages/expenses/expenses'))
 const AssistantComptable = lazy(() => import('@/pages/assistant-comptable/assistant-comptable'))
 const Rentabilite = lazy(() => import('@/pages/rentabilite/rentabilite'))
-const AiAssistant = lazy(() => import('@/pages/display/display'))
+const AiAssistant = lazy(() => import('@/pages/ai-assistant/ai-assistant'))
 const Install = lazy(() => import('@/pages/install/install'))
 
 function Loading() {
@@ -120,13 +113,9 @@ export default function App() {
               <Route path="attendance" element={<PageTransition><Suspense fallback={<Loading />}><Attendance /></Suspense></PageTransition>} />
               <Route path="staff" element={<PageTransition><Suspense fallback={<Loading />}><Staff /></Suspense></PageTransition>} />
               <Route path="staff/timesheet" element={<PageTransition><Suspense fallback={<Loading />}><StaffTimesheet /></Suspense></PageTransition>} />
-              <Route path="staff/planning" element={<PageTransition><Suspense fallback={<Loading />}><StaffPlanning /></Suspense></PageTransition>} />
               <Route path="staff/leaves" element={<PageTransition><Suspense fallback={<Loading />}><StaffLeaves /></Suspense></PageTransition>} />
               <Route path="pos" element={<PageTransition><Suspense fallback={<Loading />}><POS /></Suspense></PageTransition>} />
               <Route path="materiel" element={<PageTransition><Suspense fallback={<Loading />}><Materiel /></Suspense></PageTransition>} />
-              <Route path="equipment" element={<PageTransition><Suspense fallback={<Loading />}><Equipment /></Suspense></PageTransition>} />
-              <Route path="equipment/reservations" element={<PageTransition><Suspense fallback={<Loading />}><EquipmentReservations /></Suspense></PageTransition>} />
-              <Route path="equipment/report" element={<PageTransition><Suspense fallback={<Loading />}><EquipmentReport /></Suspense></PageTransition>} />
               <Route path="inventory" element={<PageTransition><Suspense fallback={<Loading />}><Inventory /></Suspense></PageTransition>} />
               <Route path="products" element={<PageTransition><Suspense fallback={<Loading />}><Products /></Suspense></PageTransition>} />
               <Route path="suppliers" element={<PageTransition><Suspense fallback={<Loading />}><Suppliers /></Suspense></PageTransition>} />
@@ -142,12 +131,9 @@ export default function App() {
               <Route path="reports" element={<PageTransition><Suspense fallback={<Loading />}><Reports /></Suspense></PageTransition>} />
               <Route path="rentabilite" element={<PageTransition><Suspense fallback={<Loading />}><Rentabilite /></Suspense></PageTransition>} />
               <Route path="corporate" element={<PageTransition><Suspense fallback={<Loading />}><Corporate /></Suspense></PageTransition>} />
-              <Route path="gyms" element={<PageTransition><Suspense fallback={<Loading />}><Gyms /></Suspense></PageTransition>} />
-              <Route path="licenses" element={<PageTransition><Suspense fallback={<Loading />}><Licenses /></Suspense></PageTransition>} />
               <Route path="notifications" element={<PageTransition><Suspense fallback={<Loading />}><Notifications /></Suspense></PageTransition>} />
               <Route path="settings" element={<PageTransition><Suspense fallback={<Loading />}><Settings /></Suspense></PageTransition>} />
               <Route path="profile" element={<PageTransition><Suspense fallback={<Loading />}><Profile /></Suspense></PageTransition>} />
-              <Route path="super-admin" element={<PageTransition><Suspense fallback={<Loading />}><SuperAdmin /></Suspense></PageTransition>} />
               <Route path="admin/users" element={<PageTransition><Suspense fallback={<Loading />}><AdminUsers /></Suspense></PageTransition>} />
               <Route path="display" element={<PageTransition><Suspense fallback={<Loading />}><Display /></Suspense></PageTransition>} />
               <Route path="ai-assistant" element={<PageTransition><Suspense fallback={<Loading />}><AiAssistant /></Suspense></PageTransition>} />

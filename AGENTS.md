@@ -1,19 +1,23 @@
 ## Goal
 - Système de salaire coach (fixe + variable selon adhérents)
 - Persistance sidebar localStorage
+- Remise corporate au POS (paiement abonnement via carte entreprise)
+- Assistant IA local `/ai-assistant` (prédictions + analyses heures/produits/actions P0-P2)
 
 ## Constraints & Preferences
 - Ne pas modifier les fonctionnalités ni l'UI
-- RLS basée sur les rôles (`admin`/`super_admin` pour les mutations, `staff`/`coach` en lecture seule)
+- RLS basée sur les rôles (`admin` pour les mutations, `staff`/`coach` en lecture seule)
 - Utiliser `service_role` pour les Edge Functions
 - SHA-256 pour les codes de récupération
 - Compatible Supabase Auth, RLS, React 18, TypeScript strict
 - Vérifier avec `npx tsc --noEmit` et `npx vitest --run` après chaque correction
+- **NE JAMAIS déployer sur Vercel sans consulter l'utilisateur d'abord** — toujours demander confirmation avant `vercel --prod`
 
 ## Progress
 ### Done
+- **Rôle super_admin fusionné dans admin** — migration 00059 : UPDATE données, contrainte CHECK sans 'super_admin', trigger `after_organization_insert` assigne 'admin', RPC seed → 'admin' ; types TS, auth store (`isSuperAdmin` retiré), sidebar (groupe superAdmin + pages super-admin/licenses supprimées), admin/users, coach-mode, checkin-dialog, Edge Functions, i18n → 'admin' ; `npx tsc --noEmit` ✅
 - **Sécurité CRITIQUE** — `renew_subscription` : retrait de `SECURITY DEFINER` → RLS appliqué au caller, plus de contournement possible
-- **Sécurité CRITIQUE** — `user_roles` INSERT policy : restreinte à `role IN ('staff', 'coach')` ; trigger `after_organization_insert` auto-assigne `super_admin` ; client-side `user_roles.insert()` supprimé de `signUp`
+- **Sécurité CRITIQUE** — `user_roles` INSERT policy : restreinte à `role IN ('staff', 'coach')` ; trigger `after_organization_insert` auto-assigne `admin` ; client-side `user_roles.insert()` supprimé de `signUp`
 - **Sécurité MEDIUM** — Recovery Edge Function : validation `!code` déplacée dans les blocs `verify`/`reset` ; `send_code` fonctionne désormais sans code
 - **Sécurité MEDIUM** — POS stock decrement : nouveau RPC `decrement_product_stock` atomique (`WHERE stock >= p_qty`) ; migration `00008_atomic_stock_decrement.sql`
 - **Hors-ligne** — Cache TanStack Query persistant : `PersistQueryClientProvider` + `createSyncStoragePersister` (localStorage, clé `FITMANAGER_QUERY_CACHE`, maxAge 24h)
@@ -67,6 +71,9 @@
   - ChartsSection (6 graphiques recharts), AiInsights (8 règles d'analyse)
 - **Fix TypeScript** — generics `useQuery<T>` retirés, casts `unknown` résolus — `npx tsc --noEmit` ✅ zéro erreur
 - **Commit `231bc83`** + `3a93849` + `bd436bb` + `acb3818` poussés sur GitHub
+- **Remise corporate au POS** — migration `00060_corporate_discount.sql` appliquée ✅ (seed 3 conventions DINATEK : Sonatrach 15% active, Air Algérie 10% active, Algerian Telecom 20% inactive) ; `members.corporate_id` ; RPC `create_member_with_pending_subscription` → `p_corporate_id` ; corporate.tsx branché Supabase (CRUD complet) ; members.tsx Select « Carte entreprise » avec remise affichée ; pos.tsx : `corporateDiscount` (items `__subscription__`+`__renewal__` seulement, convention active + contrat en cours, retirable ✕/↺), `subscriptionPaid` transmis aux RPCs, ligne UI « Remise convention » ; i18n FR/AR/EN
+- **Assistant IA `/ai-assistant`** — module complet : `src/pages/ai-assistant/` (page, `useAssistantData` 9 useQuery parallèles, 8 composants recharts), moteur pur `lib/` (`peakHours.ts`, `flagshipProducts.ts` excluant items virtuels, `subscriptionInsights.ts`, `forecast.ts` régression + saisonnalité + confiance 0-100, `recommendations.ts` P0/P1/P2, `insights.ts` clés i18n paramétrées) ; route `/ai-assistant` remplace le placeholder ; i18n FR/AR/EN ; 5 fichiers de tests vitest
+- **Vérifs finales Assistant IA** — `npx tsc --noEmit` ✅ zéro erreur (corrections : `memberName` dans subscriptionInsights.test.ts, `forecastRevenue` → `next3Months: []` si < 2 mois, test peakHours en heure locale) ; `npx vitest --run` ✅ 67/67 ; `npx vite build` ✅ succès (chunk `ai-assistant-DvzNgSYf.js` 38 KB gzip 10.16)
 
 ### In Progress
 - Intégration des anomalies de l'audit (JWT, RPCs SECURITY DEFINER, xlsx CVE, etc.)
@@ -75,6 +82,8 @@
 - **(none)**
 
 ## Latest (21/07/2026)
+- **Assistant IA `/ai-assistant` terminé** — module complet validé (`tsc` ✅, vitest 67/67 ✅, `vite build` ✅) : 9 requêtes parallèles, moteur local (heures pleines, produits phares, abonnements, prévisions régression+saisonnalité, actions P0/P1/P2), i18n FR/AR/EN
+- **Remise corporate POS terminée** — migration 00060 appliquée, CRUD corporate Supabase, remise auto sur abonnement au POS (retirable), `subscriptionPaid` transmis aux RPCs
 - **Migration 00044 - Dépenses** — table `expenses` (10 catégories), RLS (admin CRUD, staff read-only), indexes — appliquée Supabase
 - **Page Dépenses `/expenses`** — CRUD, catégories, import/export Excel, filtres, résumé Total · nbr entrées, responsive
 - **Migration 00045 - Lien Salaires→Dépenses** — trigger `sync_salary_payment_to_expense`, colonnes `reference_type`/`reference_id` sur `expenses`, backfill — appliquée Supabase
@@ -93,7 +102,7 @@
 
 ## Key Decisions
 - `SECURITY DEFINER` retiré au lieu d'ajouter un check explicite dans `renew_subscription` : RLS s'applique automatiquement au caller
-- Trigger `after_organization_insert` plutôt que client-side `user_roles.insert()` : garantit que le rôle `super_admin` est créé même si le client est modifié
+- Trigger `after_organization_insert` plutôt que client-side `user_roles.insert()` : garantit que le rôle `admin` est créé même si le client est modifié
 - `localStorage` plutôt qu'IndexedDB pour la persistance du cache : API synchrone, limite 5MB suffisante
 - `networkMode: 'offlineFirst'` plutôt que `'online'` : mutations automatiquement mises en pause et rejouées
 - VitePWA Workbox `NetworkFirst` plutôt que `CacheFirst` pour l'API Supabase
@@ -101,8 +110,12 @@
 - **POS redirection** : passage via `location.state` React Router plutôt que stockage local ou URL params — évite la persistance après refresh, pas de fuite dans l'URL
 - **Article virtuel** : préfixe `__subscription__` dans `product.id` pour distinguer les articles d'abonnement des produits physiques dans le panier
 - **Migration 00041** : `coach_default_salary` et `coach_default_rate_per_member` stockés dans `organizations` (paramètres globaux, pas per-coach)
+- **Remise convention** : appliquée uniquement au paiement d'abonnement (`__subscription__` + `__renewal__`), produits physiques et séances libres exclus ; auto si membre avec carte active + contrat en cours, retirable par ✕ sur la vente
+- **Assistant IA** : moteur règles locales (aucune clé API, hors-ligne, testable), prévisions par régression linéaire + saisonnalité, insights/actions via clés i18n paramétrées `{param}` — cohérent avec rentabilite/assistant-comptable
 
 ## Next Steps
+- Test manuel navigateur (Ctrl+Shift+R) : `/ai-assistant` (KPIs, actions P0/P1/P2, graphique heures, produits phares, prévisions confiance, insights EN/AR/FR) + test corporate POS (adhérent avec carte → panier abonnement → remise auto/retirable → paiement RPC montant remisé)
+- Bug signalé : `class_enrollments` sans filtre `organization_id` dans `useProfitabilityData.ts:256` + clés i18n rentabilite manquantes/décalées
 - Corriger les anomalies d'audit (phase IMMÉDIAT : JWT EFs, RPCs authorization, xlsx CVE, recovery exposure, hash constant-time, payment-reminder fix)
 - Configurer les variables d'env Edge Functions (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
 - Remplacer `SUPABASE_PROJECT_REF` dans `00004_cron_jobs.sql` et activer les cron jobs
@@ -110,12 +123,12 @@
 
 ## Critical Context
 - `npx tsc --noEmit` ✅ zéro erreur
-- `npx vitest --run` ✅ 38/38 tests (utils, recovery, auth)
+- `npx vitest --run` ✅ 67/67 tests (utils, recovery, auth, ai-assistant lib)
 - `npx vite build` ✅ succès
-- 46 migrations (`00001`→`00046`) — 00044, 00045, 00046 appliquées remote
+- 60 migrations (`00001`→`00060`) — 00044, 00045, 00046, 00059, 00060 appliquées remote
 - 3 Edge Functions (recovery, send-subscription-reminder, send-payment-reminder)
 - Le bucket `photos` Supabase Storage doit exister pour l'upload des avatars
-- RLS role-based : `admin`/`super_admin` peuvent tout modifier, `coach`/`staff` sont en lecture seule
+- RLS role-based : `admin` peut tout modifier, `coach`/`staff` sont en lecture seule
 - Le recovery code est affiché côté serveur (pas de canal email/SMS implémenté)
 - Cache offline : localStorage clé `FITMANAGER_QUERY_CACHE` (maxAge 24h)
 - Mutations offline : mises en pause automatiquement, rejouées au retour réseau
@@ -123,6 +136,7 @@
 - **Dépenses** : 10 catégories, synchro auto depuis salaires (trigger), CRUD complet
 - **Assistant Comptable** : agrège payments + pos_transactions + expenses (pas de saisie manuelle)
 - **Rentabilité** : ROI calculé depuis investissements, prévisions IA (moyenne mobile 3 mois), 6 graphiques recharts, insights IA
+- **Assistant IA** : moteur règles locales, prédictions régression + saisonnalité (confiance 0-100), actions P0/P1/P2, i18n FR/AR/EN — rien de mocké
 
 ## Relevant Files
 - `supabase/migrations/00001_init.sql` → schéma initial (22 tables, RLS, trigger auto_assign_owner_role, user_roles INSERT policy restreinte)
@@ -137,6 +151,8 @@
 - `supabase/migrations/00044_expenses.sql` → table `expenses` (10 catégories, RLS)
 - `supabase/migrations/00045_link_salary_expenses.sql` → trigger sync salaires→dépenses
 - `supabase/migrations/00046_profitability.sql` → tables `investments` + `profitability_objectives`
+- `supabase/migrations/00059_remove_super_admin.sql` → rôle `super_admin` fusionné dans `admin` (RLS équivalentes)
+- `supabase/migrations/00060_corporate_discount.sql` → remise corporate POS (members.corporate_id, seed conventions, RPC p_corporate_id)
 - `supabase/functions/recovery/index.ts` → Edge Function recovery
 - `supabase/functions/send-subscription-reminder/index.ts` → Edge Function rappel abonnement
 - `supabase/functions/send-payment-reminder/index.ts` → Edge Function rappel paiement
@@ -145,12 +161,12 @@
 - `src/stores/auth.tsx` → signUp, signOut, slug collision, useMemo ctxValue, user_roles.insert() supprimé
 - `src/stores/theme.tsx` → ThemeProvider avec useCallback/useMemo
 - `src/i18n/index.tsx` → I18nProvider avec useMemo ctxValue
-- `src/i18n/en.ts` → clés `pos.subscriptionRedirect`, `pos.pendingSubscription`, `pos.finalizeSubscription`, `pos.subscriptionPaymentDesc`, `nav.groups.rh`, `nav.payroll`, `rh.*`, `expenses.*`, `assistantComptable.*`, `rentabilite.*`
-- `src/i18n/fr.ts` → clés `nav.groups.rh`, `nav.payroll`, `rh.*`, `expenses.*`, `assistantComptable.*`, `rentabilite.*`
+- `src/i18n/en.ts` → clés `pos.subscriptionRedirect`, `pos.pendingSubscription`, `pos.finalizeSubscription`, `pos.subscriptionPaymentDesc`, `nav.groups.rh`, `nav.payroll`, `rh.*`, `expenses.*`, `assistantComptable.*`, `rentabilite.*`, `corporate.*`, `aiAssistant.*`
+- `src/i18n/fr.ts` → clés `nav.groups.rh`, `nav.payroll`, `rh.*`, `expenses.*`, `assistantComptable.*`, `rentabilite.*`, `corporate.*`, `aiAssistant.*`
 - `src/hooks/useNetworkStatus.ts` → hook isOnline/recovering
 - `src/components/ui/offline-banner.tsx` → bannière offline/online
 - `src/components/layout/navbar.tsx` → avatar/user branchés sur useAuth, locale debug supprimé
-- `src/components/layout/sidebar.tsx` → avatar/user branchés sur useAuth, logout onClick signOut, items `expenses`, `assistantComptable`, `rentabilite` dans FINANCES & PROFITABILITY
+- `src/components/layout/sidebar.tsx` → avatar/user branchés sur useAuth, logout onClick signOut, items `expenses`, `assistantComptable`, `rentabilite`, `corporate`, `aiAssistant`
 - `src/pages/expenses/expenses.tsx` → CRUD Dépenses complet
 - `src/pages/assistant-comptable/assistant-comptable.tsx` → tableau de bord comptable (8 modules)
 - `src/pages/assistant-comptable/hooks/useAccountingData.ts` → agrégation données comptables
@@ -159,11 +175,14 @@
 - `src/pages/rentabilite/hooks/useProfitabilityData.ts` → agrégation + calculs ROI/marges/prévisions/insights (11 requêtes)
 - `src/pages/rentabilite/hooks/types.ts` → interfaces partagées
 - `src/pages/rentabilite/components/*.tsx` → 10 composants (KPI, CA, Profit, Investissements, Breakdown, Forecasts, Objectives, Charts, Insights)
+- `src/pages/ai-assistant/` → Assistant IA complet (page, `useAssistantData` 9 queries, composants recharts)
+- `src/pages/ai-assistant/lib/` → moteur pur (peakHours, flagshipProducts, subscriptionInsights, forecast, recommendations, insights) + 5 fichiers de tests
+- `src/pages/corporate/corporate.tsx` → CRUD conventions corporate (Supabase)
 - `src/pages/coach-mode/coach-mode.tsx` → salaire coach lecture seule, gestion des adhérents, historique salaires
 - `src/pages/coach-portal/coach-portal.tsx` → configuration salaires admin : Fixe + Prime/adh éditables, sauvegarde dans `organizations`
 - `src/pages/members/members.tsx` → ajout sélecteur abonnement + date début dans le formulaire, RPC create_member_with_pending_subscription, redirection vers `/pos` avec state
 - `src/pages/pos/pos.tsx` → détection pendingSubscription, ajout article virtuel abonnement, finalize_subscription_payment RPC après checkout
-- `src/pages/rh/rh.tsx` → Paie & RH : staff list, 3 onglets (Salaire éditable, Paiements historique, Congés), mutations inline admin/super_admin
+- `src/pages/rh/rh.tsx` → Paie & RH : staff list, 3 onglets (Salaire éditable, Paiements historique, Congés), mutations inline admin
 - `src/types/supabase.ts` → member_subscriptions.status inclut `pending_payment`, StaffSalaryPayment, Expense, Investment, ProfitabilityObjective
 
 ## Audit Findings (Juillet 2026 — 6 phases, 60+ anomalies)

@@ -18,7 +18,6 @@ import {
   Sparkles,
   Wrench,
   Clock,
-  BarChart3,
   Shield,
   Award,
 
@@ -27,10 +26,7 @@ import {
   Monitor,
   Settings,
   UserCog,
-  Building2,
   Bell,
-  ShieldCheck,
-  Key,
   Briefcase,
   LogOut,
   ChevronLeft,
@@ -91,10 +87,8 @@ const navGroups: NavGroup[] = [
     groupKey: "sport",
     items: [
       { key: "classes", icon: Calendar, path: "/classes" },
-      { key: "staffPlanning", icon: Calendar, path: "/staff/planning" },
       { key: "coachPortal", icon: GraduationCap, path: "/coach-portal", adminOnly: true },
       { key: "coachMode", icon: GraduationCap, path: "/coach-mode" },
-      { key: "memberPortal", icon: GraduationCap, path: "/member-portal" },
     ],
   },
   {
@@ -103,15 +97,7 @@ const navGroups: NavGroup[] = [
       { key: "products", icon: Package, path: "/products" },
       { key: "inventory", icon: Boxes, path: "/inventory" },
       { key: "suppliers", icon: Truck, path: "/suppliers" },
-    ],
-  },
-  {
-    groupKey: "equipment",
-    items: [
       { key: "materiel", icon: Wrench, path: "/materiel" },
-      { key: "equipment", icon: Wrench, path: "/equipment" },
-      { key: "reservations", icon: Clock, path: "/equipment/reservations" },
-      { key: "equipmentReport", icon: BarChart3, path: "/equipment/report" },
     ],
   },
   {
@@ -147,12 +133,6 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    groupKey: "reports",
-    items: [
-      { key: "equipmentReport", icon: BarChart3, path: "/equipment/report" },
-    ],
-  },
-  {
     groupKey: "marketing",
     items: [
       { key: "notifications", icon: Bell, path: "/notifications" },
@@ -163,7 +143,6 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "settings", icon: Settings, path: "/settings" },
       { key: "profile", icon: UserCog, path: "/profile" },
-      { key: "gyms", icon: Building2, path: "/gyms" },
       { key: "users", icon: Users, path: "/admin/users" },
       { key: "corporate", icon: Briefcase, path: "/corporate" },
       { key: "display", icon: Monitor, path: "/display" },
@@ -175,24 +154,15 @@ const navGroups: NavGroup[] = [
       { key: "aiAssistant", icon: Sparkles, path: "/ai-assistant" },
     ],
   },
-  {
-    groupKey: "superAdmin",
-    items: [
-      { key: "superAdmin", icon: ShieldCheck, path: "/super-admin" },
-      { key: "licenses", icon: Key, path: "/licenses" },
-    ],
-  },
 ]
 
 const VISIBLE_GROUPS: Record<string, string[]> = {
-  super_admin: ['dashboard', 'checkin', 'members', 'pos', 'sport', 'stock', 'equipment', 'access', 'hr', 'finance', 'profitability', 'reports', 'marketing', 'admin', 'ai', 'superAdmin'],
-  admin: ['dashboard', 'checkin', 'members', 'pos', 'stock', 'equipment', 'access', 'hr', 'finance', 'profitability', 'reports', 'marketing', 'admin', 'ai'],
+  admin: ['dashboard', 'checkin', 'members', 'pos', 'stock', 'access', 'hr', 'finance', 'profitability', 'marketing', 'admin', 'ai'],
   staff: ['dashboard', 'checkin', 'members', 'pos'],
   coach: ['dashboard', 'checkin', 'members', 'pos', 'sport'],
 }
 
 function getTopRole(roles: { role: string }[]): string {
-  if (roles.some(r => r.role === 'super_admin')) return 'super_admin'
   if (roles.some(r => r.role === 'admin')) return 'admin'
   if (roles.some(r => r.role === 'staff')) return 'staff'
   if (roles.some(r => r.role === 'coach')) return 'coach'
@@ -205,12 +175,12 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
   const { user, profile, signOut, roles } = useAuth()
   const topRole = getTopRole(roles)
   const visibleGroups = VISIBLE_GROUPS[topRole] ?? VISIBLE_GROUPS.admin
-  const isAdminOrSuper = topRole === 'admin' || topRole === 'super_admin'
+  const isAdmin = topRole === 'admin'
   const filteredGroups = navGroups
     .filter(g => visibleGroups.includes(g.groupKey))
     .map(g => ({
       ...g,
-      items: g.items.filter(item => !item.adminOnly || isAdminOrSuper),
+      items: g.items.filter(item => !item.adminOnly || isAdmin),
     }))
     .filter(g => g.items.length > 0)
   const initials = profile?.full_name

@@ -21,8 +21,8 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created ON admin_audit_log(create
 -- 3. RLS
 ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY;
 
--- Seuls les super_admin peuvent voir les logs
-CREATE POLICY "Super admins can view audit logs"
+-- Seuls les admins peuvent voir les logs
+CREATE POLICY "Admins can view audit logs"
 ON admin_audit_log FOR SELECT
 TO authenticated
 USING (
@@ -30,7 +30,7 @@ USING (
     SELECT 1 FROM user_roles
     WHERE user_id = auth.uid()
       AND organization_id = admin_audit_log.organization_id
-      AND role = 'super_admin'
+      AND role = 'admin'
   )
 );
 

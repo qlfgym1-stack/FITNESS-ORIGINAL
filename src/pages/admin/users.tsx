@@ -209,7 +209,7 @@ export default function AdminUsersPage() {
                             u.roles.map((r, i) => (
                               <Badge
                                 key={i}
-                                variant={r.role === 'super_admin' ? 'destructive' : r.role === 'admin' ? 'default' : 'secondary'}
+                                variant={r.role === 'admin' ? 'default' : 'secondary'}
                                 className="text-xs"
                               >
                                 {r.role}

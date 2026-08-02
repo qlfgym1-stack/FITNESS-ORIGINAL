@@ -14,16 +14,26 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
-import { formatDate, formatCurrency, getStatusColor } from "@/lib/utils"
-import { Building, Plus, Search, Edit, Trash2, Phone, Mail, Percent, Download, X } from "lucide-react"
+import { formatDate } from "@/lib/utils"
+import { Building, Plus, Search, Edit, Trash2, Phone, Mail, Percent, Download, X, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
 import { Pagination } from "@/components/ui/pagination"
 import { Card } from "@/components/ui/card"
+import { useQuery, useQueryClient } from "@/hooks/useQuery"
+import { useSupabase } from "@/hooks/useSupabase"
+import { useAuth } from "@/stores/auth"
+import { IS_MOCK } from "@/lib/config"
+import type { Corporate } from "@/types/supabase"
 
-interface CorporateAccount {
-  id: string
+const defaultAccounts: Corporate[] = [
+  { id: "1", organization_id: "mock-org-id", company_name: "Sonatrach", contact_name: "Ali Haddad", email: "ali@sonatrach.dz", phone: "+213 21 123 456", address: "Hydra, Alger", discount_rate: 15, contract_start: "2026-01-01", contract_end: "2026-12-31", is_active: true, created_at: new Date().toISOString() },
+  { id: "2", organization_id: "mock-org-id", company_name: "Air Algérie", contact_name: "Samira Bellil", email: "samira@airalgerie.dz", phone: "+213 21 789 012", address: "Dar El Beida, Alger", discount_rate: 10, contract_start: "2026-03-01", contract_end: "2027-02-28", is_active: true, created_at: new Date().toISOString() },
+  { id: "3", organization_id: "mock-org-id", company_name: "Algerian Telecom", contact_name: "Rachid Mansour", email: "rachid@telecom.dz", phone: "+213 770 555 555", address: "Rouiba, Alger", discount_rate: 20, contract_start: "2026-02-01", contract_end: "2026-08-01", is_active: false, created_at: new Date().toISOString() },
+]
+
+type CorporateForm = {
   company_name: string
   contact_name: string
   email: string
@@ -35,29 +45,44 @@ interface CorporateAccount {
   is_active: boolean
 }
 
-const defaultAccounts: CorporateAccount[] = [
-  { id: "1", company_name: "Sonatrach", contact_name: "Ali Haddad", email: "ali@sonatrach.dz", phone: "+213 21 123 456", address: "Hydra, Alger", discount_rate: 15, contract_start: "2026-01-01", contract_end: "2026-12-31", is_active: true },
-  { id: "2", company_name: "Air Algérie", contact_name: "Samira Bellil", email: "samira@airalgerie.dz", phone: "+213 21 789 012", address: "Dar El Beida, Alger", discount_rate: 10, contract_start: "2026-03-01", contract_end: "2027-02-28", is_active: true },
-  { id: "3", company_name: "Algerian Telecom", contact_name: "Rachid Mansour", email: "rachid@telecom.dz", phone: "+213 770 555 555", address: "Rouiba, Alger", discount_rate: 20, contract_start: "2026-02-01", contract_end: "2026-08-01", is_active: false },
-]
+const emptyForm: CorporateForm = {
+  company_name: "", contact_name: "", email: "", phone: "", address: "",
+  discount_rate: 0, contract_start: "", contract_end: "", is_active: true,
+}
 
 export default function CorporatePage() {
   const t = useT()
   const { toast } = useToast()
-  const [accounts, setAccounts] = useState<CorporateAccount[]>(defaultAccounts)
+  const supabase = useSupabase()
+  const queryClient = useQueryClient()
+  const { organization } = useAuth()
+  const orgId = organization?.id
+
+  const [mockAccounts, setMockAccounts] = useState<Corporate[]>(defaultAccounts)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [editing, setEditing] = useState<CorporateAccount | null>(null)
+  const [editing, setEditing] = useState<Corporate | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [form, setForm] = useState<Omit<CorporateAccount, "id">>({
-    company_name: "", contact_name: "", email: "", phone: "", address: "", discount_rate: 0,
-    contract_start: "", contract_end: "", is_active: true,
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<CorporateForm>(emptyForm)
+
+  const { data } = useQuery({
+    queryKey: ["corporate-accounts", orgId],
+    queryFn: async () => {
+      if (IS_MOCK) return defaultAccounts
+      if (!orgId) return []
+      const { data } = await supabase.from("corporate").select("*").eq("organization_id", orgId).order("company_name")
+      return (data ?? []) as Corporate[]
+    },
+    enabled: !IS_MOCK ? !!orgId : true,
   })
 
+  const accounts = IS_MOCK ? mockAccounts : (data ?? [])
+
   const filtered = accounts.filter((a) => {
-    const matchesSearch = a.company_name.toLowerCase().includes(search.toLowerCase()) ||
-      a.contact_name.toLowerCase().includes(search.toLowerCase()) ||
-      a.email.toLowerCase().includes(search.toLowerCase())
+    const matchesSearch = (a.company_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (a.contact_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (a.email ?? "").toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === "all" ||
       (statusFilter === "active" && a.is_active) ||
       (statusFilter === "inactive" && !a.is_active)
@@ -83,29 +108,68 @@ export default function CorporatePage() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ company_name: "", contact_name: "", email: "", phone: "", address: "", discount_rate: 0, contract_start: "", contract_end: "", is_active: true })
+    setForm({ ...emptyForm })
     setDialogOpen(true)
   }
 
-  function openEdit(a: CorporateAccount) {
+  function openEdit(a: Corporate) {
     setEditing(a)
-    setForm({ company_name: a.company_name, contact_name: a.contact_name, email: a.email, phone: a.phone, address: a.address, discount_rate: a.discount_rate, contract_start: a.contract_start, contract_end: a.contract_end, is_active: a.is_active })
+    setForm({
+      company_name: a.company_name,
+      contact_name: a.contact_name ?? "",
+      email: a.email ?? "",
+      phone: a.phone ?? "",
+      address: a.address ?? "",
+      discount_rate: Number(a.discount_rate ?? 0),
+      contract_start: a.contract_start ?? "",
+      contract_end: a.contract_end ?? "",
+      is_active: a.is_active,
+    })
     setDialogOpen(true)
   }
 
-  function save() {
-    if (editing) {
-      setAccounts((prev) => prev.map((a) => (a.id === editing.id ? { ...a, ...form } : a)))
-      toast({ title: t("common.updated") })
-    } else {
-      setAccounts((prev) => [...prev, { id: String(Date.now()), ...form }])
-      toast({ title: t("common.created") })
+  async function save() {
+    if (!orgId && !IS_MOCK) return
+    setSaving(true)
+    try {
+      if (IS_MOCK) {
+        if (editing) {
+          setMockAccounts((prev) => prev.map((a) => (a.id === editing.id ? { ...a, ...form } : a)))
+        } else {
+          setMockAccounts((prev) => [...prev, { ...emptyForm, ...form, id: String(Date.now()), organization_id: "mock-org-id", created_at: new Date().toISOString() }])
+        }
+        toast({ title: editing ? t("common.updated") : t("common.created") })
+      } else {
+        if (editing) {
+          const { error } = await supabase.from("corporate").update(form as any).eq("id", editing.id)
+          if (error) throw error
+        } else {
+          const { error } = await supabase.from("corporate").insert({ ...form, organization_id: orgId } as any)
+          if (error) throw error
+        }
+        queryClient.invalidateQueries({ queryKey: ["corporate-accounts"] })
+        toast({ title: editing ? t("common.updated") : t("common.created") })
+      }
+      setDialogOpen(false)
+    } catch (err: any) {
+      toast({ title: t("errors.generic") || "Error", description: err?.message, variant: "destructive" })
+    } finally {
+      setSaving(false)
     }
-    setDialogOpen(false)
   }
 
-  function remove(id: string) {
-    setAccounts((prev) => prev.filter((a) => a.id !== id))
+  async function remove(id: string) {
+    if (IS_MOCK) {
+      setMockAccounts((prev) => prev.filter((a) => a.id !== id))
+      toast({ title: t("common.deleted") })
+      return
+    }
+    const { error } = await supabase.from("corporate").delete().eq("id", id)
+    if (error) {
+      toast({ title: t("errors.generic") || "Error", description: error.message, variant: "destructive" })
+      return
+    }
+    queryClient.invalidateQueries({ queryKey: ["corporate-accounts"] })
     toast({ title: t("common.deleted") })
   }
 
@@ -283,10 +347,17 @@ export default function CorporatePage() {
                 <Input type="date" value={form.contract_end} onChange={(e) => setForm((f) => ({ ...f, contract_end: e.target.value }))} />
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={form.is_active} onCheckedChange={(v) => setForm((f) => ({ ...f, is_active: v }))} />
+              <Label>{t("corporate.active")}</Label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
-            <Button onClick={save}>{t("common.save")}</Button>
+            <Button onClick={save} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("common.save")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

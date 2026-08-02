@@ -14,6 +14,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -29,36 +30,58 @@ import { AvatarUpload } from '@/components/ui/avatar-upload'
 import { CameraCapture } from '@/components/ui/camera-capture'
 
 const MOCK_MEMBERS: Member[] = [
-  { id: 'mock-1', organization_id: 'mock-org-id', first_name: 'Ahmed', last_name: 'Benali', email: 'ahmed@example.com', phone: '0555123456', gender: 'male', birth_date: '1990-05-15', address: 'Alger Centre', emergency_contact: 'Fatima Benali', emergency_phone: '0555654321', photo_url: null, status: 'active', last_visit: new Date().toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 30).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00001', coach_id: null },
-  { id: 'mock-2', organization_id: 'mock-org-id', first_name: 'Sara', last_name: 'Mansouri', email: 'sara@example.com', phone: '0666987654', gender: 'female', birth_date: '1995-08-22', address: 'Bab Ezzouar', emergency_contact: 'Karim Mansouri', emergency_phone: '0666543210', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 2).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 60).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00002', coach_id: null },
-  { id: 'mock-3', organization_id: 'mock-org-id', first_name: 'Mohamed', last_name: 'Hadj', email: 'mohamed@example.com', phone: '0777112233', gender: 'male', birth_date: '1988-12-01', address: 'Hydra', emergency_contact: 'Aicha Hadj', emergency_phone: '0777332211', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 5).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 90).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00003', coach_id: null },
-  { id: 'mock-4', organization_id: 'mock-org-id', first_name: 'Nadia', last_name: 'Bouzid', email: 'nadia@example.com', phone: '0555445566', gender: 'female', birth_date: '2000-03-10', address: 'Kouba', emergency_contact: 'Samir Bouzid', emergency_phone: '0555665544', photo_url: null, status: 'inactive', last_visit: new Date(Date.now() - 86400000 * 45).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 120).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00004', coach_id: null },
-  { id: 'mock-5', organization_id: 'mock-org-id', first_name: 'Reda', last_name: 'Khelifi', email: 'reda@example.com', phone: '0666778899', gender: 'male', birth_date: '1992-07-20', address: 'Bir Mourad Rais', emergency_contact: 'Zineb Khelifi', emergency_phone: '0666998877', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 15).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00005', coach_id: null },
-  { id: 'mock-6', organization_id: 'mock-org-id', first_name: 'Amel', last_name: 'Zitouni', email: 'amel@example.com', phone: '0777001122', gender: 'female', birth_date: '1998-11-05', address: 'El Harrach', emergency_contact: 'Rachid Zitouni', emergency_phone: '0777221100', photo_url: null, status: 'active', last_visit: new Date().toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 7).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00006', coach_id: null },
-  { id: 'mock-7', organization_id: 'mock-org-id', first_name: 'Youcef', last_name: 'Belaid', email: 'youcef@example.com', phone: '0555889900', gender: 'male', birth_date: '1985-09-30', address: 'Ben Aknoun', emergency_contact: 'Meriem Belaid', emergency_phone: '0555009988', photo_url: null, status: 'inactive', last_visit: new Date(Date.now() - 86400000 * 60).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 200).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00007', coach_id: null },
-  { id: 'mock-8', organization_id: 'mock-org-id', first_name: 'Lina', last_name: 'Toumi', email: 'lina@example.com', phone: '0666334455', gender: 'female', birth_date: '2002-01-15', address: 'Dely Ibrahim', emergency_contact: 'Hocine Toumi', emergency_phone: '0666554433', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 3).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 45).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00008', coach_id: null },
-  { id: 'mock-9', organization_id: 'mock-org-id', first_name: 'Karim', last_name: 'Saidi', email: 'karim@example.com', phone: '0777667788', gender: 'male', birth_date: '1991-04-18', address: 'Oued Smar', emergency_contact: 'Nora Saidi', emergency_phone: '0777887766', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 10).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 80).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00009', coach_id: null },
-  { id: 'mock-10', organization_id: 'mock-org-id', first_name: 'Samira', last_name: 'Guerfi', email: 'samira@example.com', phone: '0555112233', gender: 'female', birth_date: '1994-06-25', address: 'Bordj El Kiffan', emergency_contact: 'Ali Guerfi', emergency_phone: '0555332211', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 1).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 35).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00010', coach_id: null },
-  { id: 'mock-11', organization_id: 'mock-org-id', first_name: 'Hichem', last_name: 'Mazari', email: 'hichem@example.com', phone: '0666445566', gender: 'male', birth_date: '1987-10-12', address: 'Dar El Beida', emergency_contact: 'Salima Mazari', emergency_phone: '0666665544', photo_url: null, status: 'inactive', last_visit: new Date(Date.now() - 86400000 * 90).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 150).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00011', coach_id: null },
-  { id: 'mock-12', organization_id: 'mock-org-id', first_name: 'Fatima', last_name: 'Ouali', email: 'fatima@example.com', phone: '0777556677', gender: 'female', birth_date: '1996-02-28', address: 'Birkhadem', emergency_contact: 'Mustapha Ouali', emergency_phone: '0777776655', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 4).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 50).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00012', coach_id: null },
+  { id: 'mock-1', organization_id: 'mock-org-id', first_name: 'Ahmed', last_name: 'Benali', email: 'ahmed@example.com', phone: '0555123456', gender: 'male', birth_date: '1990-05-15', address: 'Alger Centre', emergency_contact: 'Fatima Benali', emergency_phone: '0555654321', photo_url: null, status: 'active', last_visit: new Date().toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 30).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00001', coach_id: null, corporate_id: null },
+  { id: 'mock-2', organization_id: 'mock-org-id', first_name: 'Sara', last_name: 'Mansouri', email: 'sara@example.com', phone: '0666987654', gender: 'female', birth_date: '1995-08-22', address: 'Bab Ezzouar', emergency_contact: 'Karim Mansouri', emergency_phone: '0666543210', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 2).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 60).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00002', coach_id: null, corporate_id: null },
+  { id: 'mock-3', organization_id: 'mock-org-id', first_name: 'Mohamed', last_name: 'Hadj', email: 'mohamed@example.com', phone: '0777112233', gender: 'male', birth_date: '1988-12-01', address: 'Hydra', emergency_contact: 'Aicha Hadj', emergency_phone: '0777332211', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 5).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 90).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00003', coach_id: null, corporate_id: null },
+  { id: 'mock-4', organization_id: 'mock-org-id', first_name: 'Nadia', last_name: 'Bouzid', email: 'nadia@example.com', phone: '0555445566', gender: 'female', birth_date: '2000-03-10', address: 'Kouba', emergency_contact: 'Samir Bouzid', emergency_phone: '0555665544', photo_url: null, status: 'inactive', last_visit: new Date(Date.now() - 86400000 * 45).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 120).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00004', coach_id: null, corporate_id: null },
+  { id: 'mock-5', organization_id: 'mock-org-id', first_name: 'Reda', last_name: 'Khelifi', email: 'reda@example.com', phone: '0666778899', gender: 'male', birth_date: '1992-07-20', address: 'Bir Mourad Rais', emergency_contact: 'Zineb Khelifi', emergency_phone: '0666998877', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 15).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00005', coach_id: null, corporate_id: null },
+  { id: 'mock-6', organization_id: 'mock-org-id', first_name: 'Amel', last_name: 'Zitouni', email: 'amel@example.com', phone: '0777001122', gender: 'female', birth_date: '1998-11-05', address: 'El Harrach', emergency_contact: 'Rachid Zitouni', emergency_phone: '0777221100', photo_url: null, status: 'active', last_visit: new Date().toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 7).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00006', coach_id: null, corporate_id: null },
+  { id: 'mock-7', organization_id: 'mock-org-id', first_name: 'Youcef', last_name: 'Belaid', email: 'youcef@example.com', phone: '0555889900', gender: 'male', birth_date: '1985-09-30', address: 'Ben Aknoun', emergency_contact: 'Meriem Belaid', emergency_phone: '0555009988', photo_url: null, status: 'inactive', last_visit: new Date(Date.now() - 86400000 * 60).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 200).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00007', coach_id: null, corporate_id: null },
+  { id: 'mock-8', organization_id: 'mock-org-id', first_name: 'Lina', last_name: 'Toumi', email: 'lina@example.com', phone: '0666334455', gender: 'female', birth_date: '2002-01-15', address: 'Dely Ibrahim', emergency_contact: 'Hocine Toumi', emergency_phone: '0666554433', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 3).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 45).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00008', coach_id: null, corporate_id: null },
+  { id: 'mock-9', organization_id: 'mock-org-id', first_name: 'Karim', last_name: 'Saidi', email: 'karim@example.com', phone: '0777667788', gender: 'male', birth_date: '1991-04-18', address: 'Oued Smar', emergency_contact: 'Nora Saidi', emergency_phone: '0777887766', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 10).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 80).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00009', coach_id: null, corporate_id: null },
+  { id: 'mock-10', organization_id: 'mock-org-id', first_name: 'Samira', last_name: 'Guerfi', email: 'samira@example.com', phone: '0555112233', gender: 'female', birth_date: '1994-06-25', address: 'Bordj El Kiffan', emergency_contact: 'Ali Guerfi', emergency_phone: '0555332211', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 1).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 35).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00010', coach_id: null, corporate_id: null },
+  { id: 'mock-11', organization_id: 'mock-org-id', first_name: 'Hichem', last_name: 'Mazari', email: 'hichem@example.com', phone: '0666445566', gender: 'male', birth_date: '1987-10-12', address: 'Dar El Beida', emergency_contact: 'Salima Mazari', emergency_phone: '0666665544', photo_url: null, status: 'inactive', last_visit: new Date(Date.now() - 86400000 * 90).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 150).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00011', coach_id: null, corporate_id: null },
+  { id: 'mock-12', organization_id: 'mock-org-id', first_name: 'Fatima', last_name: 'Ouali', email: 'fatima@example.com', phone: '0777556677', gender: 'female', birth_date: '1996-02-28', address: 'Birkhadem', emergency_contact: 'Mustapha Ouali', emergency_phone: '0777776655', photo_url: null, status: 'active', last_visit: new Date(Date.now() - 86400000 * 4).toISOString(), notes: null, created_at: new Date(Date.now() - 86400000 * 50).toISOString(), updated_at: new Date().toISOString(), member_number: 'QLF-00012', coach_id: null, corporate_id: null },
 ]
 
-const memberSchema = z.object({
-  first_name: z.string().min(1, 'First name is required'),
-  last_name: z.string().min(1, 'Last name is required'),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  phone: z.string().optional().or(z.literal('')),
-  gender: z.string().optional().or(z.literal('')),
-  birth_date: z.string().optional().or(z.literal('')),
-  address: z.string().optional().or(z.literal('')),
-  emergency_contact: z.string().optional().or(z.literal('')),
-  emergency_phone: z.string().optional().or(z.literal('')),
-  subscription_type_id: z.string().optional().or(z.literal('')),
-  start_date: z.string().optional().or(z.literal('')),
-  coach_id: z.string().optional().or(z.literal('')),
-})
+const createMemberSchema = (t: (k: string) => string, isCreate: boolean) => {
+  if (!isCreate) {
+    return z.object({
+      first_name: z.string().min(1, t('errors.firstNameRequired')),
+      last_name: z.string().min(1, t('errors.lastNameRequired')),
+      email: z.string().email(t('errors.emailRequired')).optional().or(z.literal('')),
+      phone: z.string().refine(v => !v || isValidDzPhone(v), t('errors.phoneInvalid')).optional().or(z.literal('')),
+      gender: z.string().optional().or(z.literal('')),
+      birth_date: z.string().optional().or(z.literal('')),
+      address: z.string().optional().or(z.literal('')),
+      emergency_contact: z.string().optional().or(z.literal('')),
+      emergency_phone: z.string().optional().or(z.literal('')),
+      notes: z.string().optional().or(z.literal('')),
+      subscription_type_id: z.string().optional().or(z.literal('')),
+      start_date: z.string().optional().or(z.literal('')),
+      coach_id: z.string().optional().or(z.literal('')),
+      corporate_id: z.string().optional().or(z.literal('')),
+    })
+  }
+  return z.object({
+    first_name: z.string().min(1, t('errors.firstNameRequired')),
+    last_name: z.string().min(1, t('errors.lastNameRequired')),
+    email: z.string().email(t('errors.emailRequired')),
+    phone: z.string().min(1, t('errors.phoneRequired')).refine(v => isValidDzPhone(v), t('errors.phoneInvalid')),
+    gender: z.string().min(1, t('errors.genderRequired')),
+    birth_date: z.string().min(1, t('errors.birthDateRequired')),
+    address: z.string().min(1, t('errors.addressRequired')),
+    emergency_contact: z.string().min(1, t('errors.emergencyContactRequired')),
+    emergency_phone: z.string().min(1, t('errors.emergencyPhoneRequired')),
+    notes: z.string().min(1, t('errors.notesRequired')),
+    subscription_type_id: z.string().min(1, t('errors.subscriptionRequired')),
+    start_date: z.string().optional().or(z.literal('')),
+    coach_id: z.string().optional().or(z.literal('')),
+    corporate_id: z.string().optional().or(z.literal('')),
+  })
+}
 
-type MemberForm = z.infer<typeof memberSchema>
+type MemberForm = z.infer<ReturnType<typeof createMemberSchema>>
 
 interface ImportDialogProps {
   open: boolean
@@ -121,16 +144,16 @@ function ImportDialog({ open, onOpenChange, onImport, t: tFn }: ImportDialogProp
 }
 
 const MOCK_SUBSCRIPTION_TYPES: SubscriptionType[] = [
-  { id: 'mock-st-1', organization_id: 'mock-org', name: 'Séance Libre', description: 'Sans coach', duration_days: 1, price: 300, max_classes: 1, is_active: true, created_at: new Date().toISOString() },
-  { id: 'mock-st-2', organization_id: 'mock-org', name: '1 Mois', description: 'Sans coach — 30 jours', duration_days: 30, price: 2400, max_classes: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'mock-st-3', organization_id: 'mock-org', name: '3 Mois', description: 'Sans coach — 90 jours', duration_days: 90, price: 6600, max_classes: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'mock-st-4', organization_id: 'mock-org', name: '6 Mois', description: 'Sans coach — 180 jours', duration_days: 180, price: 12000, max_classes: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'mock-st-5', organization_id: 'mock-org', name: '12 Mois', description: 'Sans coach — 365 jours', duration_days: 365, price: 22800, max_classes: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'mock-st-6', organization_id: 'mock-org', name: 'Séance Libre', description: 'Avec coach — 1 séance', duration_days: 1, price: 600, max_classes: 1, is_active: true, created_at: new Date().toISOString() },
-  { id: 'mock-st-7', organization_id: 'mock-org', name: '1 Mois', description: 'Avec coach — 30 jours', duration_days: 30, price: 3000, max_classes: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'mock-st-8', organization_id: 'mock-org', name: '3 Mois', description: 'Avec coach — 90 jours', duration_days: 90, price: 8400, max_classes: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'mock-st-9', organization_id: 'mock-org', name: '6 Mois', description: 'Avec coach — 180 jours', duration_days: 180, price: 15000, max_classes: null, is_active: true, created_at: new Date().toISOString() },
-  { id: 'mock-st-10', organization_id: 'mock-org', name: '12 Mois', description: 'Avec coach — 365 jours', duration_days: 365, price: 28800, max_classes: null, is_active: true, created_at: new Date().toISOString() },
+  { id: 'mock-st-1', organization_id: 'mock-org', name: 'Séance Libre', description: 'Sans coach', duration_days: 1, price: 300, max_classes: 1, is_active: true, is_drop_in: true, created_at: new Date().toISOString() },
+  { id: 'mock-st-2', organization_id: 'mock-org', name: '1 Mois', description: 'Sans coach — 30 jours', duration_days: 30, price: 2400, max_classes: null, is_active: true, is_drop_in: false, created_at: new Date().toISOString() },
+  { id: 'mock-st-3', organization_id: 'mock-org', name: '3 Mois', description: 'Sans coach — 90 jours', duration_days: 90, price: 6600, max_classes: null, is_active: true, is_drop_in: false, created_at: new Date().toISOString() },
+  { id: 'mock-st-4', organization_id: 'mock-org', name: '6 Mois', description: 'Sans coach — 180 jours', duration_days: 180, price: 12000, max_classes: null, is_active: true, is_drop_in: false, created_at: new Date().toISOString() },
+  { id: 'mock-st-5', organization_id: 'mock-org', name: '12 Mois', description: 'Sans coach — 365 jours', duration_days: 365, price: 22800, max_classes: null, is_active: true, is_drop_in: false, created_at: new Date().toISOString() },
+  { id: 'mock-st-6', organization_id: 'mock-org', name: 'Séance Libre', description: 'Avec coach — 1 séance', duration_days: 1, price: 600, max_classes: 1, is_active: true, is_drop_in: false, created_at: new Date().toISOString() },
+  { id: 'mock-st-7', organization_id: 'mock-org', name: '1 Mois', description: 'Avec coach — 30 jours', duration_days: 30, price: 3000, max_classes: null, is_active: true, is_drop_in: false, created_at: new Date().toISOString() },
+  { id: 'mock-st-8', organization_id: 'mock-org', name: '3 Mois', description: 'Avec coach — 90 jours', duration_days: 90, price: 8400, max_classes: null, is_active: true, is_drop_in: false, created_at: new Date().toISOString() },
+  { id: 'mock-st-9', organization_id: 'mock-org', name: '6 Mois', description: 'Avec coach — 180 jours', duration_days: 180, price: 15000, max_classes: null, is_active: true, is_drop_in: false, created_at: new Date().toISOString() },
+  { id: 'mock-st-10', organization_id: 'mock-org', name: '12 Mois', description: 'Avec coach — 365 jours', duration_days: 365, price: 28800, max_classes: null, is_active: true, is_drop_in: false, created_at: new Date().toISOString() },
 ]
 
 export default function Members() {
@@ -200,8 +223,19 @@ export default function Members() {
     queryFn: async () => {
       if (!orgId) return []
       if (IS_MOCK) return MOCK_SUBSCRIPTION_TYPES
-      const { data } = await supabase.from('subscription_types').select('*').eq('organization_id', orgId).eq('is_active', true).order('name')
+      const { data } = await supabase.from('subscription_types').select('*').eq('organization_id', orgId).eq('is_active', true).eq('is_drop_in', false).order('name')
       return (data ?? []) as SubscriptionType[]
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: corporateAccounts } = useQuery({
+    queryKey: ['corporate-accounts', orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      if (IS_MOCK) return [{ id: 'mock-corp-1', company_name: 'Sonatrach' }]
+      const { data } = await supabase.from('corporate').select('id, company_name, discount_rate').eq('organization_id', orgId).eq('is_active', true).order('company_name')
+      return (data ?? []) as { id: string; company_name: string; discount_rate: number | null }[]
     },
     enabled: !!orgId,
   })
@@ -238,9 +272,11 @@ export default function Members() {
   })
   const memberSubMap = IS_MOCK ? mockSubMap : (memberSubMapQuery ?? {})
 
+  const memberSchema = useMemo(() => createMemberSchema(t, !editingMember), [t, editingMember])
+
   const form = useForm<MemberForm>({
     resolver: zodResolver(memberSchema),
-    defaultValues: { first_name: '', last_name: '', email: '', phone: '', gender: '', birth_date: '', address: '', emergency_contact: '', emergency_phone: '', subscription_type_id: '', start_date: new Date().toISOString().split('T')[0], coach_id: '' },
+    defaultValues: { first_name: '', last_name: '', email: '', phone: '', gender: '', birth_date: '', address: '', emergency_contact: '', emergency_phone: '', notes: '', subscription_type_id: '', start_date: new Date().toISOString().split('T')[0], coach_id: '' },
   })
 
   useEffect(() => {
@@ -344,6 +380,7 @@ export default function Members() {
           updated_at: new Date().toISOString(),
           member_number: memberNumber,
           coach_id: values.coach_id || null,
+          corporate_id: values.corporate_id || null,
         }
         setMockMembers(prev => [newMember, ...prev])
         if (values.subscription_type_id && values.start_date) {
@@ -373,6 +410,7 @@ export default function Members() {
           p_photo_url: photo_url,
           p_subscription_type_id: values.subscription_type_id,
           p_start_date: values.start_date,
+          p_corporate_id: values.corporate_id || null,
         })
         if (error) throw error
         if (values.coach_id) {
@@ -386,7 +424,7 @@ export default function Members() {
         return data as { member_id: string; subscription_id: string; total_amount: number; subscription_name: string; organization_id: string; first_name: string; last_name: string }
       }
       const { subscription_type_id, start_date, ...memberFields } = values
-      const { error } = await supabase.from('members').insert({ ...memberFields, organization_id: orgId, photo_url, email: values.email || null, phone: values.phone || null, gender: values.gender || null, birth_date: values.birth_date || null, address: values.address || null, emergency_contact: values.emergency_contact || null, emergency_phone: values.emergency_phone || null, coach_id: memberFields.coach_id || null } as any)
+      const { error } = await supabase.from('members').insert({ ...memberFields, organization_id: orgId, photo_url, email: values.email || null, phone: values.phone || null, gender: values.gender || null, birth_date: values.birth_date || null, address: values.address || null, emergency_contact: values.emergency_contact || null, emergency_phone: values.emergency_phone || null, coach_id: memberFields.coach_id || null, corporate_id: values.corporate_id || null } as any)
       if (error) throw error
       if (rfidUid) {
         const { data: newMember } = await supabase.from('members').select('id').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(1).single()
@@ -405,6 +443,9 @@ export default function Members() {
       queryClient.invalidateQueries({ queryKey: ['members-active'] })
       queryClient.invalidateQueries({ queryKey: ['inactive-members'] })
       queryClient.invalidateQueries({ queryKey: ['expiring-subscriptions'] })
+      queryClient.invalidateQueries({ queryKey: ['coaches-with-count'] })
+      queryClient.invalidateQueries({ queryKey: ['coaches-list'] })
+      queryClient.invalidateQueries({ queryKey: ['planning-coaches'] })
       if (data) {
         closeDialog()
         navigate('/pos', { state: { pendingSubscription: data } })
@@ -438,7 +479,7 @@ export default function Members() {
         return null
       }
       const { subscription_type_id, start_date, ...memberFields } = values
-      const { error } = await supabase.from('members').update({ ...memberFields, photo_url, email: memberFields.email || null, phone: memberFields.phone || null, gender: memberFields.gender || null, birth_date: memberFields.birth_date || null, address: memberFields.address || null, emergency_contact: memberFields.emergency_contact || null, emergency_phone: memberFields.emergency_phone || null, coach_id: memberFields.coach_id || null }).eq('id', id)
+      const { error } = await supabase.from('members').update({ ...memberFields, photo_url, email: memberFields.email || null, phone: memberFields.phone || null, gender: memberFields.gender || null, birth_date: memberFields.birth_date || null, address: memberFields.address || null, emergency_contact: memberFields.emergency_contact || null, emergency_phone: memberFields.emergency_phone || null, coach_id: memberFields.coach_id || null, corporate_id: memberFields.corporate_id || null }).eq('id', id)
       if (error) throw error
       if (subscription_type_id && start_date) {
         const typeDef = subscriptionTypes?.find(t => t.id === subscription_type_id)
@@ -487,6 +528,9 @@ export default function Members() {
       queryClient.invalidateQueries({ queryKey: ['expiring-subscriptions'] })
       queryClient.invalidateQueries({ queryKey: ['member-subscriptions-map', orgId] })
       queryClient.invalidateQueries({ queryKey: ['member-rfid-active'] })
+      queryClient.invalidateQueries({ queryKey: ['coaches-with-count'] })
+      queryClient.invalidateQueries({ queryKey: ['coaches-list'] })
+      queryClient.invalidateQueries({ queryKey: ['planning-coaches'] })
       if (data) {
         closeDialog()
         navigate('/pos', { state: { pendingSubscription: data } })
@@ -515,7 +559,7 @@ export default function Members() {
     setEditingMember(null)
     setAvatarUploadedUrl(null)
     setRfidUid('')
-    form.reset({ first_name: '', last_name: '', email: '', phone: '', gender: '', birth_date: '', address: '', emergency_contact: '', emergency_phone: '', subscription_type_id: '', start_date: new Date().toISOString().split('T')[0], coach_id: '' })
+    form.reset({ first_name: '', last_name: '', email: '', phone: '', gender: '', birth_date: '', address: '', emergency_contact: '', emergency_phone: '', notes: '', subscription_type_id: '', start_date: new Date().toISOString().split('T')[0], coach_id: '', corporate_id: '' })
     setDialogOpen(true)
   }
 
@@ -534,9 +578,11 @@ export default function Members() {
       address: member.address ?? '',
       emergency_contact: member.emergency_contact ?? '',
       emergency_phone: formatPhone(member.emergency_phone) ?? '',
+      notes: member.notes ?? '',
       subscription_type_id: sub?.subscription_type_id ?? '',
       start_date: new Date().toISOString().split('T')[0],
       coach_id: member.coach_id ?? '',
+      corporate_id: member.corporate_id ?? '',
     })
     setDialogOpen(true)
   }
@@ -894,6 +940,28 @@ export default function Members() {
                   <p className="text-xs text-muted-foreground">{editingMember ? t('subscriptions.editSubscriptionType') : t('pos.subscriptionRedirect')}</p>
                 </div>
               )}
+              {corporateAccounts && corporateAccounts.length > 0 && (
+                <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                  <h4 className="text-sm font-semibold">{t('members.corporateCard')}</h4>
+                  <FormField control={form.control} name="corporate_id" render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger><SelectValue placeholder={t('members.noCorporateCard')} /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">{t('members.noCorporateCard')}</SelectItem>
+                            {corporateAccounts.map(c => (
+                              <SelectItem key={c.id} value={c.id}>{c.company_name}{c.discount_rate ? ` — ${c.discount_rate}%` : ''}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <p className="text-xs text-muted-foreground">{t('members.corporateCardHint')}</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="first_name" render={({ field }) => (
                   <FormItem><FormLabel>{t('members.firstName')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
@@ -952,6 +1020,9 @@ export default function Members() {
                   <FormItem><FormLabel>{t('members.emergencyPhone')}</FormLabel><FormControl><Input {...field} onBlur={() => field.onChange(formatPhone(field.value))} /></FormControl><FormMessage /></FormItem>
                 )} />
               </div>
+              <FormField control={form.control} name="notes" render={({ field }) => (
+                <FormItem><FormLabel>{t('members.notes') || 'Notes'}</FormLabel><FormControl><Textarea rows={2} placeholder="Groupage, poids, taille, observations..." {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
               </form>
             </Form>
           </div>

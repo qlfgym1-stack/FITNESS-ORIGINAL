@@ -54,7 +54,7 @@ export default function CheckinDialog({ open, onOpenChange }: CheckinDialogProps
   const [manualReason, setManualReason] = useState("")
   const [manualDetail, setManualDetail] = useState("")
 
-  const canManualValidate = roles?.some(r => r.role === "admin" || r.role === "super_admin" || r.role === "staff")
+  const canManualValidate = roles?.some(r => r.role === "admin" || r.role === "staff")
 
   const { data: members } = useQuery({
     queryKey: ["members-search", orgId],

@@ -1,4 +1,4 @@
--- RPC to assign super_admin role by email
+-- RPC to assign admin role by email
 -- Usage: SELECT assign_admin_role_by_email('MoussaMohamedelmabrouk@gmail.com', 'dinatek');
 CREATE OR REPLACE FUNCTION assign_admin_role_by_email(p_email TEXT, p_org_slug TEXT DEFAULT 'dinatek')
 RETURNS JSONB
@@ -23,9 +23,9 @@ BEGIN
 
   -- Assign role
   INSERT INTO user_roles (user_id, organization_id, role)
-  VALUES (v_user_id, v_org_id, 'super_admin')
-  ON CONFLICT (user_id, organization_id) DO UPDATE SET role = 'super_admin';
+  VALUES (v_user_id, v_org_id, 'admin')
+  ON CONFLICT (user_id, organization_id) DO UPDATE SET role = 'admin';
 
-  RETURN jsonb_build_object('user_id', v_user_id, 'organization_id', v_org_id, 'role', 'super_admin');
+  RETURN jsonb_build_object('user_id', v_user_id, 'organization_id', v_org_id, 'role', 'admin');
 END;
 $$;

@@ -59,11 +59,11 @@ serve(async (req) => {
       .from('user_roles')
       .select('organization_id')
       .eq('user_id', user.id)
-      .eq('role', 'super_admin')
+      .eq('role', 'admin')
       .maybeSingle()
 
     if (!roles) {
-      return new Response(JSON.stringify({ error: 'Forbidden: super_admin required' }), {
+      return new Response(JSON.stringify({ error: 'Forbidden: admin role required' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })

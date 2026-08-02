@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Link } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from '@/hooks/useQuery'
 import { useSupabase } from '@/hooks/useSupabase'
@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/toast'
 import { useT } from '@/i18n'
 import { getInitials, toUpper, formatPhone } from '@/lib/utils'
-import { Search, Users, UserCheck, Loader2, X, Plus, UserPlus, DollarSign, ChevronLeft, ChevronRight, History } from 'lucide-react'
+import { Search, Users, UserCheck, Loader2, X, Plus, UserPlus, DollarSign, ChevronLeft, ChevronRight, History, Pencil } from 'lucide-react'
 
 interface Coach {
   id: string
@@ -22,6 +22,7 @@ interface Coach {
   phone: string | null
   salary: number | null
   rate_per_member: number | null
+  bonus: number | null
   member_count: number
 }
 
@@ -67,8 +68,14 @@ export default function CoachModePage() {
   const { toast } = useToast()
   const orgId = organization?.id
 
+  const invalidateAllCoaches = () => {
+    queryClient.invalidateQueries({ queryKey: ['coaches-with-count'] })
+    queryClient.invalidateQueries({ queryKey: ['coaches-list'] })
+    queryClient.invalidateQueries({ queryKey: ['planning-coaches'] })
+  }
+
   const isCoach = roles?.some(r => r.role === 'coach')
-  const isAdmin = roles?.some(r => r.role === 'admin' || r.role === 'super_admin')
+  const isAdmin = roles?.some(r => r.role === 'admin')
   const [search, setSearch] = useState('')
   const [selectedCoach, setSelectedCoach] = useState<string | null>(null)
   const [memberSearch, setMemberSearch] = useState('')
@@ -76,6 +83,14 @@ export default function CoachModePage() {
   const [selectedAddMember, setSelectedAddMember] = useState('')
   const [tab, setTab] = useState<'members' | 'salary'>('members')
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [editSalary, setEditSalary] = useState(false)
+  const [salaryInput, setSalaryInput] = useState('')
+  const [rateInput, setRateInput] = useState('')
+  const [bonusInput, setBonusInput] = useState('')
+  const [editingCardId, setEditingCardId] = useState<string | null>(null)
+  const [cardSalary, setCardSalary] = useState('')
+  const [cardRate, setCardRate] = useState('')
+  const [cardBonus, setCardBonus] = useState('')
 
 
   const { data: coaches = [], isLoading: coachesLoading } = useQuery({
@@ -84,9 +99,9 @@ export default function CoachModePage() {
       if (!orgId) return []
       const { data: staffList } = await supabase
         .from('staff')
-        .select('id, first_name, last_name, email, phone, salary, rate_per_member')
+        .select('id, first_name, last_name, email, phone, salary, rate_per_member, bonus')
         .eq('organization_id', orgId)
-        .eq('role', 'coach')
+        .ilike('role', '%coach%')
         .eq('is_active', true)
         .order('first_name')
       if (!staffList) return []
@@ -162,7 +177,7 @@ export default function CoachModePage() {
 
   const totalSalary = useMemo(() => {
     if (!selectedCoachData) return 0
-    return (selectedCoachData.salary ?? 0) + variableAmount
+    return (selectedCoachData.salary ?? 0) + variableAmount + (selectedCoachData.bonus ?? 0)
   }, [selectedCoachData, variableAmount])
 
   const { data: salaryHistory = [] } = useQuery({
@@ -211,7 +226,7 @@ export default function CoachModePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coach-members'] })
-      queryClient.invalidateQueries({ queryKey: ['coaches-with-count'] })
+      invalidateAllCoaches()
       queryClient.invalidateQueries({ queryKey: ['unassigned-members'] })
       queryClient.invalidateQueries({ queryKey: ['members'] })
       toast({ title: 'Adhérent assigné au coach' })
@@ -228,13 +243,40 @@ export default function CoachModePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coach-members'] })
-      queryClient.invalidateQueries({ queryKey: ['coaches-with-count'] })
+      invalidateAllCoaches()
       queryClient.invalidateQueries({ queryKey: ['unassigned-members'] })
       queryClient.invalidateQueries({ queryKey: ['members'] })
       toast({ title: 'Adhérent retiré du coach' })
     },
     onError: (err: Error) => toast({ title: 'Erreur', description: err.message, variant: 'destructive' }),
   })
+
+  const updateSalaryMutation = useMutation({
+    mutationFn: async () => {
+      if (!effectiveSelectedCoach) return
+      const numSalary = salaryInput === '' ? 0 : Number(salaryInput)
+      const numRate = rateInput === '' ? 0 : Number(rateInput)
+      const numBonus = bonusInput === '' ? 0 : Number(bonusInput)
+      const { error } = await supabase
+        .from('staff')
+        .update({ salary: numSalary, rate_per_member: numRate, bonus: numBonus })
+        .eq('id', effectiveSelectedCoach)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      invalidateAllCoaches()
+      setEditSalary(false)
+      toast({ title: 'Salaire mis à jour' })
+    },
+    onError: (err: Error) => toast({ title: 'Erreur', description: err.message, variant: 'destructive' }),
+  })
+
+  function startEditSalary() {
+    setSalaryInput(String(selectedCoachData?.salary ?? 0))
+    setRateInput(String(selectedCoachData?.rate_per_member ?? 0))
+    setBonusInput(String(selectedCoachData?.bonus ?? 0))
+    setEditSalary(true)
+  }
 
   const filteredCoaches = coaches.filter(c =>
     `${c.first_name} ${c.last_name}`.toLowerCase().includes(search.toLowerCase())
@@ -293,7 +335,7 @@ export default function CoachModePage() {
                   key={c.id}
                   className={`cursor-pointer transition-colors hover:bg-accent ${effectiveSelectedCoach === c.id ? 'ring-2 ring-primary' : ''}`}
                   onClick={() => {
-                    if (!isCoach) setSelectedCoach(c.id)
+                    if (!isCoach && editingCardId !== c.id) setSelectedCoach(c.id)
                   }}
                 >
                   <CardContent className="p-3">
@@ -307,24 +349,107 @@ export default function CoachModePage() {
                           {c.email && <p className="text-xs text-muted-foreground">{c.email}</p>}
                         </div>
                       </div>
-                      <Badge variant="secondary" className="ml-2 shrink-0">
-                        <Users className="h-3 w-3 mr-1" />
-                        {c.member_count}
-                      </Badge>
+                      <div className="flex items-center gap-1">
+                        {isAdmin && editingCardId !== c.id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditingCardId(c.id)
+                              setCardSalary(String(c.salary ?? 0))
+                              setCardRate(String(c.rate_per_member ?? 0))
+                              setCardBonus(String(c.bonus ?? 0))
+                            }}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        )}
+                        <Badge variant="secondary" className="shrink-0">
+                          <Users className="h-3 w-3 mr-1" />
+                          {c.member_count}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="mt-2 pt-2 border-t border-border/50 text-xs">
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Fixe {formatCurrency(c.salary ?? 0)}</span>
-                        <span>×{c.member_count} adh</span>
-                      </div>
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Prime {formatCurrency(c.rate_per_member ?? 0)}/adh</span>
-                        <span>Variable {formatCurrency((c.rate_per_member ?? 0) * c.member_count)}</span>
-                      </div>
-                      <div className="flex justify-between font-semibold text-foreground mt-1 pt-1 border-t border-border/30">
-                        <span>Total</span>
-                        <span>{formatCurrency((c.salary ?? 0) + (c.rate_per_member ?? 0) * c.member_count)}</span>
-                      </div>
+                      {editingCardId === c.id ? (
+                        <div className="space-y-2" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground whitespace-nowrap">Fixe</span>
+                            <Input
+                              type="number"
+                              value={cardSalary}
+                              onChange={e => setCardSalary(e.target.value)}
+                              className="h-7 text-xs flex-1"
+                              onClick={e => e.stopPropagation()}
+                            />
+                            <span className="text-muted-foreground">DA</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground whitespace-nowrap">Prime</span>
+                            <Input
+                              type="number"
+                              value={cardRate}
+                              onChange={e => setCardRate(e.target.value)}
+                              className="h-7 text-xs flex-1"
+                              onClick={e => e.stopPropagation()}
+                            />
+                            <span className="text-muted-foreground">/adh</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground whitespace-nowrap">Bonus</span>
+                            <Input
+                              type="number"
+                              value={cardBonus}
+                              onChange={e => setCardBonus(e.target.value)}
+                              className="h-7 text-xs flex-1"
+                              onClick={e => e.stopPropagation()}
+                            />
+                            <span className="text-muted-foreground">DA</span>
+                          </div>
+                          <div className="flex justify-between font-semibold text-foreground pt-1 border-t border-border/30">
+                            <span>Total</span>
+                            <span>{formatCurrency((Number(cardSalary) || 0) + (Number(cardRate) || 0) * c.member_count + (Number(cardBonus) || 0))}</span>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-[10px] flex-1"
+                              onClick={(e) => { e.stopPropagation(); setEditingCardId(null) }}
+                            >
+                              Annuler
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px] flex-1"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                supabase.from('staff').update({ salary: Number(cardSalary) || 0, rate_per_member: Number(cardRate) || 0, bonus: Number(cardBonus) || 0 }).eq('id', c.id).then(({ error }) => {
+                                  if (!error) {
+                                    invalidateAllCoaches()
+                                    setEditingCardId(null)
+                                    toast({ title: 'Salaire mis à jour' })
+                                  }
+                                })
+                              }}
+                            >
+                              OK
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Fixe {formatCurrency(c.salary ?? 0)} + ({formatCurrency(c.rate_per_member ?? 0)}/adh × {c.member_count}){((c.bonus ?? 0) > 0) ? ` + ${formatCurrency(c.bonus ?? 0)} bonus` : ''}</span>
+                          </div>
+                          <div className="flex justify-between font-semibold text-foreground mt-1 pt-1 border-t border-border/30">
+                            <span>Total</span>
+                            <span>{formatCurrency((c.salary ?? 0) + (c.rate_per_member ?? 0) * c.member_count + (c.bonus ?? 0))}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -465,16 +590,51 @@ export default function CoachModePage() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-xs text-muted-foreground">Salaire fixe (DA)</label>
-                        <p className="text-lg font-semibold">{formatCurrency(selectedCoachData.salary ?? 0)}</p>
+                        {editSalary ? (
+                          <Input type="number" value={salaryInput} onChange={e => setSalaryInput(e.target.value)} className="h-8 text-lg font-semibold" />
+                        ) : (
+                          <p className="text-lg font-semibold">{formatCurrency(selectedCoachData.salary ?? 0)}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-xs text-muted-foreground">Prime par adhérent (DA)</label>
-                        <p className="text-lg font-semibold">{formatCurrency(selectedCoachData.rate_per_member ?? 0)}</p>
+                        {editSalary ? (
+                          <Input type="number" value={rateInput} onChange={e => setRateInput(e.target.value)} className="h-8 text-lg font-semibold" />
+                        ) : (
+                          <p className="text-lg font-semibold">{formatCurrency(selectedCoachData.rate_per_member ?? 0)}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-muted-foreground">Bonus exceptionnel (DA)</label>
+                        {editSalary ? (
+                          <Input type="number" value={bonusInput} onChange={e => setBonusInput(e.target.value)} className="h-8 text-lg font-semibold" />
+                        ) : (
+                          <p className="text-lg font-semibold">{formatCurrency(selectedCoachData.bonus ?? 0)}</p>
+                        )}
                       </div>
                     </div>
+
+                    {isAdmin && (
+                      <div className="flex justify-end gap-2">
+                        {editSalary ? (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => setEditSalary(false)}>Annuler</Button>
+                            <Button size="sm" onClick={() => updateSalaryMutation.mutate()} disabled={updateSalaryMutation.isPending}>
+                              {updateSalaryMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                              Enregistrer
+                            </Button>
+                          </>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={startEditSalary}>
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Modifier le salaire
+                          </Button>
+                        )}
+                      </div>
+                    )}
 
                     <div className="bg-muted/50 rounded-lg p-4 space-y-2">
                       <div className="flex justify-between text-sm">
@@ -485,6 +645,12 @@ export default function CoachModePage() {
                         <span>Variable ({formatCurrency(selectedCoachData.rate_per_member ?? 0)} × {activeMemberCount})</span>
                         <span className="font-medium">{formatCurrency(variableAmount)}</span>
                       </div>
+                      {(selectedCoachData.bonus ?? 0) > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span>Bonus exceptionnel</span>
+                          <span className="font-medium">{formatCurrency(selectedCoachData.bonus ?? 0)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-base font-bold border-t pt-2">
                         <span>Salaire total</span>
                         <span>{formatCurrency(totalSalary)}</span>
@@ -563,29 +729,27 @@ export default function CoachModePage() {
                   className="pl-9"
                 />
               </div>
-              <ScrollArea className="max-h-60">
-                <div className="space-y-1">
-                  {filteredUnassigned.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">Aucun adhérent disponible</p>
-                  ) : (
-                    filteredUnassigned.map(m => (
-                      <div
-                        key={m.id}
-                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-accent ${selectedAddMember === m.id ? 'bg-accent ring-1 ring-primary' : ''}`}
-                        onClick={() => setSelectedAddMember(m.id)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="text-xs">{getInitials(m.first_name, m.last_name)}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm">{toUpper(m.first_name)} {toUpper(m.last_name)}</span>
-                        </div>
-                        {m.phone && <span className="text-xs text-muted-foreground">{formatPhone(m.phone)}</span>}
+              <div className="max-h-72 overflow-y-auto rounded-md border border-border/50 p-1 space-y-1" style={{ scrollbarWidth: 'thin' }}>
+                {filteredUnassigned.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Aucun adhérent disponible</p>
+                ) : (
+                  filteredUnassigned.map(m => (
+                    <div
+                      key={m.id}
+                      className={`flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-accent ${selectedAddMember === m.id ? 'bg-accent ring-1 ring-primary' : ''}`}
+                      onClick={() => setSelectedAddMember(m.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">{getInitials(m.first_name, m.last_name)}</AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm">{toUpper(m.first_name)} {toUpper(m.last_name)}</span>
                       </div>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
+                      {m.phone && <span className="text-xs text-muted-foreground">{formatPhone(m.phone)}</span>}
+                    </div>
+                  ))
+                )}
+              </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setAddMemberOpen(false)}>Annuler</Button>
                 <Button

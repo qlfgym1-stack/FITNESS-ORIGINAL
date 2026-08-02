@@ -71,8 +71,8 @@ serve(async (req) => {
       .eq('organization_id', organization_id)
       .single()
 
-    if (roleError || !roleRow || !['admin', 'super_admin'].includes(roleRow.role)) {
-      return new Response(JSON.stringify({ error: 'Forbidden: admin or super_admin role required' }), {
+    if (roleError || !roleRow || !['admin'].includes(roleRow.role)) {
+      return new Response(JSON.stringify({ error: 'Forbidden: admin role required' }), {
         status: 403, headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
