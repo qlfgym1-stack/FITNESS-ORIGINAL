@@ -82,6 +82,7 @@
 - **Paie — Bonus exceptionnel** : champ BONUS « prime exceptionnelle » par employé dans `rh.tsx` (colonne `staff.bonus` existante via 00051) — éditable admin, sauvegardé avec salaire (autosave), badge bonus dans la liste staff, ligne « Total salaire » = fixe + bonus
 - **Assistant IA — Bonus intégré** : `useAssistantData.ts` somme les `staff.bonus` actifs et les ajoute aux dépenses salariales (`totalExpenses`) → impacte le bénéfice net, KPI et synthèse
 - **Fix UI — Synthèse intelligente** : `insights-section.tsx` textes passés en `text-foreground` (noir) au lieu de `text-*-foreground` blancs sur fonds teintés 10% (illisibles) ; action `opacity-80` → noir plein
+- **Thème Premium Pro (uiverse.io)** : palette retravaillée (`index.css` — light `#f7f8fc`/`#101828`, dark navy `#0b0f1a`, `--radius` 0.75rem, primary dark `#2563eb`) ; boutons gradient + glow + lift + shine (`button.tsx`, utilitaire `.btn-shine`) ; cards ombre 2 couches + hover lift (`.card-shadow`/`.card-shadow-hover`) ; inputs focus glow (`border-primary/50` + ring) ; ombres `glow-primary`/`glow-destructive` dans `tailwind.config.js` — aucun changement fonctionnel
 
 ### In Progress
 - Intégration des anomalies de l'audit (reste : sign-in i18n F-4 intentionnel, `noImplicitAny` C1, Git branches G2)
