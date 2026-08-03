@@ -17,8 +17,20 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error }
   }
 
+  private reloadAttempted = false
+
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, info)
+    const msg = error?.message || ''
+    const staleChunk =
+      /Failed to fetch dynamically imported module|Importing a module script failed|Unable to preload CSS|Loading chunk .* failed|does not provide an export named/i.test(
+        msg
+      )
+    if (staleChunk && !this.reloadAttempted) {
+      this.reloadAttempted = true
+      console.warn('[ErrorBoundary] Stale chunk detected, reloading app:', msg)
+      window.location.reload()
+    }
   }
 
   render() {

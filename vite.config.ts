@@ -12,6 +12,7 @@ export default defineConfig({
       includeAssets: ['favicon-32.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             urlPattern: /^https?:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
