@@ -79,6 +79,9 @@
 - **Bug F-7** — `members.tsx` lit `?q=` via `useSearchParams` → recherche navbar fonctionnelle (init `search`/`debouncedSearch` depuis l'URL)
 - **Bug F-6** — `navbar.tsx` importe `useQuery`/`useMutation`/`useQueryClient` depuis `@/hooks/useQuery`
 - **Déploiement Vercel** — ErrorBoundary auto-reload sur chunk dynamique périmé (stale PWA) + `cleanupOutdatedCaches` ; déploiement prod https://qlfgym.vercel.app ✅
+- **Paie — Bonus exceptionnel** : champ BONUS « prime exceptionnelle » par employé dans `rh.tsx` (colonne `staff.bonus` existante via 00051) — éditable admin, sauvegardé avec salaire (autosave), badge bonus dans la liste staff, ligne « Total salaire » = fixe + bonus
+- **Assistant IA — Bonus intégré** : `useAssistantData.ts` somme les `staff.bonus` actifs et les ajoute aux dépenses salariales (`totalExpenses`) → impacte le bénéfice net, KPI et synthèse
+- **Fix UI — Synthèse intelligente** : `insights-section.tsx` textes passés en `text-foreground` (noir) au lieu de `text-*-foreground` blancs sur fonds teintés 10% (illisibles) ; action `opacity-80` → noir plein
 
 ### In Progress
 - Intégration des anomalies de l'audit (reste : sign-in i18n F-4 intentionnel, `noImplicitAny` C1, Git branches G2)
@@ -186,7 +189,7 @@
 - `src/pages/coach-portal/coach-portal.tsx` → configuration salaires admin : Fixe + Prime/adh éditables, sauvegarde dans `organizations`
 - `src/pages/members/members.tsx` → ajout sélecteur abonnement + date début dans le formulaire, RPC create_member_with_pending_subscription, redirection vers `/pos` avec state
 - `src/pages/pos/pos.tsx` → détection pendingSubscription, ajout article virtuel abonnement, finalize_subscription_payment RPC après checkout
-- `src/pages/rh/rh.tsx` → Paie & RH : staff list, 3 onglets (Salaire éditable, Paiements historique, Congés), mutations inline admin
+- `src/pages/rh/rh.tsx` → Paie & RH : staff list, 3 onglets (Salaire éditable avec Bonus exceptionnel, Paiements historique, Congés), mutations inline admin
 - `src/types/supabase.ts` → member_subscriptions.status inclut `pending_payment`, StaffSalaryPayment, Expense, Investment, ProfitabilityObjective
 
 ## Audit Findings (Juillet 2026 — 6 phases, 60+ anomalies)

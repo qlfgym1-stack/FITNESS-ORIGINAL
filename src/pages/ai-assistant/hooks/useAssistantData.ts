@@ -271,6 +271,20 @@ export function useAssistantData(
     enabled: !!orgId,
   })
 
+  const { data: staffBonusesData } = useQuery({
+    queryKey: ["assistant", "staff-bonuses", orgId],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("staff")
+        .select("bonus")
+        .eq("organization_id", orgId!)
+        .eq("is_active", true)
+      if (error) throw error
+      return (data ?? []).reduce((sum, r) => sum + safeNum((r as { bonus: number | null }).bonus), 0)
+    },
+    enabled: !!orgId,
+  })
+
   const isMock = !orgId
 
   const attendance = attendanceData ?? (isMock ? MOCK_ATTENDANCE : [])
@@ -281,6 +295,7 @@ export function useAssistantData(
   const members = membersData ?? (isMock ? MOCK_MEMBERS : [])
   const expenses = expensesData ?? (isMock ? MOCK_EXPENSES : [])
   const salaryPayments = salaryData ?? (isMock ? MOCK_SALARY : [])
+  const staffBonuses = staffBonusesData ?? 0
 
   const isLoading = useMemo(
     () => attendanceData === undefined || posData === undefined || productsData === undefined || paymentsData === undefined,
@@ -298,7 +313,7 @@ export function useAssistantData(
     const posRevenue = windowPos.reduce((s, tx) => s + bucketPosRevenue(tx), 0)
     const subscriptionRevenue = windowPayments.reduce((s, p) => s + p.amount, 0)
     const totalRevenue = posRevenue + subscriptionRevenue
-    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0) + salaryPayments.reduce((s, p) => s + p.amount, 0)
+    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0) + salaryPayments.reduce((s, p) => s + p.amount, 0) + (staffBonuses ?? 0)
     const netProfit = totalRevenue - totalExpenses
 
     const monthLabels: string[] = []
@@ -355,6 +370,6 @@ export function useAssistantData(
     }
   }, [
     isLoading, attendance, posTransactions, products, payments, subscriptions, members,
-    expenses, salaryPayments, from, to,
+    expenses, salaryPayments, staffBonuses, from, to,
   ])
 }

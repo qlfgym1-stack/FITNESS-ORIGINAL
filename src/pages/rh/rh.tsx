@@ -24,6 +24,7 @@ interface StaffRow {
   role: string | null
   salary: number | null
   rate_per_member: number | null
+  bonus: number | null
   is_active: boolean
 }
 
@@ -71,9 +72,11 @@ export default function RhPage() {
   const [tab, setTab] = useState<'salary' | 'payments' | 'leaves'>('salary')
   const [salary, setSalary] = useState('')
   const [rate, setRate] = useState('')
+  const [bonus, setBonus] = useState('')
   const [loaded, setLoaded] = useState(false)
   const lastSavedSalaryRef = useRef('')
   const lastSavedRateRef = useRef('')
+  const lastSavedBonusRef = useRef('')
 
   const [paymentDialog, setPaymentDialog] = useState(false)
   const [payAmount, setPayAmount] = useState('')
@@ -91,7 +94,7 @@ export default function RhPage() {
       if (!orgId) return []
       const { data } = await supabase
         .from('staff')
-        .select('id, first_name, last_name, email, phone, role, salary, rate_per_member, is_active')
+        .select('id, first_name, last_name, email, phone, role, salary, rate_per_member, bonus, is_active')
         .eq('organization_id', orgId)
         .eq('is_active', true)
         .order('first_name')
@@ -139,21 +142,23 @@ export default function RhPage() {
       if (!selectedStaff) return
       const numSalary = salary === '' ? 0 : Number(salary)
       const numRate = rate === '' ? 0 : Number(rate)
+      const numBonus = bonus === '' ? 0 : Number(bonus)
       const { error } = await supabase
         .from('staff')
-        .update({ salary: numSalary, ...(isCoach ? { rate_per_member: numRate } : {}) })
+        .update({ salary: numSalary, bonus: numBonus, ...(isCoach ? { rate_per_member: numRate } : {}) })
         .eq('id', selectedStaff)
       if (error) throw error
     },
     onSuccess: () => {
       lastSavedSalaryRef.current = salary
       lastSavedRateRef.current = rate
+      lastSavedBonusRef.current = bonus
       queryClient.invalidateQueries({ queryKey: ['rh-staff-list'] })
     },
     onError: (err: Error) => toast({ title: 'Erreur', description: err.message, variant: 'destructive' }),
   })
 
-  const salaryDirty = salary !== lastSavedSalaryRef.current || rate !== lastSavedRateRef.current
+  const salaryDirty = salary !== lastSavedSalaryRef.current || rate !== lastSavedRateRef.current || bonus !== lastSavedBonusRef.current
   const { status: saveStatus } = useAutoSave({
     dirty: salaryDirty && !!selectedStaff,
     onSave: () => updateSalaryMutation.mutateAsync(),
@@ -196,10 +201,13 @@ export default function RhPage() {
     setSelectedStaff(staff.id)
     const s = staff.salary?.toString() ?? ''
     const r = staff.rate_per_member?.toString() ?? ''
+    const b = staff.bonus?.toString() ?? ''
     setSalary(s)
     setRate(r)
+    setBonus(b)
     lastSavedSalaryRef.current = s
     lastSavedRateRef.current = r
+    lastSavedBonusRef.current = b
     setLoaded(true)
     setTab('salary')
   }
@@ -259,6 +267,9 @@ export default function RhPage() {
                         <div className="flex items-center gap-1.5">
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">{roleLabel(s.role)}</Badge>
                           <span className="text-xs text-muted-foreground">{formatCurrency(s.salary ?? 0)}</span>
+                          {(s.bonus ?? 0) > 0 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal text-warning border-warning/40">{formatCurrency(s.bonus ?? 0)}</Badge>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -327,6 +338,20 @@ export default function RhPage() {
                         />
                       </div>
                     )}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Bonus exceptionnel (DA)</label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={bonus}
+                        placeholder="0"
+                        onChange={e => setBonus(e.target.value.replace(/\D/g, ''))}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Total salaire</span>
+                      <span className="font-semibold">{formatCurrency((Number(salary) || 0) + (Number(bonus) || 0))}</span>
+                    </div>
                     <div className="flex items-center justify-between pt-1">
                       <div>
                         {saveStatus === 'saving' && (
