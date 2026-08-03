@@ -258,7 +258,8 @@ export function useProfitabilityData(
     queryFn: async () => {
       const { data, error } = await db
         .from("class_enrollments")
-        .select("id, class_id, status, classes(name)")
+        .select("id, class_id, status, classes!inner(name, organization_id)")
+        .eq("classes.organization_id", orgId!)
       if (error) throw error
       return (data ?? []) as unknown as RawEnrollment[]
     },
