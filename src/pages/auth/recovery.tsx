@@ -128,7 +128,7 @@ export default function Recovery() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Reset failed");
 
-      setNewRecoveryCode(data.newRecoveryCode);
+      setNewRecoveryCode(data.newCode);
 
       const { supabase } = await import("@/lib/supabase");
       const { error: signInError } = await supabase.auth.signInWithPassword({

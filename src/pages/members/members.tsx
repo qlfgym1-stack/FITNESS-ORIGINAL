@@ -19,7 +19,7 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Plus, Download, Upload, Pencil, Trash2, Loader2, Shield, CreditCard, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 import { useExportCsv } from '@/hooks/useExportCsv'
@@ -163,10 +163,12 @@ export default function Members() {
   const { organization, user } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const urlQuery = searchParams.get('q') ?? ''
   const orgId = organization?.id
 
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [search, setSearch] = useState(urlQuery)
+  const [debouncedSearch, setDebouncedSearch] = useState(urlQuery)
   const [statusFilter, setStatusFilter] = useState('all')
   const [genderFilter, setGenderFilter] = useState('all')
   const [page, setPage] = useState(0)

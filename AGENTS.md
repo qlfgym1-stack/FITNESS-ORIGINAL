@@ -74,9 +74,14 @@
 - **Remise corporate au POS** — migration `00060_corporate_discount.sql` appliquée ✅ (seed 3 conventions DINATEK : Sonatrach 15% active, Air Algérie 10% active, Algerian Telecom 20% inactive) ; `members.corporate_id` ; RPC `create_member_with_pending_subscription` → `p_corporate_id` ; corporate.tsx branché Supabase (CRUD complet) ; members.tsx Select « Carte entreprise » avec remise affichée ; pos.tsx : `corporateDiscount` (items `__subscription__`+`__renewal__` seulement, convention active + contrat en cours, retirable ✕/↺), `subscriptionPaid` transmis aux RPCs, ligne UI « Remise convention » ; i18n FR/AR/EN
 - **Assistant IA `/ai-assistant`** — module complet : `src/pages/ai-assistant/` (page, `useAssistantData` 9 useQuery parallèles, 8 composants recharts), moteur pur `lib/` (`peakHours.ts`, `flagshipProducts.ts` excluant items virtuels, `subscriptionInsights.ts`, `forecast.ts` régression + saisonnalité + confiance 0-100, `recommendations.ts` P0/P1/P2, `insights.ts` clés i18n paramétrées) ; route `/ai-assistant` remplace le placeholder ; i18n FR/AR/EN ; 5 fichiers de tests vitest
 - **Vérifs finales Assistant IA** — `npx tsc --noEmit` ✅ zéro erreur (corrections : `memberName` dans subscriptionInsights.test.ts, `forecastRevenue` → `next3Months: []` si < 2 mois, test peakHours en heure locale) ; `npx vitest --run` ✅ 67/67 ; `npx vite build` ✅ succès (chunk `ai-assistant-DvzNgSYf.js` 38 KB gzip 10.16)
+- **Sécurité CRITIQUE RPC (migration 00061 + 00062 appliquées)** — `create_member_with_pending_subscription` recréé **sans** `SECURITY DEFINER` + check `role = 'admin'` (la correction de 00027 avait été écrasée par 00060) ; `finalize_subscription_payment` → check `role = 'admin'` (suppression référence `super_admin`) ; drop de l'overload 13 params orphelin `SECURITY DEFINER` (00009) → `prosecdef = false` vérifié sur les 2 RPCs restants
+- **Bug S-H3** — `recovery.tsx:131` lit désormais `data.newCode` (l'EF `reset` renvoie `newCode`, pas `newRecoveryCode`) → nouveau code affiché correctement
+- **Bug F-7** — `members.tsx` lit `?q=` via `useSearchParams` → recherche navbar fonctionnelle (init `search`/`debouncedSearch` depuis l'URL)
+- **Bug F-6** — `navbar.tsx` importe `useQuery`/`useMutation`/`useQueryClient` depuis `@/hooks/useQuery`
+- **Déploiement Vercel** — ErrorBoundary auto-reload sur chunk dynamique périmé (stale PWA) + `cleanupOutdatedCaches` ; déploiement prod https://qlfgym.vercel.app ✅
 
 ### In Progress
-- Intégration des anomalies de l'audit (JWT, RPCs SECURITY DEFINER, xlsx CVE, etc.)
+- Intégration des anomalies de l'audit (reste : sign-in i18n F-4 intentionnel, `noImplicitAny` C1, Git branches G2)
 
 ### Blocked
 - **(none)**
@@ -114,18 +119,17 @@
 - **Assistant IA** : moteur règles locales (aucune clé API, hors-ligne, testable), prévisions par régression linéaire + saisonnalité, insights/actions via clés i18n paramétrées `{param}` — cohérent avec rentabilite/assistant-comptable
 
 ## Next Steps
-- Test manuel navigateur (Ctrl+Shift+R) : `/ai-assistant` (KPIs, actions P0/P1/P2, graphique heures, produits phares, prévisions confiance, insights EN/AR/FR) + test corporate POS (adhérent avec carte → panier abonnement → remise auto/retirable → paiement RPC montant remisé)
-- Bug signalé : `class_enrollments` sans filtre `organization_id` dans `useProfitabilityData.ts:256` + clés i18n rentabilite manquantes/décalées
-- Corriger les anomalies d'audit (phase IMMÉDIAT : JWT EFs, RPCs authorization, xlsx CVE, recovery exposure, hash constant-time, payment-reminder fix)
+- Test manuel navigateur (Ctrl+Shift+R) : `/ai-assistant` (KPIs, actions P0/P1/P2, graphique heures, produits phares, prévisions confiance, insights EN/AR/FR) + test corporate POS (adhérent avec carte → panier abonnement → remise auto/retirable → paiement RPC montant remisé) + recherche navbar (`/members?q=`)
+- ✅ Bug rentabilite corrigé : filtre `organization_id` sur `class_enrollments` (`useProfitabilityData.ts:260` via `classes!inner`) + clés i18n rentabilite FR/AR/EN complètes
+- Corriger les anomalies restantes (F-4 sign-in i18n intentionnel, C1 `noImplicitAny`, G2 branches Git)
 - Configurer les variables d'env Edge Functions (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
 - Remplacer `SUPABASE_PROJECT_REF` dans `00004_cron_jobs.sql` et activer les cron jobs
-- Vérifier que la migration 00046 est appliquée sur Supabase
 
 ## Critical Context
 - `npx tsc --noEmit` ✅ zéro erreur
 - `npx vitest --run` ✅ 67/67 tests (utils, recovery, auth, ai-assistant lib)
 - `npx vite build` ✅ succès
-- 60 migrations (`00001`→`00060`) — 00044, 00045, 00046, 00059, 00060 appliquées remote
+- 62 migrations (`00001`→`00062`) — toutes appliquées remote (dont 00061/00062 sécurité RPC, 00060 corporate, 00059 admin)
 - 3 Edge Functions (recovery, send-subscription-reminder, send-payment-reminder)
 - Le bucket `photos` Supabase Storage doit exister pour l'upload des avatars
 - RLS role-based : `admin` peut tout modifier, `coach`/`staff` sont en lecture seule
@@ -193,31 +197,31 @@
 
 | ID | Phase | Constat | Statut |
 |----|-------|---------|--------|
-| S-C1 | Sécurité | 6/6 Edge Functions sans vérification JWT — utilisent `service_role` statique sans valider le caller | **À corriger** |
-| B-1 | Backend | RPCs `SECURITY DEFINER` (`create_member_with_pending_subscription`, `finalize_subscription_payment`) sans autorisation rôles — tout user auth peut créer membres/abonnements/paiements | **À corriger** |
-| S-C2 | Sécurité | `xlsx` vulnérable CVE Prototype Pollution + ReDoS | **À corriger** |
-| B-3 | Backend | Recovery code exposé en clair dans réponse HTTP (`send_code`, `reset`) | **À corriger** |
-| B-2 | Backend | `send-payment-reminder` utilise type `payment_pending` inexistant dans CHECK constraint (doit être `payment_overdue`) — INSERT échoue toujours | **À corriger** |
-| F-1 | Frontend | Double ErrorBoundary (main.tsx inline + App.tsx import) — fallback inutilisable | **À corriger** |
-| F-2 | Frontend | `fr.ts` : section `profile` entièrement manquante (21 clés) — pages profil affichent clés brutes | **À corriger** |
-| F-3 | Frontend | `fr.ts` : 21 clés `settings` manquantes — page settings affiche clés brutes | **À corriger** |
-| P-1 | Perf | `LOGO QLForiginal.png` = 1.74 MB — 40% du dist total, LCP dégradé | **À corriger** |
-| P-2 | Perf | 3 icons PWA manquantes (favicon.ico, pwa-192x192, pwa-512x512) — PWA non installable | **À corriger** |
+| S-C1 | Sécurité | 6/6 Edge Functions sans vérification JWT — utilisent `service_role` statique sans valider le caller | ✅ Corrigé (5 EFs + JWT, recovery/sign-in publics) |
+| B-1 | Backend | RPCs `SECURITY DEFINER` (`create_member_with_pending_subscription`, `finalize_subscription_payment`) sans autorisation rôles — tout user auth peut créer membres/abonnements/paiements | ✅ Corrigé (migrations 00061 + 00062) |
+| S-C2 | Sécurité | `xlsx` vulnérable CVE Prototype Pollution + ReDoS | ✅ Corrigé (remplacé par `exceljs`) |
+| B-3 | Backend | Recovery code exposé en clair dans réponse HTTP (`send_code`, `reset`) | ⚠️ Assumé (pas de canal email/SMS, affiché côté client) |
+| B-2 | Backend | `send-payment-reminder` utilise type `payment_pending` inexistant dans CHECK constraint (doit être `payment_overdue`) — INSERT échoue toujours | ✅ Corrigé |
+| F-1 | Frontend | Double ErrorBoundary (main.tsx inline + App.tsx import) — fallback inutilisable | ✅ Corrigé (unique + auto-reload chunk périmé) |
+| F-2 | Frontend | `fr.ts` : section `profile` entièrement manquante (21 clés) — pages profil affichent clés brutes | ✅ Corrigé |
+| F-3 | Frontend | `fr.ts` : 21 clés `settings` manquantes — page settings affiche clés brutes | ✅ Corrigé |
+| P-1 | Perf | `LOGO QLForiginal.png` = 1.74 MB — 40% du dist total, LCP dégradé | ✅ Corrigé (87 KB + webp 37 KB) |
+| P-2 | Perf | 3 icons PWA manquantes (favicon.ico, pwa-192x192, pwa-512x512) — PWA non installable | ✅ Corrigé |
 
 ### Anomalies Hautes (13)
 
 | ID | Phase | Constat | Statut |
 |----|-------|---------|--------|
-| S-H1 | Sécurité | CORS `*` sur toutes les EFs — CSRF possible depuis n'importe quel site | **À corriger** |
-| S-H2 | Sécurité | `listUsers` paginé à 100 dans EF recovery — codes non générés au-delà | **À corriger** |
-| S-H3 | Sécurité | `recovery.tsx:131` lit `data.newRecoveryCode` mais EF retourne `newCode` — nouveau code jamais affiché | **À corriger** |
-| B-4 | Backend | Comparaison hash SHA-256 non constant-time (`reduce` short-circuite) — timing attack | **À corriger** |
-| B-5 | Backend | Photos bucket Storage sans restriction — tout user peut lire/modifier/supprimer toutes les photos | **À corriger** |
-| F-4 | Frontend | Page sign-in non i18n (toutes chaînes hardcodées français) | **À corriger** |
-| F-5 | Frontend | OfflineQueue non persistée (`useState([])`) — perte mutations offline au refresh | **À corriger** |
-| F-6 | Frontend | Navbar import `@tanstack/react-query` direct au lieu de `@/hooks/useQuery` | **À corriger** |
-| F-7 | Frontend | Navbar champ Search non fonctionnel | **À corriger** |
-| F-8 | Frontend | Settings "Save" ne fait que `toast()` — aucune écriture DB | **À corriger** |
+| S-H1 | Sécurité | CORS `*` sur toutes les EFs — CSRF possible depuis n'importe quel site | ✅ Corrigé (whitelist origines) |
+| S-H2 | Sécurité | `listUsers` paginé à 100 dans EF recovery — codes non générés au-delà | ✅ Corrigé (boucle paginée) |
+| S-H3 | Sécurité | `recovery.tsx:131` lit `data.newRecoveryCode` mais EF retourne `newCode` — nouveau code jamais affiché | ✅ Corrigé |
+| B-4 | Backend | Comparaison hash SHA-256 non constant-time (`reduce` short-circuite) — timing attack | ✅ Corrigé (`timingSafeEqual`) |
+| B-5 | Backend | Photos bucket Storage sans restriction — tout user peut lire/modifier/supprimer toutes les photos | ✅ Corrigé (RLS org-based) |
+| F-4 | Frontend | Page sign-in non i18n (toutes chaînes hardcodées français) | ⚠️ Intentionnel (page login finalisée FR) |
+| F-5 | Frontend | OfflineQueue non persistée (`useState([])`) — perte mutations offline au refresh | ✅ Corrigé (localStorage) |
+| F-6 | Frontend | Navbar import `@tanstack/react-query` direct au lieu de `@/hooks/useQuery` | ✅ Corrigé |
+| F-7 | Frontend | Navbar champ Search non fonctionnel | ✅ Corrigé (membres lit `?q=`) |
+| F-8 | Frontend | Settings "Save" ne fait que `toast()` — aucune écriture DB | ✅ Corrigé |
 | G2 | Git | Aucune branche secondaire — tout sur master, pas de workflow PR | **À corriger** |
 | B1 | Git/Deps | 2 PNGs non optimisées (LOGO 1.82MB + QLG_3D 186KB) = 40% du dist | **À corriger** |
 | C1 | Build | `noImplicitAny: false` — masque erreurs de typage TypeScript | **À corriger** |

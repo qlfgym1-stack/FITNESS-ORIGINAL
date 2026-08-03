@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe, Wifi, WifiOff, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, CheckCheck } from "lucide-react"
 import { motion } from "framer-motion"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useNavigate } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
