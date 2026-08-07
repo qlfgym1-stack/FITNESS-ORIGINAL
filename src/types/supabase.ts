@@ -88,9 +88,9 @@ export interface Database {
         Relationships: []
       }
       staff: {
-        Row: { id: string; organization_id: string; user_id: string | null; first_name: string; last_name: string; email: string | null; phone: string | null; role: string | null; salary: number | null; rate_per_member: number | null; bonus: number | null; hire_date: string | null; is_active: boolean; created_at: string }
-        Insert: { id?: string; organization_id: string; user_id?: string | null; first_name: string; last_name: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
-        Update: { id?: string; organization_id?: string; user_id?: string | null; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; created_at?: string }
+        Row: { id: string; organization_id: string; user_id: string | null; first_name: string; last_name: string; email: string | null; phone: string | null; role: string | null; salary: number | null; rate_per_member: number | null; bonus: number | null; hire_date: string | null; is_active: boolean; rfid_uid: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; user_id?: string | null; first_name: string; last_name: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; rfid_uid?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; user_id?: string | null; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; rfid_uid?: string | null; created_at?: string }
         Relationships: []
       }
       staff_timesheet: {

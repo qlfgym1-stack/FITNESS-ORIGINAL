@@ -213,7 +213,7 @@ export default function RhPage() {
   }
 
   const roleLabel = (role: string | null) => {
-    const labels: Record<string, string> = { coach: 'Coach', staff: 'Staff', receptionist: 'Réceptionniste', cleaner: 'Ménage', manager: 'Manager', trainer: 'Entraîneur' }
+    const labels: Record<string, string> = { coach: 'Coach', staff: 'Staff', receptionist: 'Réceptionniste', cleaner: 'Ménage', manager: 'Manager', trainer: 'Entraîneur', admin: 'Administrateur' }
     return labels[role ?? ''] ?? role ?? ''
   }
 
@@ -486,7 +486,7 @@ export default function RhPage() {
                   {(['cash', 'transfer', 'check'] as const).map(m => (
                     <Button
                       key={m}
-                      variant={payMethod === m ? 'default' : 'outline'}
+                      variant={payMethod === m ? 'selected' : 'outline'}
                       size="sm"
                       onClick={() => setPayMethod(m)}
                     >

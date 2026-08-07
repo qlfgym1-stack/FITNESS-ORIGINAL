@@ -164,7 +164,7 @@ const VISIBLE_GROUPS: Record<string, string[]> = {
 
 function getTopRole(roles: { role: string }[]): string {
   if (roles.some(r => r.role === 'admin')) return 'admin'
-  if (roles.some(r => r.role === 'staff')) return 'staff'
+  if (roles.some(r => r.role === 'staff' || r.role === 'receptionist' || r.role === 'cleaner')) return 'staff'
   if (roles.some(r => r.role === 'coach')) return 'coach'
   return 'admin'
 }
@@ -225,7 +225,7 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
                       onClick={onNavClick}
                       className={cn(
                         "flex items-center justify-center rounded-md p-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                        isActive(item.path) ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                        isActive(item.path) ? "bg-accent text-accent-foreground shadow-[0_2px_10px_-2px_rgba(245,158,11,0.4)]" : "text-muted-foreground"
                       )}
                       title={t(`nav.${item.key}`)}
                     >
@@ -298,7 +298,7 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
                       className={cn(
                         "flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
                         isActive(item.path)
-                          ? "bg-accent text-accent-foreground"
+                          ? "bg-accent text-accent-foreground shadow-[0_2px_10px_-2px_rgba(245,158,11,0.4)]"
                           : "text-muted-foreground"
                       )}
                     >

@@ -29,7 +29,16 @@ interface AdminUser {
   lastSignIn: string | null
   confirmed: boolean
   roles: { user_id: string; organization_id: string; role: string }[]
+  rfidUid?: string | null
 }
+
+const ROLE_OPTIONS = [
+  { value: "admin", labelKey: "admin.users.roleAdmin" },
+  { value: "coach", labelKey: "admin.users.roleCoach" },
+  { value: "receptionist", labelKey: "admin.users.roleReception" },
+  { value: "cleaner", labelKey: "admin.users.roleCleaner" },
+  { value: "staff", labelKey: "admin.users.roleStaff" },
+]
 
 export default function AdminUsersPage() {
   const t = useT()
@@ -42,7 +51,7 @@ export default function AdminUsersPage() {
   const perPage = 50
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [createForm, setCreateForm] = useState({ email: "", phone: "", first_name: "", last_name: "", password: "", role: "staff" })
+  const [createForm, setCreateForm] = useState({ email: "", phone: "", first_name: "", last_name: "", password: "", role: "staff", rfid_uid: "" })
 
   const [resetOpen, setResetOpen] = useState(false)
   const [resetTarget, setResetTarget] = useState<AdminUser | null>(null)
@@ -89,6 +98,7 @@ export default function AdminUsersPage() {
         first_name: createForm.first_name,
         last_name: createForm.last_name,
         role: createForm.role,
+        rfid_uid: createForm.rfid_uid || undefined,
       })
       if (result.error) throw new Error(String(result.error))
       return result as Record<string, unknown>
@@ -97,7 +107,7 @@ export default function AdminUsersPage() {
       const user = result.user as { id: string; email: string } | undefined
       toast({ title: t('admin.users.created'), description: `${user?.email ?? ''} (password: ${result.password ?? ''})` })
       setCreateOpen(false)
-      setCreateForm({ email: "", phone: "", first_name: "", last_name: "", password: "", role: "staff" })
+      setCreateForm({ email: "", phone: "", first_name: "", last_name: "", password: "", role: "staff", rfid_uid: "" })
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
     },
     onError: (err: Error) => {
@@ -190,6 +200,7 @@ export default function AdminUsersPage() {
                     <TableHead>{t('admin.users.email')}</TableHead>
                     <TableHead>{t('admin.users.phone')}</TableHead>
                     <TableHead>{t('admin.users.roles')}</TableHead>
+                    <TableHead>{t('admin.users.rfid')}</TableHead>
                     <TableHead>{t('admin.users.confirmed')}</TableHead>
                     <TableHead>{t('admin.users.createdAt')}</TableHead>
                     <TableHead>{t('admin.users.lastLogin')}</TableHead>
@@ -217,6 +228,13 @@ export default function AdminUsersPage() {
                             ))
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {u.rfidUid ? (
+                          <Badge variant="outline" className="font-mono text-xs">{u.rfidUid}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -315,11 +333,20 @@ export default function AdminUsersPage() {
               <Select value={createForm.role} onValueChange={v => setCreateForm(p => ({ ...p, role: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="staff">{t('admin.users.roleStaff')}</SelectItem>
-                  <SelectItem value="coach">{t('admin.users.roleCoach')}</SelectItem>
-                  <SelectItem value="admin">{t('admin.users.roleAdmin')}</SelectItem>
+                  {ROLE_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{t(opt.labelKey)}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('admin.users.rfid')}</label>
+              <Input
+                value={createForm.rfid_uid}
+                onChange={e => setCreateForm(p => ({ ...p, rfid_uid: e.target.value }))}
+                placeholder={t('admin.users.rfidPlaceholder')}
+                className="font-mono"
+              />
             </div>
           </div>
           <DialogFooter>

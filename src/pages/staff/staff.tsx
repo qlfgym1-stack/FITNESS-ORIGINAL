@@ -36,6 +36,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { Staff, Tables } from "@/types/supabase"
+import { RfidCreateSection } from "@/pages/members/rfid-management"
 
 const staffSchema = z.object({
   firstName: z.string().min(1, "Required"),
@@ -49,7 +50,7 @@ const staffSchema = z.object({
 
 type StaffForm = z.infer<typeof staffSchema>
 
-const ROLES = ["coach", "trainer", "receptionist", "cleaner", "manager"]
+const ROLES = ["admin", "coach", "receptionist", "cleaner", "staff"]
 const TABS = [
   { value: "list", labelKey: "staff.staffList", path: "/staff" },
   { value: "timesheet", labelKey: "staff.timesheet", path: "/staff/timesheet" },
@@ -74,6 +75,7 @@ export default function StaffPage() {
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("staff")
   const [inviteLoading, setInviteLoading] = useState(false)
+  const [rfidUid, setRfidUid] = useState("")
 
   const form = useForm<StaffForm>({
     resolver: zodResolver(staffSchema),
@@ -107,6 +109,7 @@ export default function StaffPage() {
         role: values.role || null,
         salary: values.salary ? Number(values.salary) : null,
         hire_date: values.hireDate || null,
+        rfid_uid: rfidUid || null,
         organization_id: orgId,
       }
       if (editing) {
@@ -125,6 +128,7 @@ export default function StaffPage() {
       toast({ title: editing ? t("staff.updated") : t("staff.created") })
       setOpen(false)
       setEditing(null)
+      setRfidUid("")
       form.reset()
     },
     onError: (err: Error) => toast({ title: t("errors.error"), description: err.message, variant: "destructive" }),
@@ -147,6 +151,7 @@ export default function StaffPage() {
 
   function openEdit(staff: Staff) {
     setEditing(staff)
+    setRfidUid(staff.rfid_uid ?? "")
     form.reset({
       firstName: staff.first_name,
       lastName: staff.last_name,
@@ -161,6 +166,7 @@ export default function StaffPage() {
 
   function openAdd() {
     setEditing(null)
+    setRfidUid("")
     form.reset()
     setOpen(true)
   }
@@ -232,14 +238,15 @@ export default function StaffPage() {
                   <TableHead>{t("staff.salary")}</TableHead>
                   <TableHead>{t("staff.hireDate")}</TableHead>
                   <TableHead>{t("staff.status")}</TableHead>
+                  <TableHead>{t("staff.rfid")}</TableHead>
                   <TableHead className="w-[70px]">{t("staff.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
                 ) : paginatedStaff?.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">{t("staff.noData")}</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">{t("staff.noData")}</TableCell></TableRow>
                 ) : (
                   paginatedStaff?.map(staff => (
                     <TableRow key={staff.id}>
@@ -251,6 +258,13 @@ export default function StaffPage() {
                       <TableCell>{staff.hire_date ? formatDate(staff.hire_date) : "-"}</TableCell>
                       <TableCell>
                         <Badge variant={staff.is_active ? "default" : "secondary"}>{staff.is_active ? t("common.active") : t("common.inactive")}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {staff.rfid_uid ? (
+                          <Badge variant="outline" className="font-mono text-xs">{staff.rfid_uid}</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -286,6 +300,7 @@ export default function StaffPage() {
                     <div>
                       <p className="font-medium">{toUpper(staff.first_name)} {toUpper(staff.last_name)}</p>
                       <p className="text-sm text-muted-foreground">{staff.email}</p>
+                      {staff.rfid_uid && <p className="text-xs text-muted-foreground font-mono mt-0.5">{staff.rfid_uid}</p>}
                     </div>
                     <Badge variant={staff.is_active ? "default" : "secondary"}>{staff.is_active ? t("common.active") : t("common.inactive")}</Badge>
                   </div>
@@ -303,7 +318,7 @@ export default function StaffPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); form.reset() } }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setRfidUid(""); form.reset() } }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>{editing ? t("staff.editStaff") : t("staff.addStaff")}</DialogTitle>
@@ -375,8 +390,9 @@ export default function StaffPage() {
                   <FormMessage />
                 </FormItem>
               )} />
+              <RfidCreateSection rfidUid={rfidUid} onRfidChange={setRfidUid} />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset() }}>{t("common.cancel")}</Button>
+                <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); setRfidUid(""); form.reset() }}>{t("common.cancel")}</Button>
                 <Button type="submit" disabled={upsertMutation.isPending}>
                   {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {editing ? t("common.save") : t("common.create")}
