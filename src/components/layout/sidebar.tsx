@@ -160,11 +160,16 @@ const VISIBLE_GROUPS: Record<string, string[]> = {
   admin: ['dashboard', 'checkin', 'members', 'pos', 'stock', 'access', 'hr', 'finance', 'profitability', 'marketing', 'admin', 'ai'],
   staff: ['dashboard', 'checkin', 'members', 'pos'],
   coach: ['dashboard', 'checkin', 'members', 'pos', 'sport'],
+  reception: ['checkin', 'members', 'pos'],
 }
+
+// Réception : uniquement /pointage, /members, /pos
+const RECEPTION_ITEMS = new Set(['pointage', 'members', 'pos'])
 
 function getTopRole(roles: { role: string }[]): string {
   if (roles.some(r => r.role === 'admin')) return 'admin'
-  if (roles.some(r => r.role === 'staff' || r.role === 'receptionist' || r.role === 'cleaner')) return 'staff'
+  if (roles.some(r => r.role === 'receptionist')) return 'reception'
+  if (roles.some(r => r.role === 'staff' || r.role === 'cleaner')) return 'staff'
   if (roles.some(r => r.role === 'coach')) return 'coach'
   return 'admin'
 }
@@ -180,7 +185,7 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
     .filter(g => visibleGroups.includes(g.groupKey))
     .map(g => ({
       ...g,
-      items: g.items.filter(item => !item.adminOnly || isAdmin),
+      items: g.items.filter(item => (!item.adminOnly || isAdmin) && (topRole !== 'reception' || RECEPTION_ITEMS.has(item.key))),
     }))
     .filter(g => g.items.length > 0)
   const initials = profile?.full_name

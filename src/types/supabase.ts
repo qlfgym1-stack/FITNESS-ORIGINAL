@@ -10,9 +10,9 @@ export interface Database {
         Relationships: []
       }
       user_roles: {
-        Row: { id: string; user_id: string; organization_id: string; role: 'admin' | 'coach' | 'staff'; created_at: string }
-        Insert: { id?: string; user_id: string; organization_id: string; role: 'admin' | 'coach' | 'staff'; created_at?: string }
-        Update: { id?: string; user_id?: string; organization_id?: string; role?: 'admin' | 'coach' | 'staff'; created_at?: string }
+        Row: { id: string; user_id: string; organization_id: string; role: 'admin' | 'coach' | 'staff' | 'receptionist' | 'cleaner'; created_at: string }
+        Insert: { id?: string; user_id: string; organization_id: string; role: 'admin' | 'coach' | 'staff' | 'receptionist' | 'cleaner'; created_at?: string }
+        Update: { id?: string; user_id?: string; organization_id?: string; role?: 'admin' | 'coach' | 'staff' | 'receptionist' | 'cleaner'; created_at?: string }
         Relationships: []
       }
       members: {
@@ -52,9 +52,9 @@ export interface Database {
         Relationships: []
       }
       attendance: {
-        Row: { id: string; organization_id: string; member_id: string; check_in: string | null; check_out: string | null; type: 'check-in' | 'class'; class_id: string | null; source: 'rfid' | 'manual' | 'app'; access_control_id: string | null; created_at: string }
-        Insert: { id?: string; organization_id: string; member_id: string; check_in?: string | null; check_out?: string | null; type?: 'check-in' | 'class'; class_id?: string | null; source?: 'rfid' | 'manual' | 'app'; access_control_id?: string | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; member_id?: string; check_in?: string | null; check_out?: string | null; type?: 'check-in' | 'class'; class_id?: string | null; source?: 'rfid' | 'manual' | 'app'; access_control_id?: string | null; created_at?: string }
+        Row: { id: string; organization_id: string; member_id: string; check_in: string | null; check_out: string | null; type: 'check-in' | 'class'; class_id: string | null; source: 'rfid' | 'manual' | 'app'; access_control_id: string | null; created_by: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; member_id: string; check_in?: string | null; check_out?: string | null; type?: 'check-in' | 'class'; class_id?: string | null; source?: 'rfid' | 'manual' | 'app'; access_control_id?: string | null; created_by?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; member_id?: string; check_in?: string | null; check_out?: string | null; type?: 'check-in' | 'class'; class_id?: string | null; source?: 'rfid' | 'manual' | 'app'; access_control_id?: string | null; created_by?: string | null; created_at?: string }
         Relationships: []
       }
       rfid_cards: {
@@ -88,9 +88,9 @@ export interface Database {
         Relationships: []
       }
       staff: {
-        Row: { id: string; organization_id: string; user_id: string | null; first_name: string; last_name: string; email: string | null; phone: string | null; role: string | null; salary: number | null; rate_per_member: number | null; bonus: number | null; hire_date: string | null; is_active: boolean; rfid_uid: string | null; created_at: string }
-        Insert: { id?: string; organization_id: string; user_id?: string | null; first_name: string; last_name: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; rfid_uid?: string | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; user_id?: string | null; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; rfid_uid?: string | null; created_at?: string }
+        Row: { id: string; organization_id: string; user_id: string | null; first_name: string; last_name: string; email: string | null; phone: string | null; role: string | null; salary: number | null; rate_per_member: number | null; bonus: number | null; hire_date: string | null; is_active: boolean; rfid_uid: string | null; username: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; user_id?: string | null; first_name: string; last_name: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; rfid_uid?: string | null; username?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; user_id?: string | null; first_name?: string; last_name?: string; email?: string | null; phone?: string | null; role?: string | null; salary?: number | null; rate_per_member?: number | null; bonus?: number | null; hire_date?: string | null; is_active?: boolean; rfid_uid?: string | null; username?: string | null; created_at?: string }
         Relationships: []
       }
       staff_timesheet: {
@@ -172,9 +172,9 @@ export interface Database {
         Relationships: []
       }
       pos_transactions: {
-        Row: { id: string; session_id: string; organization_id: string; member_id: string | null; items: Json; subtotal: number; discount: number | null; total: number; payment_method: string | null; payment_status: string | null; created_at: string }
-        Insert: { id?: string; session_id: string; organization_id: string; member_id?: string | null; items: Json; subtotal: number; discount?: number | null; total: number; payment_method?: string | null; payment_status?: string | null; created_at?: string }
-        Update: { id?: string; session_id?: string; organization_id?: string; member_id?: string | null; items?: Json; subtotal?: number; discount?: number | null; total?: number; payment_method?: string | null; payment_status?: string | null; created_at?: string }
+        Row: { id: string; session_id: string; organization_id: string; member_id: string | null; items: Json; subtotal: number; discount: number | null; total: number; payment_method: string | null; payment_status: string | null; created_by: string | null; created_at: string }
+        Insert: { id?: string; session_id: string; organization_id: string; member_id?: string | null; items: Json; subtotal: number; discount?: number | null; total: number; payment_method?: string | null; payment_status?: string | null; created_by?: string | null; created_at?: string }
+        Update: { id?: string; session_id?: string; organization_id?: string; member_id?: string | null; items?: Json; subtotal?: number; discount?: number | null; total?: number; payment_method?: string | null; payment_status?: string | null; created_by?: string | null; created_at?: string }
         Relationships: []
       }
       badges: {

@@ -83,10 +83,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// Réception : accès strict à /pointage, /members, /pos uniquement
+const RECEPTION_ROUTES = new Set(['/pointage', '/members', '/pos'])
+
+function RoleGuard({ children }: { children: React.ReactNode }) {
+  const { roles } = useAuth()
+  const location = useLocation()
+  if (roles.some(r => r.role === 'receptionist') && !RECEPTION_ROUTES.has(location.pathname)) {
+    return <Navigate to="/pointage" replace />
+  }
+  return <>{children}</>
+}
+
+function IndexRedirect() {
+  const { roles } = useAuth()
+  const dest = roles.some(r => r.role === 'receptionist') ? '/pointage' : '/dashboard'
+  return <Navigate to={dest} replace />
+}
+
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, roles } = useAuth()
   if (isLoading) return <Loading />
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  if (isAuthenticated) return <Navigate to={roles.some(r => r.role === 'receptionist') ? '/pointage' : '/dashboard'} replace />
   return <>{children}</>
 }
 
@@ -101,8 +119,8 @@ export default function App() {
             <Route path="/auth" element={<PublicRoute><Suspense fallback={<Loading />}><SignIn /></Suspense></PublicRoute>} />
             <Route path="/auth/sign-up" element={<PublicRoute><Suspense fallback={<Loading />}><SignUp /></Suspense></PublicRoute>} />
             <Route path="/auth/recovery" element={<PublicRoute><Suspense fallback={<Loading />}><Recovery /></Suspense></PublicRoute>} />
-            <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<ProtectedRoute><RoleGuard><AppLayout /></RoleGuard></ProtectedRoute>}>
+              <Route index element={<IndexRedirect />} />
               <Route path="dashboard" element={<PageTransition><Suspense fallback={<Loading />}><Dashboard /></Suspense></PageTransition>} />
               <Route path="pointage" element={<PageTransition><Suspense fallback={<Loading />}><Pointage /></Suspense></PageTransition>} />
               <Route path="members" element={<PageTransition><Suspense fallback={<Loading />}><Members /></Suspense></PageTransition>} />

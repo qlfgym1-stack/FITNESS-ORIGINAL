@@ -94,7 +94,7 @@ export default function RhPage() {
       if (!orgId) return []
       const { data } = await supabase
         .from('staff')
-        .select('id, first_name, last_name, email, phone, role, salary, rate_per_member, bonus, is_active')
+        .select('id, first_name, last_name, username, email, phone, role, salary, rate_per_member, bonus, is_active')
         .eq('organization_id', orgId)
         .eq('is_active', true)
         .order('first_name')
@@ -291,7 +291,7 @@ export default function RhPage() {
               <div>
                 <h2 className="text-xl font-bold">{toUpper(selectedStaffData.first_name)} {toUpper(selectedStaffData.last_name)}</h2>
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  {selectedStaffData.email}
+                  {selectedStaffData.username || selectedStaffData.email}
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">{roleLabel(selectedStaffData.role)}</Badge>
                 </p>
               </div>

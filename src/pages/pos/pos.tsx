@@ -41,7 +41,7 @@ export default function POSPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const t = useT()
-  const { organization } = useAuth()
+  const { organization, user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const pendingSub = location.state?.pendingSubscription as {
@@ -400,6 +400,7 @@ export default function POSPage() {
         total,
         payment_method: paymentMethod,
         payment_status: "completed",
+        created_by: user?.id ?? null,
       })
       if (txError) throw txError
 
@@ -413,6 +414,7 @@ export default function POSPage() {
             check_in: new Date().toISOString(),
             type: "check-in",
             source: "manual",
+            created_by: user?.id ?? null,
           })
           if (attError) throw attError
         }

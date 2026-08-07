@@ -247,8 +247,8 @@ export default function Members() {
     queryFn: async () => {
       if (!orgId) return []
       if (IS_MOCK) return [{ id: 'mock-coach-1', first_name: 'Karim', last_name: 'Benali' }]
-      const { data: staffList } = await supabase.from('staff').select('id, first_name, last_name').eq('organization_id', orgId).eq('is_active', true).order('first_name')
-      return (staffList ?? []) as { id: string; first_name: string; last_name: string }[]
+      const { data: roster } = await (supabase.rpc as any)('get_staff_roster', { p_org_id: orgId })
+      return (roster ?? []) as { id: string; first_name: string; last_name: string }[]
     },
     enabled: !!orgId,
   })

@@ -99,7 +99,7 @@ export default function CoachModePage() {
       if (!orgId) return []
       const { data: staffList } = await supabase
         .from('staff')
-        .select('id, first_name, last_name, email, phone, salary, rate_per_member, bonus')
+        .select('id, first_name, last_name, username, email, phone, salary, rate_per_member, bonus')
         .eq('organization_id', orgId)
         .ilike('role', '%coach%')
         .eq('is_active', true)
@@ -346,7 +346,8 @@ export default function CoachModePage() {
                         </Avatar>
                         <div>
                           <p className="font-medium text-sm">{toUpper(c.first_name)} {toUpper(c.last_name)}</p>
-                          {c.email && <p className="text-xs text-muted-foreground">{c.email}</p>}
+                          {c.username && <p className="text-xs text-muted-foreground">{c.username}</p>}
+                          {!c.username && c.email && <p className="text-xs text-muted-foreground">{c.email}</p>}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">

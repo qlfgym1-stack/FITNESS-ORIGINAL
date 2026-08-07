@@ -251,7 +251,7 @@ export default function StaffPage() {
                   paginatedStaff?.map(staff => (
                     <TableRow key={staff.id}>
                       <TableCell className="font-medium">{toUpper(staff.first_name)} {toUpper(staff.last_name)}</TableCell>
-                      <TableCell>{staff.email}</TableCell>
+                      <TableCell>{staff.username || staff.email}</TableCell>
                       <TableCell>{displayPhone(staff.phone)}</TableCell>
                       <TableCell className="capitalize">{toUpper(staff.role)}</TableCell>
                       <TableCell>{staff.salary ? formatCurrency(staff.salary) : "-"}</TableCell>
@@ -299,7 +299,7 @@ export default function StaffPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-medium">{toUpper(staff.first_name)} {toUpper(staff.last_name)}</p>
-                      <p className="text-sm text-muted-foreground">{staff.email}</p>
+                      <p className="text-sm text-muted-foreground">{staff.username || staff.email}</p>
                       {staff.rfid_uid && <p className="text-xs text-muted-foreground font-mono mt-0.5">{staff.rfid_uid}</p>}
                     </div>
                     <Badge variant={staff.is_active ? "default" : "secondary"}>{staff.is_active ? t("common.active") : t("common.inactive")}</Badge>
