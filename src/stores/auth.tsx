@@ -111,6 +111,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Fallback: lookup identifier via SECURITY DEFINER RPC (bypasses RLS for pre-auth)
     const { data: email } = await (supabase.rpc as any)('lookup_email_by_identifier', { p_identifier: identifier })
     if (email) {
+      if (email === 'INACTIVE_ACCOUNT') {
+        return { error: new Error("Ce compte a été désactivé. Contactez l'administrateur.") }
+      }
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       return { error }
     }

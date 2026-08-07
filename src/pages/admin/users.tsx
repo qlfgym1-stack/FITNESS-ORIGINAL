@@ -17,13 +17,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/toast"
-import { Loader2, Plus, Search, ShieldAlert, Trash2, KeyRound } from "lucide-react"
+import { Loader2, Plus, Search, ShieldAlert, Power, PowerOff, KeyRound } from "lucide-react"
 
 const API_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-manage-users`
 
 interface AdminUser {
   id: string
   email: string
+  username?: string | null
+  isActive?: boolean
   phone: string | null
   createdAt: string
   lastSignIn: string | null
@@ -51,14 +53,15 @@ export default function AdminUsersPage() {
   const perPage = 50
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [createForm, setCreateForm] = useState({ email: "", phone: "", first_name: "", last_name: "", password: "", role: "staff", rfid_uid: "" })
+  const [createForm, setCreateForm] = useState({ email: "", username: "", phone: "", first_name: "", last_name: "", password: "", role: "staff", rfid_uid: "" })
 
   const [resetOpen, setResetOpen] = useState(false)
   const [resetTarget, setResetTarget] = useState<AdminUser | null>(null)
   const [resetPassword, setResetPassword] = useState("")
 
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
+  const [statusOpen, setStatusOpen] = useState(false)
+  const [statusTarget, setStatusTarget] = useState<AdminUser | null>(null)
+  const [statusPending, setStatusPending] = useState(false)
 
   const generatePassword = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
@@ -92,7 +95,8 @@ export default function AdminUsersPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const result = await callApi('create', {
-        email: createForm.email,
+        email: createForm.email || undefined,
+        username: createForm.username || undefined,
         phone: createForm.phone || undefined,
         password: createForm.password,
         first_name: createForm.first_name,
@@ -104,10 +108,10 @@ export default function AdminUsersPage() {
       return result as Record<string, unknown>
     },
     onSuccess: (result) => {
-      const user = result.user as { id: string; email: string } | undefined
-      toast({ title: t('admin.users.created'), description: `${user?.email ?? ''} (password: ${result.password ?? ''})` })
+      const user = result.user as { id: string; email: string; username?: string | null } | undefined
+      toast({ title: t('admin.users.created'), description: `${user?.username ?? user?.email ?? ''} (password: ${result.password ?? ''})` })
       setCreateOpen(false)
-      setCreateForm({ email: "", phone: "", first_name: "", last_name: "", password: "", role: "staff", rfid_uid: "" })
+      setCreateForm({ email: "", username: "", phone: "", first_name: "", last_name: "", password: "", role: "staff", rfid_uid: "" })
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
     },
     onError: (err: Error) => {
@@ -139,23 +143,21 @@ export default function AdminUsersPage() {
     },
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      if (!deleteTarget) throw new Error("No target")
-      const result = await callApi('delete', { user_id: deleteTarget.id })
+  const toggleStatus = async (target: AdminUser) => {
+    setStatusPending(true)
+    try {
+      const result = await callApi('set-active', { user_id: target.id, active: !target.isActive })
       if (result.error) throw new Error(String(result.error))
-      return result
-    },
-    onSuccess: () => {
-      toast({ title: t('admin.users.deleted') })
-      setDeleteOpen(false)
-      setDeleteTarget(null)
+      toast({ title: target.isActive ? t('admin.users.deactivated') : t('admin.users.activated') })
+      setStatusOpen(false)
+      setStatusTarget(null)
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-    },
-    onError: (err: Error) => {
-      toast({ title: t('admin.users.error'), description: err.message, variant: 'destructive' })
-    },
-  })
+    } catch (err) {
+      toast({ title: t('admin.users.error'), description: (err as Error).message, variant: 'destructive' })
+    } finally {
+      setStatusPending(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -197,9 +199,10 @@ export default function AdminUsersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t('admin.users.email')}</TableHead>
+                    <TableHead>{t('admin.users.identifier')}</TableHead>
                     <TableHead>{t('admin.users.phone')}</TableHead>
                     <TableHead>{t('admin.users.roles')}</TableHead>
+                    <TableHead>{t('admin.users.status')}</TableHead>
                     <TableHead>{t('admin.users.rfid')}</TableHead>
                     <TableHead>{t('admin.users.confirmed')}</TableHead>
                     <TableHead>{t('admin.users.createdAt')}</TableHead>
@@ -210,7 +213,7 @@ export default function AdminUsersPage() {
                 <TableBody>
                   {users.map((u) => (
                     <TableRow key={u.id}>
-                      <TableCell className="font-medium">{u.email}</TableCell>
+                      <TableCell className="font-medium">{u.username || u.email}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{u.phone || '-'}</TableCell>
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
@@ -228,6 +231,14 @@ export default function AdminUsersPage() {
                             ))
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={u.isActive ? 'default' : 'outline'}
+                          className={`text-xs ${u.isActive ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}
+                        >
+                          {u.isActive ? t('admin.users.active') : t('admin.users.inactive')}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         {u.rfidUid ? (
@@ -264,11 +275,11 @@ export default function AdminUsersPage() {
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-8 w-8 text-red-500 hover:text-red-600"
-                            onClick={() => { setDeleteTarget(u); setDeleteOpen(true); }}
-                            title={t('admin.users.delete')}
+                            className={`h-8 w-8 ${u.isActive ? 'text-amber-600 hover:text-amber-700' : 'text-green-600 hover:text-green-700'}`}
+                            onClick={() => { setStatusTarget(u); setStatusOpen(true); }}
+                            title={u.isActive ? t('admin.users.deactivate') : t('admin.users.activate')}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {u.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
                           </Button>
                         </div>
                       </TableCell>
@@ -311,10 +322,23 @@ export default function AdminUsersPage() {
                 <Input value={createForm.last_name} onChange={e => setCreateForm(p => ({ ...p, last_name: e.target.value }))} />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t('admin.users.email')}</label>
-              <Input type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} />
-            </div>
+            {createForm.role === 'admin' ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t('admin.users.email')}</label>
+                <Input type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t('admin.users.username')}</label>
+                <Input
+                  value={createForm.username}
+                  onChange={e => setCreateForm(p => ({ ...p, username: e.target.value.toLowerCase() }))}
+                  placeholder={t('admin.users.usernamePlaceholder')}
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">{t('admin.users.usernameHint')}</p>
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('admin.users.phone')}</label>
               <Input type="tel" value={createForm.phone} onChange={e => setCreateForm(p => ({ ...p, phone: e.target.value }))} placeholder="+213555123456" />
@@ -353,7 +377,14 @@ export default function AdminUsersPage() {
             <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createMutation.isPending}>
               {t('common.cancel')}
             </Button>
-            <Button onClick={() => createMutation.mutate()} disabled={!createForm.email || !createForm.password || createMutation.isPending}>
+            <Button
+              onClick={() => createMutation.mutate()}
+              disabled={
+                (createForm.role === 'admin' ? !createForm.email : !createForm.username) ||
+                !createForm.password ||
+                createMutation.isPending
+              }
+            >
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {t('admin.users.create')}
             </Button>
@@ -367,7 +398,7 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>{t('admin.users.resetTitle')}</DialogTitle>
             <DialogDescription>
-              {t('admin.users.resetDescription')} <strong>{resetTarget?.email}</strong>
+              {t('admin.users.resetDescription')} <strong>{resetTarget?.username ?? resetTarget?.email}</strong>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-4">
@@ -392,23 +423,28 @@ export default function AdminUsersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleteMutation.isPending) setDeleteOpen(open); }}>
+      {/* Status (activate/deactivate) Dialog */}
+      <Dialog open={statusOpen} onOpenChange={(open) => { if (!statusPending) setStatusOpen(open); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-500">{t('admin.users.deleteTitle')}</DialogTitle>
+            <DialogTitle>{statusTarget?.isActive ? t('admin.users.deactivateTitle') : t('admin.users.activateTitle')}</DialogTitle>
             <DialogDescription>
-              {t('admin.users.deleteDescription')} <strong>{deleteTarget?.email}</strong>.
-              {t('admin.users.deleteWarning')}
+              {statusTarget?.isActive ? t('admin.users.deactivateDescription') : t('admin.users.activateDescription')}{' '}
+              <strong>{statusTarget?.username ?? statusTarget?.email}</strong>.
+              {statusTarget?.isActive ? t('admin.users.deactivateWarning') : t('admin.users.activateHint')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteMutation.isPending}>
+            <Button variant="outline" onClick={() => setStatusOpen(false)} disabled={statusPending}>
               {t('common.cancel')}
             </Button>
-            <Button variant="destructive" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {t('common.delete')}
+            <Button
+              variant={statusTarget?.isActive ? 'destructive' : 'default'}
+              onClick={() => { if (statusTarget) toggleStatus(statusTarget); }}
+              disabled={statusPending || !statusTarget}
+            >
+              {statusPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {statusTarget?.isActive ? t('admin.users.deactivate') : t('admin.users.activate')}
             </Button>
           </DialogFooter>
         </DialogContent>

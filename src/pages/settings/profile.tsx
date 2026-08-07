@@ -10,19 +10,30 @@ import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { useAuth } from "@/stores/auth"
 import { useSupabase } from "@/hooks/useSupabase"
+import { useQuery } from "@/hooks/useQuery"
 import { getInitials, toUpper } from "@/lib/utils"
 import { User, Camera, Save, Lock, Mail } from "lucide-react"
 
 export default function ProfilePage() {
   const t = useT()
   const { toast } = useToast()
-  const { profile, organization } = useAuth()
+  const { profile, organization, user } = useAuth()
   const supabase = useSupabase()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [form, setForm] = useState({
     full_name: profile?.full_name || "",
     email: profile?.email || "",
+  })
+
+  const { data: staffUsername } = useQuery({
+    queryKey: ['profile-username', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null
+      const { data } = await supabase.from('staff').select('username').eq('user_id', user.id).maybeSingle()
+      return (data?.username as string | null) ?? null
+    },
+    enabled: !!user?.id,
   })
   const [passwords, setPasswords] = useState({
     current: "",
@@ -127,7 +138,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <p className="font-medium text-lg">{toUpper(form.full_name) || t("profile.noName")}</p>
-                <p className="text-sm text-muted-foreground">{form.email}</p>
+                <p className="text-sm text-muted-foreground">{staffUsername || form.email}</p>
               </div>
             </div>
 
@@ -137,8 +148,14 @@ export default function ProfilePage() {
                 <Input value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} />
               </div>
               <div className="grid gap-2">
-                <Label>{t("profile.email")}</Label>
-                <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+                <Label>{staffUsername ? t("profile.username") : t("profile.email")}</Label>
+                <Input
+                  type={staffUsername ? "text" : "email"}
+                  value={staffUsername ?? form.email}
+                  readOnly={!!staffUsername}
+                  disabled={!!staffUsername}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                />
               </div>
             </div>
 

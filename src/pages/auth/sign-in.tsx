@@ -14,7 +14,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 
 const signInSchema = z.object({
-  identifier: z.string().min(1, 'Email, téléphone ou identifiant requis'),
+  identifier: z.string().min(1, "Email, téléphone ou nom d'utilisateur requis"),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 })
 
@@ -211,7 +211,7 @@ export default function SignIn() {
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                           <Input
                             type="text"
-                            placeholder="email@exemple.com ou téléphone"
+                            placeholder="email, téléphone ou nom d'utilisateur"
                             className="h-11 pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-[#054AC2] focus:ring-[#054AC2]/30"
                             {...field}
                           />

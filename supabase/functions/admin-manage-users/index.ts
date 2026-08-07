@@ -89,21 +89,23 @@ serve(async (req) => {
             .in('user_id', userIds),
           supabase
             .from('staff')
-            .select('user_id, rfid_uid')
+            .select('user_id, rfid_uid, username, is_active')
             .in('user_id', userIds),
         ])
 
-        const staffByUser = new Map((staffRows || []).map((s: any) => [s.user_id, s.rfid_uid]))
+        const staffByUser = new Map<string, any>((staffRows || []).map((s: any) => [s.user_id, s]))
 
         const enriched = users.users.map((u: any) => ({
           id: u.id,
           email: u.email,
+          username: staffByUser.get(u.id)?.username ?? null,
+          isActive: staffByUser.get(u.id)?.is_active ?? true,
           phone: u.phone,
           createdAt: u.created_at,
           lastSignIn: u.last_sign_in_at,
           confirmed: u.email_confirmed_at !== null,
           roles: (userRoles || []).filter((r: any) => r.user_id === u.id),
-          rfidUid: staffByUser.get(u.id) || null,
+          rfidUid: staffByUser.get(u.id)?.rfid_uid ?? null,
         }))
 
         return new Response(JSON.stringify({ users: enriched, total: users.total ?? enriched.length }), {
@@ -112,19 +114,53 @@ serve(async (req) => {
       }
 
       case 'create': {
-        const { email, password, first_name, last_name, phone, rfid_uid } = params
-        if (!email || !password) {
-          return new Response(JSON.stringify({ error: 'email and password required' }), {
+        const { email, username, password, first_name, last_name, phone, rfid_uid } = params
+        if (!password) {
+          return new Response(JSON.stringify({ error: 'password required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+          })
+        }
+
+        let finalEmail = email as string | undefined
+        let finalUsername: string | null = null
+
+        if (username) {
+          finalUsername = String(username).toLowerCase().trim()
+          if (!/^[a-z0-9][a-z0-9._-]*$/.test(finalUsername)) {
+            return new Response(JSON.stringify({
+              error: 'Invalid username format: only lowercase letters, numbers, . _ -',
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+            })
+          }
+          const { data: existing } = await supabase
+            .from('staff')
+            .select('id')
+            .eq('username', finalUsername)
+            .maybeSingle()
+          if (existing) {
+            return new Response(JSON.stringify({ error: 'Username already taken' }), {
+              status: 409,
+              headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+            })
+          }
+          finalEmail = `${finalUsername}@staff.local`
+        }
+
+        if (!finalEmail) {
+          return new Response(JSON.stringify({ error: 'email or username required' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
           })
         }
 
         const userData: Record<string, unknown> = {
-          email,
+          email: finalEmail,
           password,
           email_confirm: true,
-          user_metadata: { full_name: [first_name, last_name].filter(Boolean).join(' ') || email },
+          user_metadata: { full_name: [first_name, last_name].filter(Boolean).join(' ') || finalUsername || finalEmail },
         }
         if (phone) userData.phone = phone
 
@@ -145,11 +181,12 @@ serve(async (req) => {
             user_id: newUser.user.id,
             first_name: first_name || '',
             last_name: last_name || '',
-            email: email,
+            email: finalEmail,
             phone: phone || null,
             role,
             is_active: true,
           }
+          if (finalUsername) staffPayload.username = finalUsername
           if (rfid_uid) staffPayload.rfid_uid = rfid_uid
 
           const { error: staffError } = await supabase.from('staff').insert(staffPayload)
@@ -157,7 +194,7 @@ serve(async (req) => {
         }
 
         return new Response(JSON.stringify({
-          user: { id: newUser.user.id, email: newUser.user.email },
+          user: { id: newUser.user.id, email: newUser.user.email, username: finalUsername },
           password,
         }), {
           headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
@@ -197,7 +234,7 @@ serve(async (req) => {
       }
 
       case 'update': {
-        const { user_id, email, phone, role, organization_id } = params
+        const { user_id, email, phone, role, organization_id, username } = params
         if (!user_id) {
           return new Response(JSON.stringify({ error: 'user_id required' }), {
             status: 400,
@@ -205,10 +242,43 @@ serve(async (req) => {
           })
         }
 
-        if (email || phone) {
-          const updateData: Record<string, unknown> = {}
-          if (email) updateData.email = email
-          if (phone) updateData.phone = phone
+        const updateData: Record<string, unknown> = {}
+
+        if (username) {
+          const normalized = String(username).toLowerCase().trim()
+          if (!/^[a-z0-9][a-z0-9._-]*$/.test(normalized)) {
+            return new Response(JSON.stringify({
+              error: 'Invalid username format: only lowercase letters, numbers, . _ -',
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+            })
+          }
+          const { data: existing } = await supabase
+            .from('staff')
+            .select('id')
+            .eq('username', normalized)
+            .neq('user_id', user_id)
+            .maybeSingle()
+          if (existing) {
+            return new Response(JSON.stringify({ error: 'Username already taken' }), {
+              status: 409,
+              headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+            })
+          }
+          const { error: staffUError } = await supabase
+            .from('staff')
+            .update({ username: normalized })
+            .eq('user_id', user_id)
+          if (staffUError) throw staffUError
+          updateData.email = `${normalized}@staff.local`
+        } else if (email) {
+          updateData.email = email
+        }
+
+        if (phone) updateData.phone = phone
+
+        if (Object.keys(updateData).length > 0) {
           const { error: updateError } = await supabase.auth.admin.updateUserById(user_id, updateData)
           if (updateError) throw updateError
         }
@@ -240,6 +310,34 @@ serve(async (req) => {
         if (deleteError) throw deleteError
 
         return new Response(JSON.stringify({ success: true }), {
+          headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+        })
+      }
+
+      case 'set-active': {
+        const { user_id, active } = params
+        if (!user_id) {
+          return new Response(JSON.stringify({ error: 'user_id required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+          })
+        }
+
+        const isActive = Boolean(active)
+
+        const { error: staffError } = await supabase
+          .from('staff')
+          .update({ is_active: isActive })
+          .eq('user_id', user_id)
+        if (staffError) throw staffError
+
+        // Ban/unban the auth user so the technical email cannot be used either
+        const { error: banError } = await supabase.auth.admin.updateUserById(user_id, {
+          ban_duration: isActive ? 'none' : '876000h',
+        })
+        if (banError) throw banError
+
+        return new Response(JSON.stringify({ success: true, isActive }), {
           headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
         })
       }
