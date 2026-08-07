@@ -83,28 +83,39 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-// Réception : accès strict à /pointage, /members, /pos uniquement
+// Rôles à accès restreint : réception → /pointage, /members, /pos ; ménage → /pointage uniquement
 const RECEPTION_ROUTES = new Set(['/pointage', '/members', '/pos'])
+const CLEANER_ROUTES = new Set(['/pointage'])
+
+function isRestricted(role: string, allowed: Set<string>, pathname: string, roles: { role: string }[]) {
+  return roles.some(r => r.role === role) && !roles.some(r => r.role === 'admin') && !allowed.has(pathname)
+}
 
 function RoleGuard({ children }: { children: React.ReactNode }) {
   const { roles } = useAuth()
   const location = useLocation()
-  if (roles.some(r => r.role === 'receptionist') && !RECEPTION_ROUTES.has(location.pathname)) {
+  if (isRestricted('receptionist', RECEPTION_ROUTES, location.pathname, roles)
+    || isRestricted('cleaner', CLEANER_ROUTES, location.pathname, roles)) {
     return <Navigate to="/pointage" replace />
   }
   return <>{children}</>
 }
 
+function isRestrictedRole(roles: { role: string }[]) {
+  return (roles.some(r => r.role === 'receptionist') || roles.some(r => r.role === 'cleaner'))
+    && !roles.some(r => r.role === 'admin')
+}
+
 function IndexRedirect() {
   const { roles } = useAuth()
-  const dest = roles.some(r => r.role === 'receptionist') ? '/pointage' : '/dashboard'
+  const dest = isRestrictedRole(roles) ? '/pointage' : '/dashboard'
   return <Navigate to={dest} replace />
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, roles } = useAuth()
   if (isLoading) return <Loading />
-  if (isAuthenticated) return <Navigate to={roles.some(r => r.role === 'receptionist') ? '/pointage' : '/dashboard'} replace />
+  if (isAuthenticated) return <Navigate to={isRestrictedRole(roles) ? '/pointage' : '/dashboard'} replace />
   return <>{children}</>
 }
 
