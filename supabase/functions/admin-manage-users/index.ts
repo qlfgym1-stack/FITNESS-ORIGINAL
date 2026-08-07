@@ -14,7 +14,8 @@ function getCorsHeaders(request: Request) {
   return {
     'Access-Control-Allow-Origin': corsOrigin,
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers':
+      request.headers.get('Access-Control-Request-Headers') || 'Authorization, Content-Type, apikey',
   }
 }
 
@@ -81,10 +82,18 @@ serve(async (req) => {
         if (error) throw error
 
         const userIds = users.users.map((u: any) => u.id)
-        const { data: userRoles } = await supabase
-          .from('user_roles')
-          .select('user_id, organization_id, role')
-          .in('user_id', userIds)
+        const [{ data: userRoles }, { data: staffRows }] = await Promise.all([
+          supabase
+            .from('user_roles')
+            .select('user_id, organization_id, role')
+            .in('user_id', userIds),
+          supabase
+            .from('staff')
+            .select('user_id, rfid_uid')
+            .in('user_id', userIds),
+        ])
+
+        const staffByUser = new Map((staffRows || []).map((s: any) => [s.user_id, s.rfid_uid]))
 
         const enriched = users.users.map((u: any) => ({
           id: u.id,
@@ -94,6 +103,7 @@ serve(async (req) => {
           lastSignIn: u.last_sign_in_at,
           confirmed: u.email_confirmed_at !== null,
           roles: (userRoles || []).filter((r: any) => r.user_id === u.id),
+          rfidUid: staffByUser.get(u.id) || null,
         }))
 
         return new Response(JSON.stringify({ users: enriched, total: users.total ?? enriched.length }), {
@@ -102,7 +112,7 @@ serve(async (req) => {
       }
 
       case 'create': {
-        const { email, password, first_name, last_name, phone } = params
+        const { email, password, first_name, last_name, phone, rfid_uid } = params
         if (!email || !password) {
           return new Response(JSON.stringify({ error: 'email and password required' }), {
             status: 400,
@@ -121,12 +131,30 @@ serve(async (req) => {
         const { data: newUser, error: createError } = await supabase.auth.admin.createUser(userData)
         if (createError) throw createError
 
+        const role = params.role || 'staff'
         const { error: roleError } = await supabase.from('user_roles').insert({
           user_id: newUser.user.id,
           organization_id: params.organization_id || roles.organization_id,
-          role: params.role || 'staff',
+          role,
         })
         if (roleError) throw roleError
+
+        if (rfid_uid || role !== 'admin') {
+          const staffPayload: Record<string, unknown> = {
+            organization_id: params.organization_id || roles.organization_id,
+            user_id: newUser.user.id,
+            first_name: first_name || '',
+            last_name: last_name || '',
+            email: email,
+            phone: phone || null,
+            role,
+            is_active: true,
+          }
+          if (rfid_uid) staffPayload.rfid_uid = rfid_uid
+
+          const { error: staffError } = await supabase.from('staff').insert(staffPayload)
+          if (staffError) throw staffError
+        }
 
         return new Response(JSON.stringify({
           user: { id: newUser.user.id, email: newUser.user.email },

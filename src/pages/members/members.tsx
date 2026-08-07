@@ -66,17 +66,17 @@ const createMemberSchema = (t: (k: string) => string, isCreate: boolean) => {
   return z.object({
     first_name: z.string().min(1, t('errors.firstNameRequired')),
     last_name: z.string().min(1, t('errors.lastNameRequired')),
-    email: z.string().email(t('errors.emailRequired')),
+    email: z.string().email(t('errors.invalidEmail')).optional().or(z.literal('')),
     phone: z.string().min(1, t('errors.phoneRequired')).refine(v => isValidDzPhone(v), t('errors.phoneInvalid')),
     gender: z.string().min(1, t('errors.genderRequired')),
     birth_date: z.string().min(1, t('errors.birthDateRequired')),
-    address: z.string().min(1, t('errors.addressRequired')),
-    emergency_contact: z.string().min(1, t('errors.emergencyContactRequired')),
-    emergency_phone: z.string().min(1, t('errors.emergencyPhoneRequired')),
-    notes: z.string().min(1, t('errors.notesRequired')),
-    subscription_type_id: z.string().min(1, t('errors.subscriptionRequired')),
+    address: z.string().optional().or(z.literal('')),
+    emergency_contact: z.string().optional().or(z.literal('')),
+    emergency_phone: z.string().optional().or(z.literal('')),
+    notes: z.string().optional().or(z.literal('')),
+    subscription_type_id: z.string().optional().or(z.literal('')),
     start_date: z.string().optional().or(z.literal('')),
-    coach_id: z.string().optional().or(z.literal('')),
+    coach_id: z.string().min(1, t('errors.coachRequired')),
     corporate_id: z.string().optional().or(z.literal('')),
   })
 }
@@ -365,8 +365,8 @@ export default function Members() {
         const newMember: Member = {
           id: memberId,
           organization_id: orgId,
-          first_name: values.first_name,
-          last_name: values.last_name,
+          first_name: values.first_name || '',
+          last_name: values.last_name || '',
           email: values.email || null,
           phone: values.phone || null,
           gender: values.gender || null,
@@ -966,10 +966,10 @@ export default function Members() {
               )}
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="first_name" render={({ field }) => (
-                  <FormItem><FormLabel>{t('members.firstName')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel required>{t('members.firstName')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="last_name" render={({ field }) => (
-                  <FormItem><FormLabel>{t('members.lastName')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel required>{t('members.lastName')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -977,12 +977,12 @@ export default function Members() {
                   <FormItem><FormLabel>{t('members.email')}</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="phone" render={({ field }) => (
-                  <FormItem><FormLabel>{t('members.phone')}</FormLabel><FormControl><Input {...field} onBlur={() => field.onChange(formatPhone(field.value))} /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel required={!editingMember}>{t('members.phone')}</FormLabel><FormControl><Input {...field} onBlur={() => field.onChange(formatPhone(field.value))} /></FormControl><FormMessage /></FormItem>
                 )} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="gender" render={({ field }) => (
-                  <FormItem><FormLabel>{t('members.gender')}</FormLabel><FormControl>
+                  <FormItem><FormLabel required={!editingMember}>{t('members.gender')}</FormLabel><FormControl>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger><SelectValue placeholder={t('members.selectGender')} /></SelectTrigger>
                       <SelectContent>
@@ -993,16 +993,16 @@ export default function Members() {
                   </FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="birth_date" render={({ field }) => (
-                  <FormItem><FormLabel>{t('members.birthDate')}</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel required={!editingMember}>{t('members.birthDate')}</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
               </div>
               <div className="grid grid-cols-1 gap-4">
                 <FormField control={form.control} name="coach_id" render={({ field }) => (
-                  <FormItem><FormLabel>Coach</FormLabel><FormControl>
+                  <FormItem><FormLabel required={!editingMember}>Coach</FormLabel><FormControl>
                     <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue placeholder="Aucun coach" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={t('members.selectCoach')} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Aucun coach</SelectItem>
+                        {editingMember && <SelectItem value="">{t('members.noCoach')}</SelectItem>}
                         {(coaches ?? []).map(c => (
                           <SelectItem key={c.id} value={c.id}>{toUpper(c.first_name)} {toUpper(c.last_name)}</SelectItem>
                         ))}

@@ -385,7 +385,7 @@ export default function ExpensesPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
-              variant={categoryFilter === "all" ? "default" : "outline"}
+              variant={categoryFilter === "all" ? "selected" : "outline"}
               size="sm"
               onClick={() => setCategoryFilter("all")}
             >
@@ -394,7 +394,7 @@ export default function ExpensesPage() {
             {CATEGORIES.map((cat) => (
               <Button
                 key={cat}
-                variant={categoryFilter === cat ? "default" : "outline"}
+                variant={categoryFilter === cat ? "selected" : "outline"}
                 size="sm"
                 onClick={() => setCategoryFilter(cat)}
               >

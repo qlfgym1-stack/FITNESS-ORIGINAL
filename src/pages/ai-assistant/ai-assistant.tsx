@@ -8,6 +8,7 @@ import { FlagshipProducts } from "./components/flagship-products"
 import { SubscriptionSection } from "./components/subscription-section"
 import { ForecastSection } from "./components/forecast-section"
 import { InsightsSection } from "./components/insights-section"
+import { ChatSection } from "./components/chat-section"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, BrainCircuit, Wallet, TrendingUp, Receipt } from "lucide-react"
@@ -49,7 +50,7 @@ export default function AiAssistantPage() {
         {(["monthly", "quarterly", "custom"] as const).map((p) => (
           <Button
             key={p}
-            variant={period === p ? "default" : "outline"}
+            variant={period === p ? "selected" : "outline"}
             size="sm"
             onClick={() => setPeriod(p)}
           >
@@ -132,6 +133,8 @@ export default function AiAssistantPage() {
           <ForecastSection revenue={data.revenueForecast} attendance={data.attendanceForecast} t={t} />
 
           <InsightsSection insights={data.insights} t={t} />
+
+          <ChatSection data={data} t={t} />
         </>
       )}
     </div>

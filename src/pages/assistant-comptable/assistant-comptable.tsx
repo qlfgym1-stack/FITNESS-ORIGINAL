@@ -62,7 +62,7 @@ export default function AssistantComptablePage() {
 
       <div className="flex flex-wrap gap-2 no-print">
         {(["daily", "weekly", "monthly", "custom"] as const).map(p => (
-          <Button key={p} variant={period === p ? "default" : "outline"} size="sm" onClick={() => setPeriod(p)}>{t(`assistantComptable.${p}`)}</Button>
+          <Button key={p} variant={period === p ? "selected" : "outline"} size="sm" onClick={() => setPeriod(p)}>{t(`assistantComptable.${p}`)}</Button>
         ))}
         {period === "custom" && (
           <div className="flex items-center gap-2 ml-2">

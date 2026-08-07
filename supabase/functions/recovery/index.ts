@@ -19,7 +19,8 @@ function getCorsHeaders(request: Request) {
   return {
     'Access-Control-Allow-Origin': corsOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers':
+      request.headers.get('Access-Control-Request-Headers') || 'Content-Type, Authorization, apikey',
   }
 }
 

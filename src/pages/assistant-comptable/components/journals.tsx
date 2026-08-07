@@ -59,7 +59,7 @@ export function Journals({
         {tabs.map((tab) => (
           <Button
             key={tab}
-            variant={activeTab === tab ? "default" : "outline"}
+            variant={activeTab === tab ? "selected" : "outline"}
             size="sm"
             onClick={() => setActiveTab(tab)}
           >

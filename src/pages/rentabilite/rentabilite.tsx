@@ -71,7 +71,7 @@ export default function RentabilitePage() {
         {(["monthly", "yearly", "custom"] as const).map((p) => (
           <Button
             key={p}
-            variant={period === p ? "default" : "outline"}
+            variant={period === p ? "selected" : "outline"}
             size="sm"
             onClick={() => setPeriod(p)}
           >
