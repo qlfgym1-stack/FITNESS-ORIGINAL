@@ -24,15 +24,16 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
-import { toUpper } from "../../lib/utils"
+import { toUpper, formatCurrency } from "../../lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Package, Plus, Search, Edit, Trash2, Loader2, Download, Upload, Camera, ImageIcon, X,
+  Package, Plus, Search, Edit, Trash2, Loader2, Download, Upload, Camera, ImageIcon, X, DollarSign, ShoppingCart, TrendingUp,
 } from "lucide-react"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
 import { Pagination } from "@/components/ui/pagination"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { useNavigate } from "react-router-dom"
 import type { Product } from "@/types/supabase"
 
 const productSchema = z.object({
@@ -81,6 +82,7 @@ export default function ProductsPage() {
   const [importData, setImportData] = useState<any[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
   const importFileRef = useRef<HTMLInputElement>(null)
+  const nav = useNavigate()
 
   async function handleImportExcel(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -180,6 +182,21 @@ export default function ProductsPage() {
     enabled: !!orgId,
   })
 
+  const { data: productExpenses = [] } = useQuery({
+    queryKey: ["product-expenses", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("expenses")
+        .select("amount, description, expense_date")
+        .eq("organization_id", orgId)
+        .eq("category", "products")
+        .order("expense_date", { ascending: false })
+      return (data ?? []) as { amount: number; description: string; expense_date: string }[]
+    },
+    enabled: !!orgId,
+  })
+
   const form = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
     defaultValues: { name: "", category: "", brand: "", sku: "", reference: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true },
@@ -213,6 +230,11 @@ export default function ProductsPage() {
   })
 
   const { page, setPage, totalPages, paginatedData: paginatedItems } = usePagination(filtered, 20)
+
+  const totalInventoryValue = items.reduce((sum, p) => sum + ((p.cost ?? 0) * (p.stock ?? 0)), 0)
+  const totalProductExpenses = productExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+  const activeProducts = items.filter(p => p.is_active).length
+  const lowStockCount = items.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 10).length
 
   const { exportCsv } = useExportCsv(
     filtered.map(i => ({
@@ -374,6 +396,59 @@ export default function ProductsPage() {
           </div>
         }
       />
+
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-6">
+        <Card className="border border-border/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="rounded-lg p-2.5 bg-primary/10">
+              <Package className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Produits</p>
+              <p className="text-xl font-bold">{items.length}</p>
+              <p className="text-xs text-muted-foreground">{activeProducts} actifs</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border border-border/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="rounded-lg p-2.5 bg-[#10b981]/10">
+              <DollarSign className="h-5 w-5 text-[#10b981]" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Valeur Stock</p>
+              <p className="text-xl font-bold">{formatCurrency(totalInventoryValue)}</p>
+              {lowStockCount > 0 && <p className="text-xs text-amber-600">⚠ {lowStockCount} stock bas</p>}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border border-border/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="rounded-lg p-2.5 bg-[#ef4444]/10">
+              <TrendingUp className="h-5 w-5 text-[#ef4444]" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Dépenses Produits</p>
+              <p className="text-xl font-bold">{formatCurrency(totalProductExpenses)}</p>
+              <p className="text-xs text-muted-foreground">{productExpenses.length} entrées</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card
+          className="border border-border/50 cursor-pointer hover:bg-accent/50 transition-colors"
+          onClick={() => nav("/expenses?cat=products")}
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="rounded-lg p-2.5 bg-[#f59e0b]/10">
+              <ShoppingCart className="h-5 w-5 text-[#f59e0b]" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Voir Dépenses</p>
+              <p className="text-sm font-medium">Catégorie Produits →</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="mb-4 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">

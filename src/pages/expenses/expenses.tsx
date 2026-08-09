@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useT } from "@/i18n"
 import { useAuth } from "@/stores/auth"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { PageHeader } from "@/components/layout/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,7 +29,7 @@ import {
 import { useToast } from "@/components/ui/toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Plus, Download, Upload, Search, Loader2, Trash2,
+  Plus, Download, Upload, Search, Loader2, Trash2, Package,
 } from "lucide-react"
 import { usePagination } from "@/hooks/usePagination"
 import { Pagination } from "@/components/ui/pagination"
@@ -64,9 +65,11 @@ export default function ExpensesPage() {
   const { organization } = useAuth()
   const { toast } = useToast()
   const orgId = organization?.id
+  const nav = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [search, setSearch] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [categoryFilter, setCategoryFilter] = useState<string>(() => searchParams.get("cat") || "all")
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [importData, setImportData] = useState<ImportRow[]>([])
@@ -402,6 +405,17 @@ export default function ExpensesPage() {
               </Button>
             ))}
           </div>
+          {categoryFilter === "products" && (
+            <div className="mt-3 flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => nav("/products")}>
+                <Package className="mr-1 h-4 w-4" />
+                Voir le catalogue Produits →
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {filteredExpenses.length} dépenses liées aux produits
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
