@@ -162,6 +162,23 @@ export function useAccountingData(
     enabled: !!orgId,
   })
 
+  const { data: lastMonthPos = [] } = useQuery({
+    queryKey: ["ac-pos-prev", orgId, from],
+    queryFn: async () => {
+      if (!orgId) return []
+      const prevFrom = new Date(new Date(from).getTime() - 30 * 86400000).toISOString()
+      const { data } = await supabase
+        .from("pos_transactions")
+        .select("total")
+        .eq("organization_id", orgId)
+        .eq("payment_status", "completed")
+        .gte("created_at", prevFrom)
+        .lt("created_at", from)
+      return (data ?? []) as { total: number }[]
+    },
+    enabled: !!orgId,
+  })
+
   const isLoading = paymentsLoading || posLoading || expensesLoading
 
   const subscriptionRevenue = useMemo(
@@ -186,8 +203,9 @@ export function useAccountingData(
   const cashFlow = profit
 
   const prevMonthRevenue = useMemo(
-    () => lastMonthPayments.reduce((s, p) => s + safeNum(p.amount), 0),
-    [lastMonthPayments]
+    () => lastMonthPayments.reduce((s, p) => s + safeNum(p.amount), 0)
+      + lastMonthPos.reduce((s, t) => s + safeNum(t.total), 0),
+    [lastMonthPayments, lastMonthPos]
   )
 
   const revenueBySource: RevenueSource[] = useMemo(() => {

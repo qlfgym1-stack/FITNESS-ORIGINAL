@@ -83,7 +83,6 @@ export default function Dashboard() {
 
       const [
         { count: presentNow },
-        { count: revenueToday },
         { data: bestDayData },
         { count: systemUsers },
         { count: productsCount },
@@ -92,6 +91,7 @@ export default function Dashboard() {
         { count: employeesActive },
         { data: monthTransactions },
         { data: monthPayments },
+        { data: monthExpenses },
         { data: productsWithCost },
         { data: paymentsToday },
         { data: posToday },
@@ -101,7 +101,6 @@ export default function Dashboard() {
         { count: expiredCount },
       ] = await Promise.all([
         supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).gte('check_in', today).is('check_out', null),
-        supabase.from('payments').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'completed').gte('payment_date', today),
         supabase.from('payments').select('payment_date, amount').eq('organization_id', orgId).eq('status', 'completed').gte('payment_date', monthStartStr).order('amount', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('user_roles').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
         supabase.from('products').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
@@ -110,6 +109,7 @@ export default function Dashboard() {
         supabase.from('staff').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('is_active', true),
         supabase.from('pos_transactions').select('total, items').eq('organization_id', orgId).eq('payment_status', 'completed').gte('created_at', monthStartStr),
         supabase.from('payments').select('amount').eq('organization_id', orgId).eq('status', 'completed').gte('payment_date', monthStartStr),
+        supabase.from('expenses').select('amount, category').eq('organization_id', orgId).gte('expense_date', monthStartStr),
         supabase.from('products').select('id, cost').eq('organization_id', orgId),
         supabase.from('payments').select('amount').eq('organization_id', orgId).eq('status', 'completed').gte('payment_date', today),
         supabase.from('pos_transactions').select('total').eq('organization_id', orgId).eq('payment_status', 'completed').gte('created_at', today),
@@ -129,7 +129,7 @@ export default function Dashboard() {
         bestDayName = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
       }
 
-      // Calculate profit: (POS revenue + subscription payments) - (COGS)
+      // Calculate profit: (POS revenue + subscription payments) - (COGS + expenses)
       const costMap = new Map((productsWithCost ?? []).map((p: any) => [p.id, p.cost ?? 0]))
       let totalCogs = 0
       for (const tx of (monthTransactions ?? []) as any[]) {
@@ -140,18 +140,21 @@ export default function Dashboard() {
           totalCogs += qty * unitCost
         }
       }
+      const monthExpensesTotal = (monthExpenses ?? []).reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0)
       const posRevenue = (monthTransactions ?? []).reduce((sum: number, tx: any) => sum + (Number(tx.total) || 0), 0)
       const subRevenue = (monthPayments ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
       const totalRevenue = posRevenue + subRevenue
-      const profit = totalRevenue - totalCogs
-      const encaissementToday = (paymentsToday ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
+      const totalCosts = totalCogs + monthExpensesTotal
+      const profit = totalRevenue - totalCosts
+      const revenueTodaySum = (paymentsToday ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
         + (posToday ?? []).reduce((sum: number, p: any) => sum + (Number(p.total) || 0), 0)
+      const encaissementToday = revenueTodaySum
       const encaissementWeek = (paymentsWeek ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
         + (posWeek ?? []).reduce((sum: number, p: any) => sum + (Number(p.total) || 0), 0)
 
       return {
         present_now: presentNow ?? 0,
-        revenue_today: revenueToday ?? 0,
+        revenue_today: revenueTodaySum,
         best_day_revenue: bestDayRevenue,
         best_day_name: bestDayName,
         system_users: systemUsers ?? 0,
@@ -161,7 +164,7 @@ export default function Dashboard() {
         employees_active: employeesActive ?? 0,
         monthly_profit: Math.max(profit, 0),
         monthly_revenue_total: totalRevenue,
-        monthly_cogs: totalCogs,
+        monthly_cogs: totalCosts,
         encaissement_today: encaissementToday,
         encaissement_week: encaissementWeek,
         encaissement_month: totalRevenue,

@@ -313,7 +313,7 @@ export function useAssistantData(
     const posRevenue = windowPos.reduce((s, tx) => s + bucketPosRevenue(tx), 0)
     const subscriptionRevenue = windowPayments.reduce((s, p) => s + p.amount, 0)
     const totalRevenue = posRevenue + subscriptionRevenue
-    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0) + salaryPayments.reduce((s, p) => s + p.amount, 0) + (staffBonuses ?? 0)
+    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0) + salaryPayments.reduce((s, p) => s + p.amount, 0)
     const netProfit = totalRevenue - totalExpenses
 
     const monthLabels: string[] = []
@@ -370,6 +370,6 @@ export function useAssistantData(
     }
   }, [
     isLoading, attendance, posTransactions, products, payments, subscriptions, members,
-    expenses, salaryPayments, staffBonuses, from, to,
+    expenses, salaryPayments, from, to,
   ])
 }
