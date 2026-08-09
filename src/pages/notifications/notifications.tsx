@@ -583,6 +583,7 @@ export default function NotificationsPage() {
 
   return (
     <div>
+      <div className="h-1.5 w-full rounded-full bg-[#25D366] mb-4 dark:bg-primary" />
       <PageHeader
         title={t("notifications.title")}
         description={t("notifications.description")}

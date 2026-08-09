@@ -34,10 +34,13 @@ export default function AiAssistantPage() {
 
   return (
     <div className="space-y-6">
+      <div className="h-1.5 w-full rounded-full bg-[#8b5cf6] mb-4 dark:bg-primary" />
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <BrainCircuit className="h-6 w-6 text-primary" />
+            <div className="rounded-lg p-2 bg-[#8b5cf6]/10 dark:bg-primary/10">
+              <BrainCircuit className="h-5 w-5 text-[#8b5cf6] dark:text-primary" />
+            </div>
             {t("aiAssistant.title")}
           </h1>
           <p className="text-muted-foreground">

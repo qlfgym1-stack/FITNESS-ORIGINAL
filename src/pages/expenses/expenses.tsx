@@ -259,6 +259,7 @@ export default function ExpensesPage() {
 
   return (
     <div>
+      <div className="h-1.5 w-full rounded-full bg-[#ef4444] mb-4 dark:bg-primary" />
       <PageHeader
         title={t("expenses.title")}
         description={t("expenses.desc")}

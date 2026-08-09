@@ -47,6 +47,7 @@ export default function AssistantComptablePage() {
 
   return (
     <div className="space-y-6 print:space-y-4">
+      <div className="h-1.5 w-full rounded-full bg-[#1e40af] mb-4 dark:bg-primary" />
       <style>{`@media print { body { font-size: 12px; } .no-print { display: none !important; } .print-only { display: block !important; } .print-break-inside { break-inside: avoid; } } .print-only { display: none; }`}</style>
 
       <div className="flex flex-col sm:flex-row justify-between gap-4 no-print">

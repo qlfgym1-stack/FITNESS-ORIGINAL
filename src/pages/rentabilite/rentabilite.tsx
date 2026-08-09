@@ -50,6 +50,7 @@ export default function RentabilitePage() {
 
   return (
     <div className="space-y-6 print:space-y-4">
+      <div className="h-1.5 w-full rounded-full bg-[#10b981] mb-4 dark:bg-primary" />
       <style>{PRINT_STYLES}</style>
 
       <div className="flex flex-col sm:flex-row justify-between gap-4 no-print">

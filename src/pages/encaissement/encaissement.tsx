@@ -342,6 +342,7 @@ export default function Encaissement() {
 
   return (
     <div className="space-y-6 pb-8">
+      <div className="h-1.5 w-full rounded-full bg-[#f59e0b] mb-4 dark:bg-primary" />
       <PageHeader
         title={t("encaissement.title") || "Encaissements"}
         description={t("encaissement.description") || "Suivi des encaissements et ventes"}

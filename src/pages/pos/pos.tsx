@@ -642,6 +642,7 @@ export default function POSPage() {
 
   return (
     <div>
+      <div className="h-1.5 w-full rounded-full bg-[#14b8a6] mb-4 dark:bg-primary" />
       <PageHeader
         title={t("pos.title")}
         description={t("pos.description")}
