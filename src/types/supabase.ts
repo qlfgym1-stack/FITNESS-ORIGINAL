@@ -34,9 +34,9 @@ export interface Database {
         Relationships: []
       }
       payments: {
-        Row: { id: string; organization_id: string; member_id: string; subscription_id: string | null; amount: number; payment_date: string; payment_method: 'cash' | 'card' | 'transfer' | 'other'; status: 'completed' | 'pending' | 'cancelled'; notes: string | null; created_at: string }
-        Insert: { id?: string; organization_id: string; member_id: string; subscription_id?: string | null; amount: number; payment_date?: string; payment_method: 'cash' | 'card' | 'transfer' | 'other'; status?: 'completed' | 'pending' | 'cancelled'; notes?: string | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; member_id?: string; subscription_id?: string | null; amount?: number; payment_date?: string; payment_method?: 'cash' | 'card' | 'transfer' | 'other'; status?: 'completed' | 'pending' | 'cancelled'; notes?: string | null; created_at?: string }
+        Row: { id: string; organization_id: string; member_id: string; subscription_id: string | null; amount: number; payment_date: string; payment_method: 'cash' | 'card' | 'transfer' | 'other'; status: 'completed' | 'pending' | 'cancelled'; notes: string | null; created_at: string; cancelled_at: string | null; cancelled_by: string | null; cancellation_reason: string | null }
+        Insert: { id?: string; organization_id: string; member_id: string; subscription_id?: string | null; amount: number; payment_date?: string; payment_method: 'cash' | 'card' | 'transfer' | 'other'; status?: 'completed' | 'pending' | 'cancelled'; notes?: string | null; created_at?: string; cancelled_at?: string | null; cancelled_by?: string | null; cancellation_reason?: string | null }
+        Update: { id?: string; organization_id?: string; member_id?: string; subscription_id?: string | null; amount?: number; payment_date?: string; payment_method?: 'cash' | 'card' | 'transfer' | 'other'; status?: 'completed' | 'pending' | 'cancelled'; notes?: string | null; created_at?: string; cancelled_at?: string | null; cancelled_by?: string | null; cancellation_reason?: string | null }
         Relationships: []
       }
       classes: {
@@ -172,9 +172,9 @@ export interface Database {
         Relationships: []
       }
       pos_transactions: {
-        Row: { id: string; session_id: string; organization_id: string; member_id: string | null; items: Json; subtotal: number; discount: number | null; total: number; payment_method: string | null; payment_status: string | null; created_by: string | null; created_at: string }
-        Insert: { id?: string; session_id: string; organization_id: string; member_id?: string | null; items: Json; subtotal: number; discount?: number | null; total: number; payment_method?: string | null; payment_status?: string | null; created_by?: string | null; created_at?: string }
-        Update: { id?: string; session_id?: string; organization_id?: string; member_id?: string | null; items?: Json; subtotal?: number; discount?: number | null; total?: number; payment_method?: string | null; payment_status?: string | null; created_by?: string | null; created_at?: string }
+        Row: { id: string; session_id: string; organization_id: string; member_id: string | null; items: Json; subtotal: number; discount: number | null; total: number; payment_method: string | null; payment_status: string | null; created_by: string | null; created_at: string; cancelled_at: string | null; cancelled_by: string | null; cancellation_reason: string | null }
+        Insert: { id?: string; session_id: string; organization_id: string; member_id?: string | null; items: Json; subtotal: number; discount?: number | null; total: number; payment_method?: string | null; payment_status?: string | null; created_by?: string | null; created_at?: string; cancelled_at?: string | null; cancelled_by?: string | null; cancellation_reason?: string | null }
+        Update: { id?: string; session_id?: string; organization_id?: string; member_id?: string | null; items?: Json; subtotal?: number; discount?: number | null; total?: number; payment_method?: string | null; payment_status?: string | null; created_by?: string | null; created_at?: string; cancelled_at?: string | null; cancelled_by?: string | null; cancellation_reason?: string | null }
         Relationships: []
       }
       badges: {
@@ -267,6 +267,24 @@ export interface Database {
         Update: { id?: string; organization_id?: string; period_type?: 'monthly' | 'yearly'; period_label?: string; revenue_target?: number; profit_target?: number; investment_budget?: number; member_target?: number; created_at?: string; updated_at?: string }
         Relationships: []
       }
+      payment_changes: {
+        Row: { id: string; organization_id: string; user_id: string | null; member_id: string | null; source: 'subscription' | 'pos'; payment_id: string | null; pos_transaction_id: string | null; action: 'modify' | 'cancel'; old_data: Json | null; new_data: Json | null; reason: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; user_id?: string | null; member_id?: string | null; source: 'subscription' | 'pos'; payment_id?: string | null; pos_transaction_id?: string | null; action: 'modify' | 'cancel'; old_data?: Json | null; new_data?: Json | null; reason?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; user_id?: string | null; member_id?: string | null; source?: 'subscription' | 'pos'; payment_id?: string | null; pos_transaction_id?: string | null; action?: 'modify' | 'cancel'; old_data?: Json | null; new_data?: Json | null; reason?: string | null; created_at?: string }
+        Relationships: []
+      }
+      whatsapp_outbox: {
+        Row: { id: string; organization_id: string; member_id: string | null; member_name: string | null; phone: string | null; template_key: string; message: string; status: 'ready' | 'sent_via_link' | 'queued' | 'sent' | 'failed'; created_by: string | null; sent_at: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; member_id?: string | null; member_name?: string | null; phone?: string | null; template_key?: string; message?: string; status?: 'ready' | 'sent_via_link' | 'queued' | 'sent' | 'failed'; created_by?: string | null; sent_at?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; member_id?: string | null; member_name?: string | null; phone?: string | null; template_key?: string; message?: string; status?: 'ready' | 'sent_via_link' | 'queued' | 'sent' | 'failed'; created_by?: string | null; sent_at?: string | null; created_at?: string }
+        Relationships: []
+      }
+      audit_logs: {
+        Row: { id: string; organization_id: string; user_id: string | null; action: 'INSERT' | 'UPDATE' | 'DELETE'; entity_type: string; entity_id: string; old_data: Json | null; new_data: Json | null; ip_address: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; user_id?: string | null; action: 'INSERT' | 'UPDATE' | 'DELETE'; entity_type: string; entity_id: string; old_data?: Json | null; new_data?: Json | null; ip_address?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; user_id?: string | null; action?: 'INSERT' | 'UPDATE' | 'DELETE'; entity_type?: string; entity_id?: string; old_data?: Json | null; new_data?: Json | null; ip_address?: string | null; created_at?: string }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -308,3 +326,6 @@ export type TurnstileStatus = Tables<'turnstile_status'>
 export type ManualValidation = Tables<'manual_validations'>
 export type Expense = Tables<'expenses'>
 export type StaffSalaryPayment = Tables<'staff_salary_payments'>
+export type PaymentChange = Tables<'payment_changes'>
+export type WhatsappOutbox = Tables<'whatsapp_outbox'>
+export type AuditLog = Tables<'audit_logs'>

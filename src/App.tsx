@@ -40,6 +40,7 @@ const Notifications = lazy(() => import('@/pages/notifications/notifications'))
 const Settings = lazy(() => import('@/pages/settings/settings'))
 const Profile = lazy(() => import('@/pages/settings/profile'))
 const AdminUsers = lazy(() => import('@/pages/admin/users'))
+const Audit = lazy(() => import('@/pages/admin/audit'))
 const Display = lazy(() => import('@/pages/display/display'))
 const Expenses = lazy(() => import('@/pages/expenses/expenses'))
 const AssistantComptable = lazy(() => import('@/pages/assistant-comptable/assistant-comptable'))
@@ -83,8 +84,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-// Rôles à accès restreint : réception → /pointage, /members, /pos ; ménage → /pointage uniquement
-const RECEPTION_ROUTES = new Set(['/pointage', '/members', '/pos'])
+// Rôles à accès restreint : réception → /pointage, /members, /pos, /encaissement ; ménage → /pointage uniquement
+const RECEPTION_ROUTES = new Set(['/pointage', '/members', '/pos', '/encaissement'])
 const CLEANER_ROUTES = new Set(['/pointage'])
 
 function isRestricted(role: string, allowed: Set<string>, pathname: string, roles: { role: string }[]) {
@@ -164,6 +165,7 @@ export default function App() {
               <Route path="settings" element={<PageTransition><Suspense fallback={<Loading />}><Settings /></Suspense></PageTransition>} />
               <Route path="profile" element={<PageTransition><Suspense fallback={<Loading />}><Profile /></Suspense></PageTransition>} />
               <Route path="admin/users" element={<PageTransition><Suspense fallback={<Loading />}><AdminUsers /></Suspense></PageTransition>} />
+              <Route path="admin/audit" element={<PageTransition><Suspense fallback={<Loading />}><Audit /></Suspense></PageTransition>} />
               <Route path="display" element={<PageTransition><Suspense fallback={<Loading />}><Display /></Suspense></PageTransition>} />
               <Route path="ai-assistant" element={<PageTransition><Suspense fallback={<Loading />}><AiAssistant /></Suspense></PageTransition>} />
               <Route path="install" element={<PageTransition><Suspense fallback={<Loading />}><Install /></Suspense></PageTransition>} />

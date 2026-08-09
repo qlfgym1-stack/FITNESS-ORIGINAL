@@ -32,6 +32,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ScrollText,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -146,6 +147,7 @@ const navGroups: NavGroup[] = [
       { key: "users", icon: Users, path: "/admin/users" },
       { key: "corporate", icon: Briefcase, path: "/corporate" },
       { key: "display", icon: Monitor, path: "/display" },
+      { key: "audit", icon: ScrollText, path: "/admin/audit", adminOnly: true },
     ],
   },
   {
@@ -164,8 +166,8 @@ const VISIBLE_GROUPS: Record<string, string[]> = {
   cleaner: ['checkin'],
 }
 
-// Réception : uniquement /pointage, /members, /pos
-const RECEPTION_ITEMS = new Set(['pointage', 'members', 'pos'])
+// Réception : /pointage, /members, /pos + encaissements (lecture + modification)
+const RECEPTION_ITEMS = new Set(['pointage', 'members', 'pos', 'encaissement'])
 // Ménage : uniquement /pointage (lecture seule)
 const CLEANER_ITEMS = new Set(['pointage'])
 

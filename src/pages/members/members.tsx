@@ -20,12 +20,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Plus, Download, Upload, Pencil, Trash2, Loader2, Shield, CreditCard, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react'
+import { Search, Plus, Download, Upload, Pencil, Trash2, Loader2, Shield, CreditCard, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, X, History } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 import { useExportCsv } from '@/hooks/useExportCsv'
 import { formatDate, getInitials, getStatusColor, toUpper, formatCurrency, formatPhone, isValidDzPhone, displayPhone } from '@/lib/utils'
 import type { Member, SubscriptionType, RfidCard } from '@/types/supabase'
 import { RfidManagementDialog, RfidCreateSection } from './rfid-management'
+import { MemberHistoryDialog } from './member-history'
 import { AvatarUpload } from '@/components/ui/avatar-upload'
 import { CameraCapture } from '@/components/ui/camera-capture'
 
@@ -216,6 +217,7 @@ export default function Members() {
   })
   const [rfidUid, setRfidUid] = useState('')
   const [rfidDialogMember, setRfidDialogMember] = useState<{ id: string; name: string } | null>(null)
+  const [historyMember, setHistoryMember] = useState<{ id: string; name: string } | null>(null)
   const rfidData = rfidManagementQuery.data as Record<string, { rfid_uid: string; status: string } | null> || {}
 
   const pageSize = 10
@@ -815,6 +817,9 @@ export default function Members() {
                       <Button variant="ghost" size="icon" onClick={() => setRfidDialogMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })}>
                         <Shield className="h-4 w-4" />
                       </Button>
+                      <Button variant="ghost" size="icon" title={t('members.history.title') || 'Historique'} onClick={() => setHistoryMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })}>
+                        <History className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(member)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -863,6 +868,7 @@ export default function Members() {
                       <RefreshCw className="h-4 w-4 text-warning" />
                     </Button>
                   )}
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title={t('members.history.title') || 'Historique'} onClick={() => setHistoryMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })}><History className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(member)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setDeletingMember(member); setDeleteOpen(true) }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
@@ -1064,6 +1070,13 @@ export default function Members() {
         memberName={rfidDialogMember?.name || ''}
         open={!!rfidDialogMember}
         onOpenChange={(open) => { if (!open) { setRfidDialogMember(null); rfidManagementQuery.refetch() } }}
+      />
+
+      <MemberHistoryDialog
+        memberId={historyMember?.id || ''}
+        memberName={historyMember?.name || ''}
+        open={!!historyMember}
+        onOpenChange={(o) => { if (!o) setHistoryMember(null) }}
       />
     </div>
   )

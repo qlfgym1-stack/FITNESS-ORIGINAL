@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react"
-import { useQuery } from "@/hooks/useQuery"
+import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
@@ -9,15 +9,21 @@ import { formatCurrency, toUpper } from "@/lib/utils"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog"
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { Pagination } from "@/components/ui/pagination"
-import { Loader2, Wallet, Search, Download } from "lucide-react"
+import { Loader2, Wallet, Search, Download, Pencil, Trash2, History } from "lucide-react"
 import { IS_MOCK } from "@/lib/config"
+import { useToast } from "@/components/ui/toast"
+import type { PaymentChange } from "@/types/supabase"
 
 interface EncaissementRow {
   id: string
@@ -30,11 +36,25 @@ interface EncaissementRow {
   memberName: string
 }
 
+function getTopRole(roles: { role: string }[]): string {
+  if (roles.some(r => r.role === 'admin')) return 'admin'
+  if (roles.some(r => r.role === 'receptionist')) return 'reception'
+  if (roles.some(r => r.role === 'cleaner')) return 'cleaner'
+  if (roles.some(r => r.role === 'staff')) return 'staff'
+  if (roles.some(r => r.role === 'coach')) return 'coach'
+  return 'admin'
+}
+
 export default function Encaissement() {
   const supabase = useSupabase()
   const t = useT()
-  const { organization } = useAuth()
+  const { organization, roles } = useAuth()
   const orgId = organization?.id
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+
+  const topRole = getTopRole(roles ?? [])
+  const canManage = topRole === 'admin' || topRole === 'reception'
 
   const today = new Date().toISOString().split("T")[0]
   const monthStart = new Date()
@@ -47,6 +67,15 @@ export default function Encaissement() {
   const [typeFilter, setTypeFilter] = useState("all")
   const [memberSearch, setMemberSearch] = useState("")
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
+
+  const [modifyRow, setModifyRow] = useState<EncaissementRow | null>(null)
+  const [cancelRow, setCancelRow] = useState<EncaissementRow | null>(null)
+  const [historyRow, setHistoryRow] = useState<EncaissementRow | null>(null)
+  const [modifyAmount, setModifyAmount] = useState("")
+  const [modifyDate, setModifyDate] = useState("")
+  const [modifyMethod, setModifyMethod] = useState("cash")
+  const [modifyReason, setModifyReason] = useState("")
+  const [cancelReason, setCancelReason] = useState("")
 
   const { data: members } = useQuery({
     queryKey: ["members_minimal"],
@@ -104,6 +133,26 @@ export default function Encaissement() {
       return [...subs, ...posRows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     },
     enabled: !!orgId,
+  })
+
+  const { data: historyData } = useQuery({
+    queryKey: ["payment_changes", orgId, historyRow?.type, historyRow?.id],
+    queryFn: async () => {
+      if (IS_MOCK || !orgId || !historyRow) return []
+      let q = supabase
+        .from("payment_changes")
+        .select("*")
+        .eq("organization_id", orgId)
+      if (historyRow.type === "subscription") {
+        q = q.eq("payment_id", historyRow.id)
+      } else {
+        q = q.eq("pos_transaction_id", historyRow.id)
+      }
+      const { data, error } = await q.order("created_at", { ascending: false })
+      if (error) throw error
+      return (data ?? []) as PaymentChange[]
+    },
+    enabled: !!orgId && !!historyRow,
   })
 
   const filtered = useMemo(() => {
@@ -183,6 +232,88 @@ export default function Encaissement() {
       <Badge variant={(map[status] as any) || "outline"}>
         {status === "completed" ? t("encaissement.completed") : status === "pending" ? t("encaissement.pending") : t("encaissement.cancelled")}
       </Badge>
+    )
+  }
+
+  const openModify = (row: EncaissementRow) => {
+    setModifyRow(row)
+    setModifyAmount(String(row.amount))
+    setModifyDate(row.date.slice(0, 10))
+    setModifyMethod(row.method === "cash" || row.method === "card" || row.method === "transfer" || row.method === "other" ? row.method : "cash")
+    setModifyReason("")
+  }
+
+  const modifyMutation = useMutation({
+    mutationFn: async () => {
+      if (!modifyRow) throw new Error("No row")
+      if (IS_MOCK) return
+      const { error } = await (supabase.rpc as any)("modify_payment", {
+        p_payment_id: modifyRow.id,
+        p_new_amount: Number(modifyAmount),
+        p_new_date: new Date(`${modifyDate}T12:00:00`).toISOString(),
+        p_new_method: modifyMethod,
+        p_reason: modifyReason,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["encaissement", orgId] })
+      setModifyRow(null)
+      setModifyReason("")
+      toast({ title: t("encaissement.modifySuccess"), variant: "success" })
+    },
+    onError: (err) => {
+      toast({ title: t("common.error"), description: err.message, variant: "destructive" })
+    },
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      if (!cancelRow) throw new Error("No row")
+      if (IS_MOCK) return
+      const { error } = cancelRow.type === "subscription"
+        ? await (supabase.rpc as any)("cancel_payment", { p_payment_id: cancelRow.id, p_reason: cancelReason })
+        : await (supabase.rpc as any)("cancel_pos_transaction", { p_transaction_id: cancelRow.id, p_reason: cancelReason })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["encaissement", orgId] })
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+      setCancelRow(null)
+      setCancelReason("")
+      toast({ title: t("encaissement.cancelSuccess"), variant: "success" })
+    },
+    onError: (err) => {
+      toast({ title: t("common.error"), description: err.message, variant: "destructive" })
+    },
+  })
+
+  const renderOldNew = (c: PaymentChange) => {
+    const oldD = (c.old_data ?? {}) as Record<string, unknown>
+    const newD = (c.new_data ?? {}) as Record<string, unknown>
+    const fmtVal = (v: unknown) => {
+      if (v === null || v === undefined) return "-"
+      if (typeof v === "number") return formatCurrency(v)
+      if (typeof v === "object") return JSON.stringify(v)
+      return String(v)
+    }
+    const keys = Object.keys({ ...oldD, ...newD }).filter(k => k !== "items")
+    return (
+      <div className="space-y-1">
+        {keys.map(k => {
+          const o = oldD[k]
+          const n = newD[k]
+          if (o === n) return null
+          return (
+            <div key={k} className="text-xs">
+              <span className="text-muted-foreground">{k} :</span>{" "}
+              {o !== undefined && <span className="line-through text-destructive">{fmtVal(o)}</span>}
+              {o !== undefined && n !== undefined && <span className="mx-1">→</span>}
+              <span className="font-medium">{fmtVal(n)}</span>
+            </div>
+          )
+        })}
+      </div>
     )
   }
 
@@ -324,6 +455,7 @@ export default function Encaissement() {
                       <th className="text-right p-3 font-medium">{t("payments.amount") || "Montant"}</th>
                       <th className="text-center p-3 font-medium">{t("encaissement.method") || "Moyen"}</th>
                       <th className="text-center p-3 font-medium">{t("encaissement.status") || "Statut"}</th>
+                      {canManage && <th className="text-center p-3 font-medium">{t("encaissement.actions") || "Actions"}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -339,6 +471,27 @@ export default function Encaissement() {
                         <td className="p-3 text-right whitespace-nowrap font-medium tabular-nums">{formatCurrency(row.amount)}</td>
                         <td className="p-3 text-center whitespace-nowrap">{methodBadge(row.method)}</td>
                         <td className="p-3 text-center whitespace-nowrap">{statusBadge(row.status)}</td>
+                        {canManage && (
+                          <td className="p-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title={t("encaissement.history") || "Historique"} onClick={() => setHistoryRow(row)}>
+                                <History className="h-3.5 w-3.5" />
+                              </Button>
+                              {row.status !== "cancelled" && (
+                                <>
+                                  {row.type === "subscription" && (
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title={t("encaissement.edit") || "Modifier"} onClick={() => openModify(row)}>
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title={t("encaissement.cancel") || "Annuler"} onClick={() => { setCancelRow(row); setCancelReason("") }}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -356,6 +509,129 @@ export default function Encaissement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modify dialog */}
+      <Dialog open={!!modifyRow} onOpenChange={(open) => { if (!open) setModifyRow(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("encaissement.modifyTitle") || "Modifier l'encaissement"}</DialogTitle>
+            <DialogDescription>
+              {modifyRow?.memberName} — {modifyRow?.type === "subscription" ? (t("encaissement.modifySubLabel") || "Abonnement") : (t("encaissement.posSaleLabel") || "Vente POS")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{t("encaissement.amountLabel") || "Montant"}</label>
+              <Input type="number" min="0" step="0.01" value={modifyAmount} onChange={e => setModifyAmount(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{t("encaissement.dateLabel") || "Date"}</label>
+              <Input type="date" value={modifyDate} onChange={e => setModifyDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{t("encaissement.methodLabel") || "Moyen"}</label>
+              <Select value={modifyMethod} onValueChange={setModifyMethod}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">{t("encaissement.cash") || "Espèces"}</SelectItem>
+                  <SelectItem value="card">{t("encaissement.card") || "Carte"}</SelectItem>
+                  <SelectItem value="transfer">{t("encaissement.transfer") || "Virement"}</SelectItem>
+                  <SelectItem value="other">{t("encaissement.other") || "Autre"}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{t("encaissement.reason") || "Motif"}</label>
+              <Textarea value={modifyReason} onChange={e => setModifyReason(e.target.value)} placeholder={t("encaissement.reasonPlaceholder") || "Motif de la modification (obligatoire)"} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModifyRow(null)}>{t("common.cancel") || "Annuler"}</Button>
+            <Button
+              disabled={!modifyReason.trim() || modifyAmount === "" || Number(modifyAmount) < 0 || modifyMutation.isPending}
+              onClick={() => modifyMutation.mutate()}
+            >
+              {modifyMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("encaissement.save") || "Enregistrer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel dialog */}
+      <Dialog open={!!cancelRow} onOpenChange={(open) => { if (!open) setCancelRow(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("encaissement.cancelTitle") || "Annuler l'encaissement"}</DialogTitle>
+            <DialogDescription>
+              {t("encaissement.cancelConfirm") || "Confirmez l'annulation de cet encaissement. Cette action est définitive et enregistrée dans l'historique."}
+            </DialogDescription>
+          </DialogHeader>
+          {cancelRow && (
+            <div className="rounded-md border p-3 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("pos.member") || "Membre"}</span>
+                <span className="font-medium">{cancelRow.memberName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("payments.amount") || "Montant"}</span>
+                <span className="font-medium">{formatCurrency(cancelRow.amount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("encaissement.type") || "Type"}</span>
+                <span className="font-medium">{cancelRow.type === "subscription" ? (t("encaissement.subscription") || "Abonnement") : (t("encaissement.pos") || "Vente POS")}</span>
+              </div>
+            </div>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">{t("encaissement.reason") || "Motif"}</label>
+            <Textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder={t("encaissement.reasonPlaceholder") || "Motif de l'annulation (obligatoire)"} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelRow(null)}>{t("common.close") || "Fermer"}</Button>
+            <Button variant="destructive" disabled={!cancelReason.trim() || cancelMutation.isPending} onClick={() => cancelMutation.mutate()}>
+              {cancelMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("encaissement.cancel") || "Annuler"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* History dialog */}
+      <Dialog open={!!historyRow} onOpenChange={(open) => { if (!open) setHistoryRow(null) }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("encaissement.historyOf") || "Historique des changements"}</DialogTitle>
+            <DialogDescription>
+              {historyRow?.memberName} — {historyRow?.type === "subscription" ? (t("encaissement.subscription") || "Abonnement") : (t("encaissement.pos") || "Vente POS")}
+            </DialogDescription>
+          </DialogHeader>
+          {historyData && historyData.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">{t("encaissement.noHistory") || "Aucun historique"}</div>
+          ) : (
+            <div className="max-h-[50vh] overflow-y-auto space-y-3">
+              {(historyData ?? []).map(c => (
+                <div key={c.id} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge variant={c.action === "cancel" ? "destructive" : "default"}>
+                      {c.action === "cancel" ? (t("encaissement.cancel") || "Annulation") : (t("encaissement.change") || "Modification")}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString("fr-FR")}</span>
+                  </div>
+                  {renderOldNew(c)}
+                  {c.reason && (
+                    <p className="text-xs mt-2 text-muted-foreground">
+                      <span className="font-medium">{t("encaissement.reason") || "Motif"} :</span> {c.reason}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
