@@ -1,4 +1,4 @@
--- Seed subscription_types + subscriptions pour les 851 membres DINATEK
+-- Seed subscription_types + subscriptions pour les 851 membres QLF GYM
 -- Répartition : journaliers actifs, mensuels actifs, expirés
 
 DO $$

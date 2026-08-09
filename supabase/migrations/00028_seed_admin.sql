@@ -1,6 +1,6 @@
 -- RPC to assign admin role by email
--- Usage: SELECT assign_admin_role_by_email('MoussaMohamedelmabrouk@gmail.com', 'dinatek');
-CREATE OR REPLACE FUNCTION assign_admin_role_by_email(p_email TEXT, p_org_slug TEXT DEFAULT 'dinatek')
+-- Usage: SELECT assign_admin_role_by_email('MoussaMohamedelmabrouk@gmail.com', 'qlf-gym');
+CREATE OR REPLACE FUNCTION assign_admin_role_by_email(p_email TEXT, p_org_slug TEXT DEFAULT 'qlf-gym')
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER

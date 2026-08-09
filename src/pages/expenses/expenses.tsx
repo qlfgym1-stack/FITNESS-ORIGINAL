@@ -38,7 +38,7 @@ import type { Expense } from "@/types/supabase"
 import { IS_MOCK } from '@/lib/config'
 
 const expenseSchema = z.object({
-  category: z.enum(["rent", "salaries", "electricity", "water", "equipment", "maintenance", "marketing", "insurance", "taxes", "other"]),
+  category: z.enum(["rent", "salaries", "electricity", "water", "equipment", "maintenance", "marketing", "insurance", "taxes", "products"]),
   description: z.string().min(1, "Description is required"),
   amount: z.coerce.number().positive("Amount must be positive"),
   expense_date: z.string().min(1, "Date is required"),
@@ -47,7 +47,7 @@ const expenseSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>
 
-const CATEGORIES = ["rent", "salaries", "electricity", "water", "equipment", "maintenance", "marketing", "insurance", "taxes", "other"] as const
+const CATEGORIES = ["rent", "salaries", "electricity", "water", "equipment", "maintenance", "marketing", "insurance", "taxes", "products"] as const
 
 interface ImportRow {
   category: string
@@ -75,7 +75,7 @@ export default function ExpensesPage() {
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
-      category: "other",
+      category: "products",
       description: "",
       amount: 0,
       expense_date: format(new Date(), "yyyy-MM-dd"),
@@ -163,7 +163,7 @@ export default function ExpensesPage() {
       marketing: t("expenses.marketing"),
       insurance: t("expenses.insurance"),
       taxes: t("expenses.taxes"),
-      other: t("expenses.other"),
+      products: t("expenses.products"),
     }
     return map[cat] || cat
   }, [t])
@@ -194,7 +194,7 @@ export default function ExpensesPage() {
       const rows: ImportRow[] = json.map((r) => {
         const rawAmount = Number(r.amount ?? r.Amount ?? 0)
         return {
-          category: String(r.category || r.Category || "other"),
+          category: String(r.category || r.Category || "products"),
           description: String(r.description || r.Description || ""),
           amount: Number.isNaN(rawAmount) ? 0 : rawAmount,
           expense_date: String(r.expense_date || r.Date || format(new Date(), "yyyy-MM-dd")),
@@ -215,7 +215,7 @@ export default function ExpensesPage() {
     for (const row of importData) {
       if (IS_MOCK) { imported++; continue }
       const catSet = new Set<string>(CATEGORIES)
-      const cat = catSet.has(row.category) ? (row.category as ExpenseFormValues["category"]) : "other"
+      const cat = catSet.has(row.category) ? (row.category as ExpenseFormValues["category"]) : "products"
       const { error: insertError } = await supabase.from("expenses").insert({
         organization_id: orgId,
         category: cat,

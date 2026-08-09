@@ -389,7 +389,38 @@ export default function PointagePage() {
         p_card_uid: uid,
         p_terminal: PAGE_TERMINAL,
       })
-      return { ...rfidData.data, _raw: rfidData.data } as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string; attendance_id?: string; _raw: any }
+      const result = rfidData.data as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string; attendance_id?: string }
+
+      // If member not found, try staff RFID clock
+      if (result.result === "denied" && result.reason?.includes("Badge inconnu")) {
+        const staffData = await (supabase.rpc as any)("staff_rfid_clock", {
+          p_rfid_uid: uid,
+        })
+        const staffResult = staffData.data as { result: string; action?: string; staff_name?: string; staff_id?: string; reason?: string; total_hours?: number }
+        if (staffResult.result === "granted") {
+          return {
+            result: "granted",
+            action: staffResult.action,
+            member_name: staffResult.staff_name,
+            member_id: undefined,
+            attendance_id: undefined,
+            _isStaff: true,
+            _staffName: staffResult.staff_name,
+            _totalHours: staffResult.total_hours,
+            _raw: staffResult,
+          } as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string; attendance_id?: string; _isStaff?: boolean; _staffName?: string; _totalHours?: number; _raw: any }
+        }
+        if (staffResult.result === "already_done") {
+          return {
+            result: "denied",
+            reason: staffResult.reason,
+            member_name: staffResult.staff_name,
+            _raw: staffResult,
+          } as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string; attendance_id?: string; _raw: any }
+        }
+      }
+
+      return { ...result, _raw: result } as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string; attendance_id?: string; _raw: any }
     },
     onSuccess: async (data) => {
       const isGranted = data.result === "granted"
@@ -401,6 +432,24 @@ export default function PointagePage() {
       })
       setIsScanning(false)
       setRfidInput("")
+
+      // Staff RFID clock
+      if (data._isStaff) {
+        const staffLabel = data.action === "clock_out"
+          ? `Départ — ${data._staffName} (${data._totalHours}h)`
+          : `Arrivée — ${data._staffName}`
+        if (isGranted) {
+          toast({ title: staffLabel })
+        } else {
+          toast({ title: "Pointage refusé", description: data.reason, variant: "destructive" })
+        }
+        queryClient.invalidateQueries({ queryKey: ["staff_timesheet"] })
+        queryClient.invalidateQueries({ queryKey: ["staff_timesheet_weekly"] })
+        if (scanResultTimeoutRef.current) clearTimeout(scanResultTimeoutRef.current)
+        scanResultTimeoutRef.current = setTimeout(() => setScanResult(null), 4000)
+        focusRfid()
+        return
+      }
 
       let memberInfo: ScanLogMember | null = null
       if (data.member_id) {

@@ -371,7 +371,8 @@ export function useProfitabilityData(
     const grossProfit = totalRevenue - costOfSales
     const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
 
-    const expenseTotal = expenses.reduce((s, e) => s + safeNum(e.amount), 0)
+    const nonSalaryExpenses = expenses.filter(e => e.category !== 'salaries')
+    const expenseTotal = nonSalaryExpenses.reduce((s, e) => s + safeNum(e.amount), 0)
     const salaryTotal = salaryPayments.reduce((s, sp) => s + safeNum(sp.amount), 0)
     const totalExpenses = expenseTotal + salaryTotal
 
@@ -828,7 +829,7 @@ export function useProfitabilityData(
         marketing: "marketing",
         insurance: "assurance",
         taxes: "impôts",
-        other: "divers",
+        products: "produits",
       }
       aiInsights.push({
         type: "warning",

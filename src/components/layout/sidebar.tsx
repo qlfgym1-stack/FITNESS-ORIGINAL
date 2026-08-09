@@ -113,6 +113,7 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "staff", icon: UsersRound, path: "/staff" },
       { key: "staffTimesheet", icon: Clock, path: "/staff/timesheet" },
+      { key: "staffPlanning", icon: Calendar, path: "/staff/planning" },
       { key: "staffLeaves", icon: Calendar, path: "/staff/leaves" },
       { key: "payroll", icon: Wallet, path: "/rh" },
     ],
@@ -134,7 +135,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    groupKey: "marketing",
+    groupKey: "whatsapp",
     items: [
       { key: "notifications", icon: Bell, path: "/notifications" },
     ],
@@ -159,7 +160,7 @@ const navGroups: NavGroup[] = [
 ]
 
 const VISIBLE_GROUPS: Record<string, string[]> = {
-  admin: ['dashboard', 'checkin', 'members', 'pos', 'stock', 'access', 'hr', 'finance', 'profitability', 'marketing', 'admin', 'ai'],
+  admin: ['dashboard', 'checkin', 'members', 'pos', 'stock', 'access', 'hr', 'finance', 'profitability', 'whatsapp', 'admin', 'ai'],
   staff: ['dashboard', 'checkin', 'members', 'pos'],
   coach: ['dashboard', 'checkin', 'members', 'pos', 'sport'],
   reception: ['checkin', 'members', 'pos'],

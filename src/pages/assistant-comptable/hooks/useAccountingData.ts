@@ -36,7 +36,7 @@ const EXPENSE_LABELS: Record<string, string> = {
   marketing: "Marketing",
   insurance: "Assurance",
   taxes: "Impôts",
-  other: "Autres",
+  products: "Produits",
 }
 
 const EXPENSE_ACCOUNTS: Record<string, string> = {
@@ -49,7 +49,7 @@ const EXPENSE_ACCOUNTS: Record<string, string> = {
   marketing: "623 - Publicité",
   insurance: "616 - Assurances",
   taxes: "63 - Impôts",
-  other: "62 - Charges diverses",
+  products: "607 - Achats de matières et fournitures",
 }
 
 function computePeriod(filters: AccountingFilters): { from: string; to: string } {

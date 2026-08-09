@@ -21,7 +21,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 4. RPC d'assignation admin : 'admin' au lieu de 'super_admin'
-CREATE OR REPLACE FUNCTION assign_admin_role_by_email(p_email TEXT, p_org_slug TEXT DEFAULT 'dinatek')
+CREATE OR REPLACE FUNCTION assign_admin_role_by_email(p_email TEXT, p_org_slug TEXT DEFAULT 'qlf-gym')
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER

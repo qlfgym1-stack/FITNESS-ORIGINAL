@@ -21,8 +21,8 @@ BEGIN
 
   -- Get or create the default organization
   INSERT INTO organizations (name, slug)
-  VALUES ('DINATEK', 'dinatek')
-  ON CONFLICT (slug) DO UPDATE SET name = 'DINATEK'
+  VALUES ('QLF GYM', 'qlf-gym')
+  ON CONFLICT (slug) DO UPDATE SET name = 'QLF GYM'
   RETURNING id INTO v_org_id;
 
   -- Assign admin role
@@ -30,5 +30,5 @@ BEGIN
   VALUES (v_user_id, v_org_id, 'admin')
   ON CONFLICT (user_id, organization_id) DO UPDATE SET role = 'admin';
 
-  RAISE NOTICE 'Admin user MoussaMohamedelmabrouk@gmail.com assigned admin for organization DINATEK';
+  RAISE NOTICE 'Admin user MoussaMohamedelmabrouk@gmail.com assigned admin for organization QLF GYM';
 END $$;

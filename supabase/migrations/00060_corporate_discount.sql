@@ -1,16 +1,16 @@
 -- Migration 00060: Conventions corporate + remise POS sur abonnement
--- 1. Seed des conventions existantes pour l'organisation DINATEK
+-- 1. Seed des conventions existantes pour l'organisation QLF GYM
 INSERT INTO corporate (organization_id, company_name, contact_name, email, phone, address, discount_rate, contract_start, contract_end, is_active)
 SELECT o.id, 'Sonatrach', 'Ali Haddad', 'ali@sonatrach.dz', '+213 21 123 456', 'Hydra, Alger', 15, '2026-01-01', '2026-12-31', true
-FROM organizations o WHERE o.slug = 'dinatek' AND NOT EXISTS (SELECT 1 FROM corporate c WHERE c.organization_id = o.id AND c.company_name = 'Sonatrach');
+FROM organizations o WHERE o.slug = 'qlf-gym' AND NOT EXISTS (SELECT 1 FROM corporate c WHERE c.organization_id = o.id AND c.company_name = 'Sonatrach');
 
 INSERT INTO corporate (organization_id, company_name, contact_name, email, phone, address, discount_rate, contract_start, contract_end, is_active)
 SELECT o.id, 'Air Algérie', 'Samira Bellil', 'samira@airalgerie.dz', '+213 21 789 012', 'Dar El Beida, Alger', 10, '2026-03-01', '2027-02-28', true
-FROM organizations o WHERE o.slug = 'dinatek' AND NOT EXISTS (SELECT 1 FROM corporate c WHERE c.organization_id = o.id AND c.company_name = 'Air Algérie');
+FROM organizations o WHERE o.slug = 'qlf-gym' AND NOT EXISTS (SELECT 1 FROM corporate c WHERE c.organization_id = o.id AND c.company_name = 'Air Algérie');
 
 INSERT INTO corporate (organization_id, company_name, contact_name, email, phone, address, discount_rate, contract_start, contract_end, is_active)
 SELECT o.id, 'Algerian Telecom', 'Rachid Mansour', 'rachid@telecom.dz', '+213 770 555 555', 'Rouiba, Alger', 20, '2026-02-01', '2026-08-01', false
-FROM organizations o WHERE o.slug = 'dinatek' AND NOT EXISTS (SELECT 1 FROM corporate c WHERE c.organization_id = o.id AND c.company_name = 'Algerian Telecom');
+FROM organizations o WHERE o.slug = 'qlf-gym' AND NOT EXISTS (SELECT 1 FROM corporate c WHERE c.organization_id = o.id AND c.company_name = 'Algerian Telecom');
 
 -- 2. Lien membre -> convention (carte entreprise)
 ALTER TABLE members

@@ -244,9 +244,9 @@ export interface Database {
         Relationships: []
       }
       expenses: {
-        Row: { id: string; organization_id: string; category: 'rent' | 'salaries' | 'electricity' | 'water' | 'equipment' | 'maintenance' | 'marketing' | 'insurance' | 'taxes' | 'other'; description: string; amount: number; expense_date: string; created_by: string | null; created_at: string; updated_at: string }
-        Insert: { id?: string; organization_id: string; category: 'rent' | 'salaries' | 'electricity' | 'water' | 'equipment' | 'maintenance' | 'marketing' | 'insurance' | 'taxes' | 'other'; description: string; amount: number; expense_date?: string; created_by?: string | null; created_at?: string; updated_at?: string }
-        Update: { id?: string; organization_id?: string; category?: 'rent' | 'salaries' | 'electricity' | 'water' | 'equipment' | 'maintenance' | 'marketing' | 'insurance' | 'taxes' | 'other'; description?: string; amount?: number; expense_date?: string; created_by?: string | null; created_at?: string; updated_at?: string }
+        Row: { id: string; organization_id: string; category: 'rent' | 'salaries' | 'electricity' | 'water' | 'equipment' | 'maintenance' | 'marketing' | 'insurance' | 'taxes' | 'products'; description: string; amount: number; expense_date: string; created_by: string | null; reference_type: string | null; reference_id: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; organization_id: string; category: 'rent' | 'salaries' | 'electricity' | 'water' | 'equipment' | 'maintenance' | 'marketing' | 'insurance' | 'taxes' | 'products'; description: string; amount: number; expense_date?: string; created_by?: string | null; reference_type?: string | null; reference_id?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; organization_id?: string; category?: 'rent' | 'salaries' | 'electricity' | 'water' | 'equipment' | 'maintenance' | 'marketing' | 'insurance' | 'taxes' | 'products'; description?: string; amount?: number; expense_date?: string; created_by?: string | null; reference_type?: string | null; reference_id?: string | null; created_at?: string; updated_at?: string }
         Relationships: []
       }
       wedding_programs: {

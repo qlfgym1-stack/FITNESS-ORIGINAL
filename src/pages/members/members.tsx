@@ -77,7 +77,7 @@ const createMemberSchema = (t: (k: string) => string, isCreate: boolean) => {
     notes: z.string().optional().or(z.literal('')),
     subscription_type_id: z.string().optional().or(z.literal('')),
     start_date: z.string().optional().or(z.literal('')),
-    coach_id: z.string().min(1, t('errors.coachRequired')),
+    coach_id: z.string().optional().or(z.literal('')),
     corporate_id: z.string().optional().or(z.literal('')),
   })
 }
@@ -1004,11 +1004,11 @@ export default function Members() {
               </div>
               <div className="grid grid-cols-1 gap-4">
                 <FormField control={form.control} name="coach_id" render={({ field }) => (
-                  <FormItem><FormLabel required={!editingMember}>Coach</FormLabel><FormControl>
+                  <FormItem><FormLabel>Coach</FormLabel><FormControl>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger><SelectValue placeholder={t('members.selectCoach')} /></SelectTrigger>
                       <SelectContent>
-                        {editingMember && <SelectItem value="">{t('members.noCoach')}</SelectItem>}
+                        <SelectItem value="">{t('members.noCoach')}</SelectItem>
                         {(coaches ?? []).map(c => (
                           <SelectItem key={c.id} value={c.id}>{toUpper(c.first_name)} {toUpper(c.last_name)}</SelectItem>
                         ))}

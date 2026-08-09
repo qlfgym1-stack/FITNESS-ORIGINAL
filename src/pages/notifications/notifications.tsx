@@ -18,10 +18,13 @@ import { useSupabase } from "@/hooks/useSupabase"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { formatDate, displayPhone } from "@/lib/utils"
 import { IS_MOCK } from "@/lib/config"
-import type { Notification, Json } from "@/types/supabase"
+import {
+  WaTemplateKey, WA_TEMPLATE_KEYS, DEFAULT_TEMPLATES, sendWhatsApp,
+} from "@/lib/whatsapp"
+import type { Notification, WhatsappOutbox } from "@/types/supabase"
 import {
   Bell, CheckCheck, MailOpen, Trash2, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, Info,
-  MessageCircle, Settings2, Send, RefreshCw, CalendarClock, CalendarX, Loader2,
+  MessageCircle, Settings2, Send, RefreshCw, CalendarClock, CalendarX, Loader2, Cake, Search, History, Megaphone, Users, CheckCircle,
 } from "lucide-react"
 
 const typeIcons: Record<string, React.ElementType> = {
@@ -37,8 +40,8 @@ const typeIcons: Record<string, React.ElementType> = {
 }
 
 type FilterType = "all" | "unread"
-type TopTab = "notifications" | "renewals" | "expired"
-type WaTemplateKey = "renewal" | "expired"
+type TopTab = "notifications" | "renewals" | "expired" | "birthdays" | "campaign" | "history"
+type CampaignStatus = "all" | "active" | "inactive" | "suspended" | "blocked"
 
 interface SubWithRelations {
   id: string
@@ -49,20 +52,24 @@ interface SubWithRelations {
   subscription_types: { name: string } | null
 }
 
+interface CampaignMember {
+  id: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  status: "active" | "inactive" | "suspended" | "blocked"
+  birth_date: string | null
+}
+
 interface WaTarget {
   member_id: string
   name: string
   phone: string
   date: string
-  kind: "renewal" | "expired"
+  kind: WaTemplateKey
 }
 
 const DEFAULT_DELAYS = [30, 15, 7, 3, 1, 0]
-
-const DEFAULT_TEMPLATES: Record<WaTemplateKey, string> = {
-  renewal: "Bonjour {NOM}, votre abonnement expirera le {DATE} à {NOM_SALLE}.",
-  expired: "Bonjour {NOM}, votre abonnement est expiré depuis le {DATE}. Rejoignez-nous à {NOM_SALLE}.",
-}
 
 function toDateStr(d: Date): string {
   const y = d.getFullYear()
@@ -79,6 +86,7 @@ function daysUntil(endDate: string): number {
 }
 
 function formatWaDate(dateStr: string): string {
+  if (!dateStr) return ""
   return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(dateStr))
 }
 
@@ -191,6 +199,10 @@ export default function NotificationsPage() {
     () => ({
       renewal: templatesSetting?.renewal || DEFAULT_TEMPLATES.renewal,
       expired: templatesSetting?.expired || DEFAULT_TEMPLATES.expired,
+      birthday: templatesSetting?.birthday || DEFAULT_TEMPLATES.birthday,
+      welcome: templatesSetting?.welcome || DEFAULT_TEMPLATES.welcome,
+      receipt: templatesSetting?.receipt || DEFAULT_TEMPLATES.receipt,
+      attendance: templatesSetting?.attendance || DEFAULT_TEMPLATES.attendance,
     }),
     [templatesSetting],
   )
@@ -248,6 +260,46 @@ export default function NotificationsPage() {
     )
   }, [expiredRaw])
 
+  const { data: members = [] } = useQuery({
+    queryKey: ["members", "whatsapp", orgId],
+    queryFn: async () => {
+      if (!orgId || IS_MOCK) return []
+      const { data, error } = await supabase
+        .from("members")
+        .select("id, first_name, last_name, phone, status, birth_date")
+        .eq("organization_id", orgId)
+        .order("first_name", { ascending: true })
+      if (error) throw error
+      return (data ?? []) as CampaignMember[]
+    },
+    enabled: !!orgId && !IS_MOCK,
+  })
+
+  const birthdays = useMemo(() => {
+    const today = new Date()
+    const todayStr = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+    return members.filter((m) => {
+      if (!m.phone || !m.birth_date || m.birth_date.length < 10) return false
+      return m.birth_date.substring(5, 10) === todayStr
+    })
+  }, [members])
+
+  const { data: history = [] } = useQuery({
+    queryKey: ["whatsapp-history", orgId],
+    queryFn: async () => {
+      if (!orgId || IS_MOCK) return []
+      const { data, error } = await supabase
+        .from("whatsapp_outbox")
+        .select("*")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(100)
+      if (error) throw error
+      return (data ?? []) as WhatsappOutbox[]
+    },
+    enabled: !!orgId && !IS_MOCK,
+  })
+
   const [delaysInput, setDelaysInput] = useState(DEFAULT_DELAYS.join(", "))
 
   useEffect(() => {
@@ -296,23 +348,18 @@ export default function NotificationsPage() {
   })
 
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
-  const [renewalTpl, setRenewalTpl] = useState(DEFAULT_TEMPLATES.renewal)
-  const [expiredTpl, setExpiredTpl] = useState(DEFAULT_TEMPLATES.expired)
+  const [tplDrafts, setTplDrafts] = useState<Record<WaTemplateKey, string>>({ ...DEFAULT_TEMPLATES })
 
   useEffect(() => {
-    if (templateDialogOpen) {
-      setRenewalTpl(templates.renewal)
-      setExpiredTpl(templates.expired)
-    }
+    if (templateDialogOpen) setTplDrafts({ ...templates })
   }, [templateDialogOpen, templates])
 
   const saveTemplates = useMutation({
     mutationFn: async () => {
       if (!orgId) throw new Error("No organization")
-      const value = { renewal: renewalTpl, expired: expiredTpl }
       const { error } = await supabase
         .from("settings")
-        .upsert({ organization_id: orgId, key: "whatsapp_templates", value }, { onConflict: "organization_id,key" })
+        .upsert({ organization_id: orgId, key: "whatsapp_templates", value: tplDrafts }, { onConflict: "organization_id,key" })
       if (error) throw error
     },
     onSuccess: () => {
@@ -334,7 +381,7 @@ export default function NotificationsPage() {
   }
 
   function renderWaMessage(name: string, date: string, key: WaTemplateKey): string {
-    const tpl = key === "renewal" ? templates.renewal : templates.expired
+    const tpl = templates[key] || DEFAULT_TEMPLATES[key]
     const salle = organization?.name || "notre salle"
     return tpl
       .replace(/\{NOM\}/g, name)
@@ -342,13 +389,13 @@ export default function NotificationsPage() {
       .replace(/\{NOM_SALLE\}/g, salle)
   }
 
-  const sendWhatsApp = useMutation({
+  const sendWhatsAppDialog = useMutation({
     mutationFn: async () => {
       if (!waTarget) throw new Error("No target")
       const message = renderWaMessage(waTarget.name, waTarget.date, waKey)
       const digits = waTarget.phone.replace(/\D/g, "")
       if (!digits) throw new Error("Invalid phone")
-      window.open("https://wa.me/" + digits + "?text=" + encodeURIComponent(message), "_blank")
+      sendWhatsApp(waTarget.phone, message)
       const { error } = await (supabase.rpc as any)("log_whatsapp_message", {
         p_member_id: waTarget.member_id,
         p_member_name: waTarget.name,
@@ -360,6 +407,7 @@ export default function NotificationsPage() {
       if (error) throw error
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-history"] })
       setWaTarget(null)
       toast({ title: t("notifications.waSent") || "Message envoyé" })
     },
@@ -367,6 +415,128 @@ export default function NotificationsPage() {
       toast({ title: t("notifications.waError") || "Erreur d'envoi", variant: "destructive" })
     },
   })
+
+  const [campaignTemplate, setCampaignTemplate] = useState<WaTemplateKey>("renewal")
+  const [campaignSearch, setCampaignSearch] = useState("")
+  const [campaignStatus, setCampaignStatus] = useState<CampaignStatus>("all")
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
+  const [sentCount, setSentCount] = useState(0)
+  const [deleteTarget, setDeleteTarget] = useState<WhatsappOutbox | null>(null)
+
+  const campaignList = useMemo(() => {
+    const q = campaignSearch.trim().toLowerCase()
+    return members.filter((m) => {
+      if (!m.phone) return false
+      if (campaignStatus !== "all" && m.status !== campaignStatus) return false
+      if (!q) return true
+      const name = `${m.first_name} ${m.last_name}`.toLowerCase()
+      const digits = m.phone.replace(/\D/g, "")
+      return name.includes(q) || digits.includes(q.replace(/\D/g, ""))
+    })
+  }, [members, campaignSearch, campaignStatus])
+
+  const toggleMember = (id: string) => {
+    setSelectedMembers((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    setSelectedMembers((prev) => {
+      if (prev.size === campaignList.length) return new Set()
+      return new Set(campaignList.map((m) => m.id))
+    })
+  }
+
+  const sendCampaign = useMutation({
+    mutationFn: async () => {
+      const targets = campaignList.filter((m) => selectedMembers.has(m.id))
+      if (targets.length === 0) throw new Error("No targets")
+      setSentCount(0)
+      for (const m of targets) {
+        const message = renderWaMessage(`${m.first_name} ${m.last_name}`, "", campaignTemplate)
+        sendWhatsApp(m.phone ?? "", message)
+        const { error } = await (supabase.rpc as any)("log_whatsapp_message", {
+          p_member_id: m.id,
+          p_member_name: `${m.first_name} ${m.last_name}`,
+          p_phone: m.phone,
+          p_template_key: campaignTemplate,
+          p_message: message,
+          p_status: "sent_via_link",
+        })
+        if (error) throw error
+        setSentCount((c) => c + 1)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-history"] })
+      setSelectedMembers(new Set())
+      toast({ title: t("notifications.waSent") || "Message envoyé" })
+    },
+    onError: () => {
+      toast({ title: t("notifications.waError") || "Erreur d'envoi", variant: "destructive" })
+    },
+  })
+
+  const deleteMessage = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await (supabase.rpc as any)("delete_whatsapp_message", { p_message_id: id })
+      if (error) throw error
+      return data as boolean
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-history"] })
+      setDeleteTarget(null)
+      toast({ title: t("notifications.waDeleted") || "Message supprimé" })
+    },
+    onError: () => {
+      toast({ title: t("notifications.waDeleteError") || "Erreur de suppression", variant: "destructive" })
+    },
+  })
+
+  const templateLabel = (key: WaTemplateKey): string => {
+    switch (key) {
+      case "renewal": return t("notifications.waRenewal") || "Renouvellement"
+      case "expired": return t("notifications.waExpired") || "Expiré"
+      case "birthday": return t("notifications.waBirthday") || "Anniversaire"
+      case "welcome": return t("notifications.waWelcome") || "Bienvenue"
+      case "receipt": return t("notifications.waReceipt") || "Reçu de paiement"
+      case "attendance": return t("notifications.waAttendance") || "Visite"
+    }
+  }
+
+  const templateIcon = (key: WaTemplateKey): string => {
+    switch (key) {
+      case "renewal": return "⏰"
+      case "expired": return "❌"
+      case "birthday": return "🎂"
+      case "welcome": return "👋"
+      case "receipt": return "🧾"
+      case "attendance": return "✅"
+    }
+  }
+
+  const outboxStatusLabel = (s: WhatsappOutbox["status"]): string => {
+    switch (s) {
+      case "sent_via_link": return t("notifications.waStatusLink") || "Via lien"
+      case "ready": return t("notifications.waStatusReady") || "Prêt"
+      case "queued": return t("notifications.waStatusQueued") || "En file"
+      case "sent": return t("notifications.waStatusSent") || "Envoyé"
+      case "failed": return t("notifications.waStatusFailed") || "Échec"
+    }
+  }
+
+  const memberStatusLabel = (s: CampaignMember["status"]): string => {
+    switch (s) {
+      case "active": return t("notifications.statusActive") || "Actifs"
+      case "inactive": return t("notifications.statusInactive") || "Inactifs"
+      case "suspended": return t("notifications.statusSuspended") || "Suspendus"
+      case "blocked": return t("notifications.statusSuspended") || "Bloqué"
+    }
+  }
 
   function renderRow(sub: SubWithRelations, isExpired: boolean) {
     const member = sub.members
@@ -430,6 +600,9 @@ export default function NotificationsPage() {
           <TabsTrigger value="notifications">{t("notifications.title")}</TabsTrigger>
           <TabsTrigger value="renewals">{t("notifications.renewals") || "Renouvellements"}</TabsTrigger>
           <TabsTrigger value="expired">{t("notifications.expired") || "Expirés"}</TabsTrigger>
+          <TabsTrigger value="birthdays">{t("notifications.birthdays") || "Anniversaires"}</TabsTrigger>
+          <TabsTrigger value="campaign">{t("notifications.campaign") || "Campagne"}</TabsTrigger>
+          <TabsTrigger value="history">{t("notifications.history") || "Historique"}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="notifications">
@@ -585,6 +758,274 @@ export default function NotificationsPage() {
             )}
           </div>
         </TabsContent>
+
+        <TabsContent value="birthdays">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Cake className="h-5 w-5" />
+              <h3 className="text-lg font-semibold">{t("notifications.birthdayTitle") || "Anniversaires aujourd'hui"}</h3>
+              {birthdays.length > 0 && <Badge variant="default">{birthdays.length}</Badge>}
+            </div>
+            {birthdays.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Cake className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <p>{t("notifications.noBirthdays") || "Aucun anniversaire aujourd'hui"}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {birthdays.map((m) => {
+                  const name = `${m.first_name} ${m.last_name}`
+                  return (
+                    <Card key={m.id} className="border-rose-500/30">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="rounded-full p-2 bg-rose-500/10">
+                            <Cake className="h-4 w-4 text-rose-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium">{name}</p>
+                            <p className="text-sm text-muted-foreground">{m.phone ? displayPhone(m.phone) : "-"}</p>
+                            <p className="text-xs text-rose-500">
+                              {t("notifications.bornOn") || "Né le"} : {formatDate(m.birth_date ?? "")}
+                            </p>
+                          </div>
+                          {isAdmin && m.phone && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openWhatsApp({ member_id: m.id, name, phone: m.phone, date: m.birth_date ?? "", kind: "birthday" })}
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="campaign">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Megaphone className="h-5 w-5" />
+                <div>
+                  <h3 className="text-lg font-semibold">{t("notifications.campaign") || "Campagne WhatsApp"}</h3>
+                  <p className="text-sm text-muted-foreground">{t("notifications.campaignDesc") || "Envoyez des messages personnalisés à vos adhérents"}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                {WA_TEMPLATE_KEYS.map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => setCampaignTemplate(key)}
+                    className={`text-left p-4 rounded-xl border transition-all ${
+                      campaignTemplate === key
+                        ? "border-[#25d366]/50 bg-[#25d366]/10"
+                        : "bg-background border-border hover:border-[#25d366]/40"
+                    }`}
+                  >
+                    <span className="text-2xl">{templateIcon(key)}</span>
+                    <h4 className="text-sm font-semibold mt-2">{templateLabel(key)}</h4>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{templates[key]}</p>
+                  </button>
+                ))}
+              </div>
+
+              <Card className="bg-muted/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MessageCircle className="h-4 w-4 text-[#25d366]" />
+                    <span className="text-sm text-muted-foreground">{t("notifications.templatePreview") || "Aperçu du message"}</span>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap bg-background rounded-lg p-3">
+                    {renderWaMessage("[Prénom Nom]", new Date().toISOString().substring(0, 10), campaignTemplate)}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[220px] max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={campaignSearch}
+                    onChange={(e) => setCampaignSearch(e.target.value)}
+                    className="pl-9"
+                    placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+                  />
+                </div>
+                {(["all", "active", "inactive", "suspended"] as const).map((s) => (
+                  <Button
+                    key={s}
+                    variant={campaignStatus === s ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCampaignStatus(s)}
+                  >
+                    {s === "all" ? t("notifications.all") : memberStatusLabel(s)}
+                  </Button>
+                ))}
+              </div>
+
+              <Card>
+                <CardContent className="p-0 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="w-12 px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={campaignList.length > 0 && selectedMembers.size === campaignList.length}
+                            onChange={toggleSelectAll}
+                            className="h-4 w-4 accent-[#25d366]"
+                            aria-label="Select all"
+                          />
+                        </th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t("notifications.member") || "Membre"}</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t("notifications.phone") || "Téléphone"}</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t("notifications.status") || "Statut"}</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">{t("notifications.waTemplate") || "Modèle"}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {campaignList.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
+                            <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                            <p>{t("notifications.noMemberPhone") || "Aucun membre avec numéro de téléphone"}</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        campaignList.map((m) => {
+                          const name = `${m.first_name} ${m.last_name}`
+                          return (
+                            <tr key={m.id} className="border-b">
+                              <td className="px-4 py-3">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedMembers.has(m.id)}
+                                  onChange={() => toggleMember(m.id)}
+                                  className="h-4 w-4 accent-[#25d366]"
+                                  aria-label={name}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <p className="font-medium">{name}</p>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">{m.phone ? displayPhone(m.phone) : "-"}</td>
+                              <td className="px-4 py-3">
+                                <Badge variant={m.status === "active" ? "default" : "outline"}>{memberStatusLabel(m.status)}</Badge>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => openWhatsApp({ member_id: m.id, name, phone: m.phone ?? "", date: "", kind: campaignTemplate })}
+                                >
+                                  <MessageCircle className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+
+              {selectedMembers.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+                  <div className="flex items-center gap-4 rounded-xl border border-[#25d366]/40 bg-background/95 px-6 py-3 shadow-2xl backdrop-blur">
+                    <CheckCircle className="h-5 w-5 text-[#25d366]" />
+                    <span className="text-sm">
+                      {sendCampaign.isPending
+                        ? `${t("notifications.sendingInProgress") || "Envoi en cours..."} (${sentCount}/${selectedMembers.size})`
+                        : t("notifications.selectedMembers")?.replace("{n}", String(selectedMembers.size)) || `${selectedMembers.size} membre(s) sélectionné(s)`}
+                    </span>
+                    <Button
+                      onClick={() => sendCampaign.mutate()}
+                      disabled={sendCampaign.isPending}
+                      className="bg-gradient-to-br from-[#25d366] via-[#1eb457] to-[#128c7e] text-white hover:from-[#1eb457] hover:via-[#128c7e] hover:to-[#075e54]"
+                    >
+                      {sendCampaign.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="mr-2 h-4 w-4" />
+                      )}
+                      {t("notifications.sendToAll") || "Envoyer à tous"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="history">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                <div>
+                  <h3 className="text-lg font-semibold">{t("notifications.historyTitle") || "Historique des envois WhatsApp"}</h3>
+                  <p className="text-sm text-muted-foreground">{t("notifications.historyDesc") || "Consultez les messages envoyés via WhatsApp"}</p>
+                </div>
+              </div>
+              {history.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <History className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p>{t("notifications.historyEmpty") || "Aucun message envoyé"}</p>
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="p-0 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t("notifications.member") || "Membre"}</th>
+                          <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t("notifications.phone") || "Téléphone"}</th>
+                          <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t("notifications.waTemplate") || "Modèle"}</th>
+                          <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t("notifications.message") || "Message"}</th>
+                          <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t("notifications.status") || "Statut"}</th>
+                          <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t("notifications.date") || "Date"}</th>
+                          <th className="w-12 px-4 py-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {history.map((h) => (
+                          <tr key={h.id} className="border-b">
+                            <td className="px-4 py-3 font-medium">{h.member_name || "-"}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{h.phone ? displayPhone(h.phone) : "-"}</td>
+                            <td className="px-4 py-3">{templateLabel(h.template_key as WaTemplateKey) || h.template_key}</td>
+                            <td className="px-4 py-3 text-muted-foreground max-w-md">
+                              <p className="line-clamp-2 whitespace-pre-wrap">{h.message}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant={h.status === "failed" ? "destructive" : h.status === "sent" || h.status === "sent_via_link" ? "default" : "outline"}>
+                                {outboxStatusLabel(h.status)}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDate(h.created_at)}</td>
+                            <td className="px-4 py-3">
+                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(h)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
@@ -596,14 +1037,16 @@ export default function NotificationsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>{t("notifications.waRenewal") || "Renouvellement"}</Label>
-              <Textarea value={renewalTpl} onChange={(e) => setRenewalTpl(e.target.value)} rows={3} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("notifications.waExpired") || "Expiré"}</Label>
-              <Textarea value={expiredTpl} onChange={(e) => setExpiredTpl(e.target.value)} rows={3} />
-            </div>
+            {WA_TEMPLATE_KEYS.map((key) => (
+              <div key={key} className="space-y-2">
+                <Label>{templateLabel(key)}</Label>
+                <Textarea
+                  value={tplDrafts[key]}
+                  onChange={(e) => setTplDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+            ))}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>
@@ -632,8 +1075,9 @@ export default function NotificationsPage() {
                 <Select value={waKey} onValueChange={(v) => setWaKey(v as WaTemplateKey)}>
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="renewal">{t("notifications.waRenewal") || "Renouvellement"}</SelectItem>
-                    <SelectItem value="expired">{t("notifications.waExpired") || "Expiré"}</SelectItem>
+                    {WA_TEMPLATE_KEYS.map((key) => (
+                      <SelectItem key={key} value={key}>{templateLabel(key)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -648,13 +1092,44 @@ export default function NotificationsPage() {
             <Button variant="outline" onClick={() => setWaTarget(null)}>
               {t("notifications.cancel") || "Annuler"}
             </Button>
-            <Button onClick={() => sendWhatsApp.mutate()} disabled={sendWhatsApp.isPending}>
-              {sendWhatsApp.isPending ? (
+            <Button onClick={() => sendWhatsAppDialog.mutate()} disabled={sendWhatsAppDialog.isPending}>
+              {sendWhatsAppDialog.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Send className="mr-2 h-4 w-4" />
               )}
               {t("notifications.send") || "Envoyer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("notifications.waDeleteConfirm") || "Supprimer ce message ?"}</DialogTitle>
+            <DialogDescription>
+              {deleteTarget ? `${deleteTarget.member_name || "-"} · ${deleteTarget.phone ? displayPhone(deleteTarget.phone) : "-"}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <Card className="bg-muted">
+              <CardContent className="p-3">
+                <p className="text-sm whitespace-pre-wrap line-clamp-3">{deleteTarget.message}</p>
+              </CardContent>
+            </Card>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              {t("notifications.cancel") || "Annuler"}
+            </Button>
+            <Button variant="destructive" onClick={() => deleteTarget && deleteMessage.mutate(deleteTarget.id)} disabled={deleteMessage.isPending}>
+              {deleteMessage.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              {t("notifications.delete") || "Supprimer"}
             </Button>
           </DialogFooter>
         </DialogContent>
