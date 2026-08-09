@@ -1,4 +1,4 @@
--- 00071: Staff RFID clock-in/out → auto-fill timesheet
+-- 00074: Staff RFID clock-in/out → auto-fill timesheet
 -- Scans staff.rfid_uid, creates/updates staff_timesheet rows automatically
 
 CREATE OR REPLACE FUNCTION staff_rfid_clock(p_rfid_uid TEXT)

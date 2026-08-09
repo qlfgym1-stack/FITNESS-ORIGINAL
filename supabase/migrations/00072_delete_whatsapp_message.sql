@@ -1,4 +1,4 @@
--- Migration 00069: RPC delete_whatsapp_message (admin only)
+-- Migration 00072: RPC delete_whatsapp_message (admin only)
 CREATE OR REPLACE FUNCTION public.delete_whatsapp_message(p_message_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql

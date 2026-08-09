@@ -1,4 +1,4 @@
--- 00070: Replace "other" → "products" in expenses + auto-sync purchase_orders → expenses
+-- 00073: Replace "other" → "products" in expenses + auto-sync purchase_orders → expenses
 
 -- 1. Drop old CHECK constraint and add new one with 'products' instead of 'other'
 ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_category_check;
