@@ -29,13 +29,13 @@ import {
 import { useToast } from "@/components/ui/toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  Plus, Download, Upload, Search, Loader2, Trash2, Package,
+  Plus, Download, Upload, Search, Loader2, Trash2, Package, ExternalLink,
 } from "lucide-react"
 import { usePagination } from "@/hooks/usePagination"
 import { Pagination } from "@/components/ui/pagination"
 import { formatDate, formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
-import type { Expense } from "@/types/supabase"
+import type { Expense, Product } from "@/types/supabase"
 import { IS_MOCK } from '@/lib/config'
 
 const expenseSchema = z.object({
@@ -98,6 +98,20 @@ export default function ExpensesPage() {
       return data as Expense[]
     },
     enabled: !!orgId && !IS_MOCK,
+  })
+
+  const { data: products = [] } = useQuery({
+    queryKey: ["products", orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("products")
+        .select("id, name, category, price, cost, stock, is_active")
+        .eq("organization_id", orgId)
+        .order("name")
+      return (data ?? []) as Pick<Product, "id" | "name" | "category" | "price" | "cost" | "stock" | "is_active">[]
+    },
+    enabled: !!orgId && categoryFilter === "products",
   })
 
   const addMutation = useMutation({
@@ -422,85 +436,171 @@ export default function ExpensesPage() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("expenses.category")}</TableHead>
-                  <TableHead>{t("expenses.description")}</TableHead>
-                  <TableHead>{t("expenses.amount")}</TableHead>
-                  <TableHead>{t("expenses.date")}</TableHead>
-                  <TableHead className="text-right">{t("common.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                    </TableCell>
-                  </TableRow>
-                ) : paginatedExpenses.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      {t("expenses.noData")}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedExpenses.map((expense) => (
-                    <TableRow key={expense.id}>
-                      <TableCell>
-                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary">
-                          {getCategoryLabel(expense.category)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-[300px] truncate">{expense.description}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(expense.amount)}</TableCell>
-                      <TableCell>{formatDate(expense.expense_date)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(expense.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </TableCell>
+          {categoryFilter === "products" ? (
+            <>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Catégorie</TableHead>
+                      <TableHead>Produit</TableHead>
+                      <TableHead className="text-right">Prix Vente</TableHead>
+                      <TableHead className="text-right">Coût</TableHead>
+                      <TableHead className="text-right">Stock</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {products.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          Aucun produit trouvé
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      products.map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell>
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-[#ef4444]/10 text-[#ef4444]">
+                              {p.category || "-"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <Package className="h-4 w-4 text-muted-foreground" />
+                              {p.name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(p.price)}</TableCell>
+                          <TableCell className="text-right">{p.cost ? formatCurrency(p.cost) : "-"}</TableCell>
+                          <TableCell className="text-right">{p.stock ?? "-"}</TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${p.is_active ? "bg-[#10b981]/10 text-[#10b981]" : "bg-muted text-muted-foreground"}`}>
+                              {p.is_active ? "Actif" : "Inactif"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => nav("/products")}>
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="md:hidden space-y-3 p-4">
+                {products.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">Aucun produit trouvé</p>
+                ) : (
+                  products.map((p) => (
+                    <Card key={p.id} className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-[#ef4444]/10 text-[#ef4444]">
+                            {p.category || "-"}
+                          </span>
+                          <p className="mt-1 font-medium">{p.name}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => nav("/products")}>
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
+                        <span>Vente: {formatCurrency(p.price)}</span>
+                        <span>Coût: {p.cost ? formatCurrency(p.cost) : "-"}</span>
+                        <span>Stock: {p.stock ?? "-"}</span>
+                      </div>
+                    </Card>
                   ))
                 )}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="md:hidden space-y-3 p-4">
-            {isLoading ? (
-              <div className="text-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto" />
               </div>
-            ) : paginatedExpenses.length === 0 ? (
-              <p className="text-center py-8 text-muted-foreground">{t("expenses.noData")}</p>
-            ) : (
-              paginatedExpenses.map((expense) => (
-                <Card key={expense.id} className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary">
-                        {getCategoryLabel(expense.category)}
-                      </span>
-                      <p className="mt-1 font-medium">{expense.description}</p>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteId(expense.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+            </>
+          ) : (
+            <>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("expenses.category")}</TableHead>
+                      <TableHead>{t("expenses.description")}</TableHead>
+                      <TableHead>{t("expenses.amount")}</TableHead>
+                      <TableHead>{t("expenses.date")}</TableHead>
+                      <TableHead className="text-right">{t("common.actions")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                        </TableCell>
+                      </TableRow>
+                    ) : paginatedExpenses.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          {t("expenses.noData")}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedExpenses.map((expense) => (
+                        <TableRow key={expense.id}>
+                          <TableCell>
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary">
+                              {getCategoryLabel(expense.category)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="max-w-[300px] truncate">{expense.description}</TableCell>
+                          <TableCell className="font-medium">{formatCurrency(expense.amount)}</TableCell>
+                          <TableCell>{formatDate(expense.expense_date)}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteId(expense.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="md:hidden space-y-3 p-4">
+                {isLoading ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                   </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="font-semibold">{formatCurrency(expense.amount)}</span>
-                    <span className="text-sm text-muted-foreground">{formatDate(expense.expense_date)}</span>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
+                ) : paginatedExpenses.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">{t("expenses.noData")}</p>
+                ) : (
+                  paginatedExpenses.map((expense) => (
+                    <Card key={expense.id} className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary">
+                            {getCategoryLabel(expense.category)}
+                          </span>
+                          <p className="mt-1 font-medium">{expense.description}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteId(expense.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="font-semibold">{formatCurrency(expense.amount)}</span>
+                        <span className="text-sm text-muted-foreground">{formatDate(expense.expense_date)}</span>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </>
+          )}
 
           <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={totalPages} totalItems={filteredExpenses?.length ?? 0} pageSize={20} onPageChange={setPage} />
+            <Pagination page={page} totalPages={totalPages} totalItems={categoryFilter === "products" ? products.length : (filteredExpenses?.length ?? 0)} pageSize={20} onPageChange={setPage} />
           </div>
         </CardContent>
       </Card>
