@@ -34,6 +34,7 @@ interface EncaissementRow {
   status: string
   memberId: string | null
   memberName: string
+  isVirtualSubscription?: boolean
 }
 
 function getTopRole(roles: { role: string }[]): string {
@@ -43,6 +44,21 @@ function getTopRole(roles: { role: string }[]): string {
   if (roles.some(r => r.role === 'staff')) return 'staff'
   if (roles.some(r => r.role === 'coach')) return 'coach'
   return 'admin'
+}
+
+function dedupeRows(subs: EncaissementRow[], posRows: EncaissementRow[]): EncaissementRow[] {
+  const keys = new Set<string>()
+  for (const s of subs) {
+    if (!s.memberId) continue
+    const ts = new Date(s.date).getTime()
+    keys.add(`${s.memberId}|${Math.round(s.amount * 100)}|${Math.round(ts / 60000)}`)
+  }
+  const filtered = posRows.filter(p => {
+    if (!p.isVirtualSubscription || !p.memberId) return true
+    const ts = new Date(p.date).getTime()
+    return !keys.has(`${p.memberId}|${Math.round(p.amount * 100)}|${Math.round(ts / 60000)}`)
+  })
+  return [...subs, ...filtered]
 }
 
 export default function Encaissement() {
@@ -104,7 +120,7 @@ export default function Encaissement() {
       const dateToEndStr = `${dateToEnd.getFullYear()}-${String(dateToEnd.getMonth() + 1).padStart(2, "0")}-${String(dateToEnd.getDate()).padStart(2, "0")}`
       const [paymentsRes, posRes] = await Promise.all([
         supabase.from("payments").select("id, amount, payment_date, payment_method, status, member_id, members(first_name, last_name)").eq("organization_id", orgId).eq("status", "completed").gte("payment_date", dateFrom).lt("payment_date", dateToEndStr).order("payment_date", { ascending: false }),
-        supabase.from("pos_transactions").select("id, total, created_at, payment_method, payment_status, member_id, members(first_name, last_name)").eq("organization_id", orgId).eq("payment_status", "completed").gte("created_at", dateFrom).lt("created_at", dateToEndStr).order("created_at", { ascending: false }),
+        supabase.from("pos_transactions").select("id, total, created_at, payment_method, payment_status, member_id, items, members(first_name, last_name)").eq("organization_id", orgId).eq("payment_status", "completed").gte("created_at", dateFrom).lt("created_at", dateToEndStr).order("created_at", { ascending: false }),
       ])
       if (paymentsRes.error) throw paymentsRes.error
       if (posRes.error) throw posRes.error
@@ -129,8 +145,10 @@ export default function Encaissement() {
         status: "completed",
         memberId: p.member_id,
         memberName: p.members ? `${toUpper(p.members.first_name)} ${toUpper(p.members.last_name)}` : "-",
+        isVirtualSubscription: ((p.items ?? []) as any[]).some((it: any) => it.id?.startsWith?.("__subscription__") || it.id?.startsWith?.("__renewal__")),
       }))
-      return [...subs, ...posRows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      const deduped = dedupeRows(subs, posRows)
+      return [...deduped].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     },
     enabled: !!orgId,
   })

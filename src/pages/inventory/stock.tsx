@@ -33,6 +33,9 @@ interface StockMovement {
   organization_id: string
   type: "in" | "out"
   quantity: number
+  reason: string | null
+  reference_type: string | null
+  reference_id: string | null
   notes: string | null
   created_at: string
   inventory?: { name: string } | null
@@ -42,6 +45,7 @@ const stockSchema = z.object({
   inventory_id: z.string().min(1, "Product is required"),
   type: z.enum(["in", "out"]),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
+  reason: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
 })
 
@@ -60,7 +64,7 @@ export default function StockMovementsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState<StockMovement | null>(null)
   const [form, setForm] = useState<StockForm>({
-    inventory_id: "", type: "in", quantity: 1, notes: "",
+    inventory_id: "", type: "in", quantity: 1, reason: "", notes: "",
   })
 
   const { data: inventoryItems } = useQuery({
@@ -101,6 +105,7 @@ export default function StockMovementsPage() {
         organization_id: orgId,
         type: values.type,
         quantity: Number(values.quantity),
+        reason: values.reason || null,
         notes: values.notes || null,
       }
       if (editing) {
@@ -117,7 +122,7 @@ export default function StockMovementsPage() {
       toast({ title: editing ? t("common.updated") || "Updated" : t("common.created") || "Created" })
       setDialogOpen(false)
       setEditing(null)
-      setForm({ inventory_id: "", type: "in", quantity: 1, notes: "" })
+      setForm({ inventory_id: "", type: "in", quantity: 1, reason: "", notes: "" })
     },
     onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
   })
@@ -145,11 +150,12 @@ export default function StockMovementsPage() {
   const { page, setPage, totalPages, paginatedData: paginatedMovements } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(m => ({ product: m.inventory?.name ?? '-', type: m.type, quantity: m.quantity, date: m.created_at, notes: m.notes ?? '' })),
+    filtered.map(m => ({ product: m.inventory?.name ?? '-', type: m.type, reason: m.reason ?? '', quantity: m.quantity, date: m.created_at, notes: m.notes ?? '' })),
     'stock-movements',
     [
       { key: 'product', label: t('stock.product') || 'Product' },
       { key: 'type', label: t('stock.type') || 'Type' },
+      { key: 'reason', label: t('stock.reason') || 'Reason' },
       { key: 'quantity', label: t('stock.quantity') || 'Quantity' },
       { key: 'date', label: t('stock.date') || 'Date' },
       { key: 'notes', label: t('stock.notes') || 'Notes' },
@@ -158,13 +164,13 @@ export default function StockMovementsPage() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ inventory_id: "", type: "in", quantity: 1, notes: "" })
+    setForm({ inventory_id: "", type: "in", quantity: 1, reason: "", notes: "" })
     setDialogOpen(true)
   }
 
   function openEdit(m: StockMovement) {
     setEditing(m)
-    setForm({ inventory_id: m.inventory_id, type: m.type, quantity: m.quantity, notes: m.notes ?? "" })
+    setForm({ inventory_id: m.inventory_id, type: m.type, quantity: m.quantity, reason: m.reason ?? "", notes: m.notes ?? "" })
     setDialogOpen(true)
   }
 
@@ -220,6 +226,7 @@ export default function StockMovementsPage() {
             <TableRow>
               <TableHead>{t("stock.product") || "Product"}</TableHead>
               <TableHead>{t("stock.type") || "Type"}</TableHead>
+              <TableHead>{t("stock.reason") || "Motif"}</TableHead>
               <TableHead className="text-right">{t("stock.quantity") || "Quantity"}</TableHead>
               <TableHead>{t("stock.date") || "Date"}</TableHead>
               <TableHead>{t("stock.notes") || "Notes"}</TableHead>
@@ -229,13 +236,13 @@ export default function StockMovementsPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
             ) : paginatedMovements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults") || "No results"}
                 </TableCell>
               </TableRow>
@@ -249,6 +256,7 @@ export default function StockMovementsPage() {
                       {m.type === "in" ? t("stock.in") || "In" : t("stock.out") || "Out"}
                     </Badge>
                   </TableCell>
+                  <TableCell>{m.reason ? <Badge variant="secondary">{toUpper(m.reason)}</Badge> : "-"}</TableCell>
                   <TableCell className="text-right font-mono">{m.quantity}</TableCell>
                   <TableCell>{formatDateTime(m.created_at)}</TableCell>
                   <TableCell className="max-w-[200px] truncate text-muted-foreground">{toUpper(m.notes ?? "")}</TableCell>
@@ -273,7 +281,7 @@ export default function StockMovementsPage() {
           <p className="text-center py-8 text-muted-foreground">{t("common.noResults") || "No results"}</p>
         ) : (
           paginatedMovements.map(m => (
-            <Card key={m.id} className="p-4">
+              <Card key={m.id} className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="font-medium">{toUpper(inventoryName(m))}</span>
                 <Badge variant={m.type === "in" ? "default" : "destructive"} className="gap-1 ml-auto">
@@ -282,6 +290,7 @@ export default function StockMovementsPage() {
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">{t("stock.quantity") || "Qty"}: {m.quantity}</p>
+              {m.reason && <p className="text-sm text-muted-foreground">{t("stock.reason") || "Motif"}: {toUpper(m.reason)}</p>}
               <p className="text-sm text-muted-foreground">{formatDateTime(m.created_at)}</p>
               {m.notes && <p className="text-sm text-muted-foreground truncate">{toUpper(m.notes)}</p>}
               <div className="flex justify-end gap-1 mt-2">
@@ -337,6 +346,22 @@ export default function StockMovementsPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 />
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>{t("stock.reason") || "Motif"}</Label>
+              <Select value={form.reason ?? ""} onValueChange={(v) => setForm((f) => ({ ...f, reason: v }))}>
+                <SelectTrigger><SelectValue placeholder={t("stock.selectReason") || "Select reason"} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="achat">{t("stock.reasonAchat") || "Achat"}</SelectItem>
+                  <SelectItem value="retour_client">{t("stock.reasonRetour") || "Retour client"}</SelectItem>
+                  <SelectItem value="perte">{t("stock.reasonPerte") || "Perte"}</SelectItem>
+                  <SelectItem value="casse">{t("stock.reasonCasse") || "Casse"}</SelectItem>
+                  <SelectItem value="ajustement">{t("stock.reasonAjustement") || "Ajustement"}</SelectItem>
+                  <SelectItem value="transfert">{t("stock.reasonTransfert") || "Transfert"}</SelectItem>
+                  <SelectItem value="inventaire">{t("stock.reasonInventaire") || "Inventaire"}</SelectItem>
+                  <SelectItem value="vente">{t("stock.reasonVente") || "Vente"}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label>{t("stock.notes") || "Notes"}</Label>

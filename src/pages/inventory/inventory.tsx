@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
@@ -31,12 +31,14 @@ import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
 import { Pagination } from "@/components/ui/pagination"
 import { Card } from "@/components/ui/card"
+import { computeStockSummary } from "@/lib/stock"
 
 interface InventoryItem {
   id: string
   name: string
   category: string
   quantity: number
+  stock_initial: number
   unit: string
   min_stock: number
   price: number
@@ -45,10 +47,17 @@ interface InventoryItem {
   suppliers?: { name: string } | null
 }
 
+interface StockMovementLine {
+  inventory_id: string
+  type: "in" | "out"
+  quantity: number
+}
+
 const inventorySchema = z.object({
   name: z.string().min(1, "Name is required"),
   category: z.string().min(1, "Category is required"),
   quantity: z.coerce.number().min(0, "Min 0"),
+  stock_initial: z.coerce.number().min(0, "Min 0"),
   unit: z.string().min(1, "Unit is required"),
   min_stock: z.coerce.number().min(0, "Min 0"),
   price: z.coerce.number().min(0, "Min 0"),
@@ -87,9 +96,66 @@ export default function InventoryPage() {
     enabled: !!orgId,
   })
 
+  const { data: movements = [] } = useQuery({
+    queryKey: ["stock_movements", orgId],
+    queryFn: async (): Promise<StockMovementLine[]> => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("stock_movements")
+        .select("inventory_id, type, quantity")
+        .eq("organization_id", orgId)
+      return (data ?? []) as StockMovementLine[]
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: anomalies = [] } = useQuery({
+    queryKey: ["stock_anomalies", orgId],
+    queryFn: async (): Promise<{ inventory_id: string }[]> => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("stock_anomalies")
+        .select("inventory_id")
+        .eq("organization_id", orgId)
+        .eq("status", "open")
+      return (data ?? []) as { inventory_id: string }[]
+    },
+    enabled: !!orgId,
+  })
+
+  const anomalyIds = useMemo(() => new Set(anomalies.map((a) => a.inventory_id)), [anomalies])
+
+  const movementsByItem = useMemo(() => {
+    const map = new Map<string, StockMovementLine[]>()
+    for (const m of movements) {
+      const arr = map.get(m.inventory_id) ?? []
+      arr.push(m)
+      map.set(m.inventory_id, arr)
+    }
+    return map
+  }, [movements])
+
+  const verifyMutation = useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error("No organization")
+      const { data } = await (supabase.rpc as any)("check_stock_consistency", { p_organization_id: orgId })
+      return data as unknown[]
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock_anomalies", orgId] })
+      queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
+      toast({ title: t("inventory.consistencyChecked") || "Consistency checked" })
+    },
+    onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
+  })
+
+  function getSummary(item: InventoryItem) {
+    return computeStockSummary(item.stock_initial ?? 0, movementsByItem.get(item.id) ?? [])
+  }
+
   const form = useForm<InventoryForm>({
     resolver: zodResolver(inventorySchema),
-    defaultValues: { name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "", image_url: "" },
+    defaultValues: { name: "", category: "", quantity: 0, stock_initial: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "", image_url: "" },
   })
 
   const filtered = items.filter((i) =>
@@ -121,6 +187,7 @@ export default function InventoryPage() {
         name: values.name,
         category: values.category,
         quantity: values.quantity,
+        stock_initial: values.stock_initial,
         unit: values.unit,
         min_stock: values.min_stock,
         price: values.price,
@@ -161,7 +228,7 @@ export default function InventoryPage() {
 
   function openCreate() {
     setEditing(null)
-    form.reset({ name: "", category: "", quantity: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "", image_url: "" })
+    form.reset({ name: "", category: "", quantity: 0, stock_initial: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "", image_url: "" })
     setDialogOpen(true)
   }
 
@@ -171,6 +238,7 @@ export default function InventoryPage() {
       name: item.name,
       category: item.category,
       quantity: item.quantity,
+      stock_initial: item.stock_initial,
       unit: item.unit,
       min_stock: item.min_stock,
       price: item.price,
@@ -221,6 +289,10 @@ export default function InventoryPage() {
               <Download className="mr-2 h-4 w-4" />
               {t("common.export") || "Export"}
             </Button>
+            <Button variant="outline" onClick={() => verifyMutation.mutate()} disabled={verifyMutation.isPending}>
+              {verifyMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <AlertTriangle className="mr-2 h-4 w-4" />}
+              {t("inventory.checkConsistency") || "Check consistency"}
+            </Button>
             <Button onClick={openCreate}>
               <Plus className="mr-2 h-4 w-4" /> {t("inventory.add")}
             </Button>
@@ -246,6 +318,9 @@ export default function InventoryPage() {
             <TableRow>
               <TableHead>{t("inventory.name")}</TableHead>
               <TableHead>{t("inventory.category")}</TableHead>
+              <TableHead className="text-right">{t("inventory.stockInitial") || "Stock initial"}</TableHead>
+              <TableHead className="text-right">{t("inventory.totalIn") || "Entrées"}</TableHead>
+              <TableHead className="text-right">{t("inventory.totalOut") || "Sorties"}</TableHead>
               <TableHead className="text-right">{t("inventory.quantity")}</TableHead>
               <TableHead>{t("inventory.unit")}</TableHead>
               <TableHead className="text-right">{t("inventory.minStock")}</TableHead>
@@ -258,12 +333,14 @@ export default function InventoryPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={12} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : paginatedItems.map((item) => {
               const lowStock = item.quantity <= item.min_stock
+              const summary = getSummary(item)
+              const hasAnomaly = anomalyIds.has(item.id) || summary.expected !== item.quantity
               return (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">
@@ -275,10 +352,18 @@ export default function InventoryPage() {
                           <AlertTriangle className="h-3 w-3" /> {t("inventory.lowStock")}
                         </Badge>
                       )}
+                      {hasAnomaly && (
+                        <Badge variant="outline" className="gap-1 border-destructive text-destructive">
+                          <AlertTriangle className="h-3 w-3" /> {t("inventory.anomaly") || "Anomalie"}
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell><Badge variant="outline">{toUpper(item.category)}</Badge></TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell>
+                  <TableCell className="text-right font-mono">{summary.stockInitial}</TableCell>
+                  <TableCell className="text-right font-mono text-emerald-600">+{summary.totalIn}</TableCell>
+                  <TableCell className="text-right font-mono text-red-600">-{summary.totalOut}</TableCell>
+                  <TableCell className="text-right font-mono">{summary.expected}</TableCell>
                   <TableCell>{toUpper(item.unit)}</TableCell>
                   <TableCell className="text-right">{item.min_stock}</TableCell>
                   <TableCell className="text-right">{item.price.toLocaleString()} DA</TableCell>
@@ -305,7 +390,7 @@ export default function InventoryPage() {
             })}
             {!isLoading && paginatedItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults")}
                 </TableCell>
               </TableRow>
@@ -319,6 +404,8 @@ export default function InventoryPage() {
         ) : (
           paginatedItems.map(item => {
             const lowStock = item.quantity <= item.min_stock
+            const summary = getSummary(item)
+            const hasAnomaly = anomalyIds.has(item.id) || summary.expected !== item.quantity
             return (
               <Card key={item.id} className="p-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -333,9 +420,17 @@ export default function InventoryPage() {
                       <AlertTriangle className="h-3 w-3" /> {t("inventory.lowStock")}
                     </Badge>
                   )}
+                  {hasAnomaly && (
+                    <Badge variant="outline" className="gap-1 border-destructive text-destructive ml-auto">
+                      <AlertTriangle className="h-3 w-3" /> {t("inventory.anomaly") || "Anomalie"}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground"><Badge variant="outline">{toUpper(item.category)}</Badge></p>
-                <p className="text-sm text-muted-foreground mt-1">{t("inventory.quantity")}: {item.quantity} {toUpper(item.unit)} | {t("inventory.price")}: {item.price.toLocaleString()} DA</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t("inventory.stockInitial") || "Initial"}: {summary.stockInitial} | +{summary.totalIn} | -{summary.totalOut} | {t("inventory.finalStock") || "Final"}: {summary.expected} {toUpper(item.unit)}
+                </p>
+                <p className="text-sm text-muted-foreground">{t("inventory.price")}: {item.price.toLocaleString()} DA</p>
                 <div className="flex justify-end gap-1 mt-2">
                   <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                     <Edit className="h-4 w-4" />
@@ -396,6 +491,13 @@ export default function InventoryPage() {
                 <FormField control={form.control} name="quantity" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("inventory.quantity")}</FormLabel>
+                    <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="stock_initial" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.stockInitial") || "Stock initial"}</FormLabel>
                     <FormControl><Input type="number" min={0} {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>

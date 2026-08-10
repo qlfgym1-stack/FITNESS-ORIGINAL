@@ -136,15 +136,21 @@ export interface Database {
         Relationships: []
       }
       inventory: {
-        Row: { id: string; organization_id: string; name: string; category: string | null; quantity: number; unit: string | null; min_stock: number | null; price: number | null; supplier_id: string | null; image_url: string | null; created_at: string }
-        Insert: { id?: string; organization_id: string; name: string; category?: string | null; quantity?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; image_url?: string | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; name?: string; category?: string | null; quantity?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; image_url?: string | null; created_at?: string }
+        Row: { id: string; organization_id: string; name: string; category: string | null; quantity: number; stock_initial: number; unit: string | null; min_stock: number | null; price: number | null; supplier_id: string | null; image_url: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; name: string; category?: string | null; quantity?: number; stock_initial?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; image_url?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; name?: string; category?: string | null; quantity?: number; stock_initial?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; image_url?: string | null; created_at?: string }
         Relationships: []
       }
       stock_movements: {
-        Row: { id: string; inventory_id: string; organization_id: string; type: 'in' | 'out'; quantity: number; notes: string | null; created_at: string }
-        Insert: { id?: string; inventory_id: string; organization_id: string; type: 'in' | 'out'; quantity: number; notes?: string | null; created_at?: string }
-        Update: { id?: string; inventory_id?: string; organization_id?: string; type?: 'in' | 'out'; quantity?: number; notes?: string | null; created_at?: string }
+        Row: { id: string; inventory_id: string; organization_id: string; type: 'in' | 'out'; quantity: number; reason: string | null; reference_type: string | null; reference_id: string | null; notes: string | null; created_at: string }
+        Insert: { id?: string; inventory_id: string; organization_id: string; type: 'in' | 'out'; quantity: number; reason?: string | null; reference_type?: string | null; reference_id?: string | null; notes?: string | null; created_at?: string }
+        Update: { id?: string; inventory_id?: string; organization_id?: string; type?: 'in' | 'out'; quantity?: number; reason?: string | null; reference_type?: string | null; reference_id?: string | null; notes?: string | null; created_at?: string }
+        Relationships: []
+      }
+      stock_anomalies: {
+        Row: { id: string; organization_id: string; inventory_id: string; computed_stock: number; actual_stock: number; delta: number; status: 'open' | 'resolved'; detected_at: string; resolved_at: string | null; notes: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; inventory_id: string; computed_stock: number; actual_stock: number; delta: number; status?: 'open' | 'resolved'; detected_at?: string; resolved_at?: string | null; notes?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; inventory_id?: string; computed_stock?: number; actual_stock?: number; delta?: number; status?: 'open' | 'resolved'; detected_at?: string; resolved_at?: string | null; notes?: string | null; created_at?: string }
         Relationships: []
       }
       suppliers: {

@@ -390,7 +390,7 @@ export default function POSPage() {
         total: total,
       }).select().single()
       if (!session) throw new Error("No session")
-      const { error: txError } = await supabase.from("pos_transactions").insert({
+      const { error: txError, data: createdTx } = await supabase.from("pos_transactions").insert({
         session_id: session.id,
         organization_id: orgId,
         member_id: selectedMemberId,
@@ -401,8 +401,17 @@ export default function POSPage() {
         payment_method: paymentMethod,
         payment_status: "completed",
         created_by: user?.id ?? null,
-      })
+      }).select("id").single()
       if (txError) throw txError
+
+      // Sync stock movements for physical items (never fails the sale)
+      if (createdTx?.id) {
+        try {
+          await (supabase.rpc as any)("record_pos_sale_stock", { p_transaction_id: createdTx.id })
+        } catch (e) {
+          console.error("record_pos_sale_stock failed", e)
+        }
+      }
 
       // Record attendance for drop-in sessions (Visiteur)
       const dropInItems = cart.filter(item => item.product.id.startsWith("__dropin__"))
