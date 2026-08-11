@@ -235,7 +235,7 @@ BEGIN
     WHERE conrelid = 'public.stock_movements'::regclass
       AND contype = 'f'
       AND confrelid = 'public.inventory'::regclass
-      AND conkey = ARRAY[v_attnum];
+      AND conkey = ARRAY[v_attnum::smallint];
     IF v_conname IS NOT NULL THEN
       EXECUTE format('ALTER TABLE public.stock_movements DROP CONSTRAINT %I', v_conname);
     END IF;

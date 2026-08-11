@@ -124,7 +124,7 @@ BEGIN
     FROM pg_constraint
     WHERE conrelid = 'public.investments'::regclass
       AND contype = 'c'
-      AND conkey = ARRAY[v_attnum];
+      AND conkey = ARRAY[v_attnum::smallint];
     IF v_conname IS NOT NULL THEN
       EXECUTE format('ALTER TABLE public.investments DROP CONSTRAINT %I', v_conname);
     END IF;
