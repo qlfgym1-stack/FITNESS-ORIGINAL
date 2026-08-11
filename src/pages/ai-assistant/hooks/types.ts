@@ -124,6 +124,7 @@ export interface KeyedInsight {
 
 export interface AssistantData {
   isLoading: boolean
+  error: Error | null
   peakHours: PeakHoursResult
   flagship: FlagshipResult
   subscription: SubscriptionInsight

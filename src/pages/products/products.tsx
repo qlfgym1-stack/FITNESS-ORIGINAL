@@ -38,6 +38,21 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useNavigate } from "react-router-dom"
 import type { Product } from "@/types/supabase"
 
+// S7/S9 : normalise une catégorie brute (import Excel, export) vers une valeur
+// valide du CHECK constraint — le map renvoie null si introuvable.
+const PRODUCT_CATEGORIES = new Set(['snacks', 'boissons', 'complements', 'vetements', 'equipement'])
+function normalizeCategory(raw: string): string | null {
+  const c = (raw || '').trim().toLowerCase()
+  const map: Record<string, string> = {
+    snack: 'snacks', snacks: 'snacks',
+    boisson: 'boissons', boissons: 'boissons',
+    complement: 'complements', complements: 'complements', 'complément': 'complements', 'compléments': 'complements',
+    vetement: 'vetements', vetements: 'vetements', 'vêtement': 'vetements', 'vêtements': 'vetements', 'vÃªtements': 'vetements',
+    equipement: 'equipement', equipements: 'equipement', 'équipement': 'equipement', 'équipements': 'equipement', 'Ã©quipement': 'equipement',
+  }
+  return map[c] ?? null
+}
+
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
   category: z.string().min(1, "Category is required"),
@@ -146,19 +161,31 @@ export default function ProductsPage() {
 
   function handleConfirmImport() {
     if (!orgId || importData.length === 0) return
-    let products = importData.map(r => ({
-      organization_id: orgId,
-      name: String(r.NOM || r.nom || r.Name || r.name || '').trim(),
-      category: String(r.CATEGORY || r.category || '').trim() || null,
-      brand: String(r.MARQUE || r.marque || r.Brand || r.brand || '').trim() || null,
-      sku: String(r.SKU || r.sku || '').trim() || null,
-      reference: String(r['REF*'] || r.REF || r.Ref || r.reference || '').trim() || null,
-      price: Number(r['PRICE DA'] ?? r.price ?? r.Price ?? 0),
-      cost: Number(r['COST (DA)'] ?? r.cost ?? r.Cost ?? 0) || null,
-      stock: Number(r.STOCK ?? r.stock ?? r.Stock ?? 0) || null,
-      barcode: String(r['CODE BARR*'] || r['CODE BARR'] || r.barcode || r.Barcode || '').trim() || null,
-      is_active: String(r.STATUS || r.status || '').toLowerCase() === 'inactif' || String(r.STATUS || r.status || '').toLowerCase() === 'inactive' ? false : true,
-    }))
+    // S7 : normalisation des catégories (le CHECK de la table n'autorise que
+    // snacks/boissons/complements/vetements/equipement — une valeur hors liste
+    // rejette l'insert en bloc).
+    let invalidCategory = 0
+    let products = importData.map(r => {
+      const rawCat = String(r.CATEGORY || r.category || '')
+      const category = normalizeCategory(rawCat)
+      if (rawCat.trim() && (!category || !PRODUCT_CATEGORIES.has(category))) invalidCategory++
+      const stock = Number(r.STOCK ?? r.stock ?? r.Stock ?? 0) || null
+      return {
+        organization_id: orgId,
+        name: String(r.NOM || r.nom || r.Name || r.name || '').trim(),
+        category: category && PRODUCT_CATEGORIES.has(category) ? category : null,
+        brand: String(r.MARQUE || r.marque || r.Brand || r.brand || '').trim() || null,
+        sku: String(r.SKU || r.sku || '').trim() || null,
+        reference: String(r['REF*'] || r.REF || r.Ref || r.reference || '').trim() || null,
+        price: Number(r['PRICE DA'] ?? r.price ?? r.Price ?? 0),
+        cost: Number(r['COST (DA)'] ?? r.cost ?? r.Cost ?? 0) || null,
+        stock,
+        // S2 : le ledger part de stock_initial = stock importé
+        stock_initial: stock || 0,
+        barcode: String(r['CODE BARR*'] || r['CODE BARR'] || r.barcode || r.Barcode || '').trim() || null,
+        is_active: String(r.STATUS || r.status || '').toLowerCase() === 'inactif' || String(r.STATUS || r.status || '').toLowerCase() === 'inactive' ? false : true,
+      }
+    })
     const skipped = products.filter(p => !p.name).length
     products = products.filter(p => p.name)
     supabase.from("products").insert(products).then(({ error }) => {
@@ -168,7 +195,10 @@ export default function ProductsPage() {
       }
       queryClient.invalidateQueries({ queryKey: ["products"] })
       queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
-      toast({ title: `${products.length} produit(s) importé(s)${skipped ? ` (${skipped} ignoré(s) sans nom)` : ''}` })
+      const extra: string[] = []
+      if (skipped) extra.push(`${skipped} ignoré(s) sans nom`)
+      if (invalidCategory) extra.push(`${invalidCategory} ligne(s) avec catégorie hors liste`)
+      toast({ title: `${products.length} produit(s) importé(s)${extra.length ? ` (${extra.join(', ')})` : ''}` })
       setImportDialogOpen(false)
       setImportData([])
       if (importFileRef.current) importFileRef.current.value = ''
@@ -297,7 +327,7 @@ export default function ProductsPage() {
 
   const { exportCsv } = useExportCsv(
     filtered.map(i => ({
-      name: i.name, category: i.category ?? "", brand: i.brand ?? "", sku: i.sku ?? "",
+      name: i.name, category: normalizeCategory(i.category ?? '') ?? '', brand: i.brand ?? "", sku: i.sku ?? "",
       price: i.price, cost: i.cost ?? 0, stock: i.stock ?? 0, barcode: i.barcode ?? "", status: i.is_active ? "Active" : "Inactive"
     })),
     'products',
@@ -331,7 +361,12 @@ export default function ProductsPage() {
       }
       // Le stock n'est JAMAIS modifié à l'édition (ledger obligatoire) :
       // les variations passent par les RPC record_product_stock_add/out.
-      if (!editing) payload.stock = values.stock || null
+      if (!editing) {
+        payload.stock = values.stock || null
+        // S2 : initialise stock_initial au stock saisi pour que le ledger
+        // (product_expected_stock = stock_initial + Σ mouvements) reste cohérent.
+        payload.stock_initial = values.stock || 0
+      }
       if (editing) {
         const { error } = await supabase.from("products").update(payload).eq("id", editing.id)
         if (error) throw error

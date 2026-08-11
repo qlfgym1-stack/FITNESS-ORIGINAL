@@ -11,7 +11,7 @@ interface ChatSectionProps {
   embedded?: boolean
 }
 
-export function buildContext(data: AssistantData): string {
+export function buildContext(data: AssistantData, t: (key: string) => string): string {
   const lines: string[] = []
   lines.push(`Période analysée — Chiffre d'affaires total: ${Math.round(data.totalRevenue)} DA`)
   lines.push(`Ventes au comptoir: ${Math.round(data.posRevenue)} DA · Revenus abonnements inclus`)
@@ -48,12 +48,12 @@ export function buildContext(data: AssistantData): string {
 
   if (data.actions.length) {
     lines.push(`Actions recommandées (${data.actions.length}):`)
-    data.actions.forEach((a, i) => lines.push(`${i + 1}. [${a.priority.toUpperCase()}] ${a.titleKey} — ${a.detailKey}`))
+    data.actions.forEach((a, i) => lines.push(`${i + 1}. [${a.priority.toUpperCase()}] ${t(a.titleKey)} — ${t(a.detailKey)}`))
   }
 
   if (data.insights.length) {
     lines.push(`Analyse clés:`)
-    data.insights.forEach((ins) => lines.push(`- ${ins.messageKey}`))
+    data.insights.forEach((ins) => lines.push(`- ${t(ins.messageKey)}`))
   }
 
   return lines.join("\n")
@@ -63,7 +63,7 @@ export function ChatSection({ data, t, embedded }: ChatSectionProps) {
   const { messages, loading, error, send } = useAiChat()
   const [input, setInput] = useState("")
   const endRef = useRef<HTMLDivElement>(null)
-  const context = buildContext(data)
+  const context = buildContext(data, t)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })

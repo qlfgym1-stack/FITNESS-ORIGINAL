@@ -65,6 +65,8 @@ function NotFound() {
   )
 }
 
+import { AiChatProvider } from "@/stores/ai-chat"
+
 function PageTransition({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
@@ -128,7 +130,8 @@ export default function App() {
     <AuthProvider>
       <ErrorBoundary>
         <AnimatePresence mode="wait">
-          <Routes location={location} key={location.pathname}>
+          <AiChatProvider>
+            <Routes location={location} key={location.pathname}>
             <Route path="/auth" element={<PublicRoute><Suspense fallback={<Loading />}><SignIn /></Suspense></PublicRoute>} />
             <Route path="/auth/sign-up" element={<PublicRoute><Suspense fallback={<Loading />}><SignUp /></Suspense></PublicRoute>} />
             <Route path="/auth/recovery" element={<PublicRoute><Suspense fallback={<Loading />}><Recovery /></Suspense></PublicRoute>} />
@@ -173,7 +176,8 @@ export default function App() {
               <Route path="install" element={<PageTransition><Suspense fallback={<Loading />}><Install /></Suspense></PageTransition>} />
             </Route>
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </AiChatProvider>
         </AnimatePresence>
       </ErrorBoundary>
     </AuthProvider>

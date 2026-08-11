@@ -376,45 +376,24 @@ export default function POSPage() {
 
       if (IS_MOCK) return
 
-      // First: decrement stock for physical items (atomic)
-      for (const item of cart) {
-        if (item.product.id.startsWith("__subscription__") || item.product.id.startsWith("__renewal__") || item.product.id.startsWith("__dropin__")) continue
-        const { data: updated, error: stockError } = await (supabase.rpc as any)(
-          'decrement_product_stock', { p_id: item.product.id, p_qty: item.quantity })
-        if (stockError) throw stockError
-        if (updated === false) throw new Error(`Insufficient stock for ${item.product.name}`)
-      }
-
-      // Then: create session + transaction (only after stock is confirmed)
-      const { data: session } = await supabase.from("pos_sessions").insert({
-        organization_id: orgId,
-        status: "open",
-        opened_at: new Date().toISOString(),
-        total: total,
-      }).select().single()
-      if (!session) throw new Error("No session")
-      const { error: txError, data: createdTx } = await supabase.from("pos_transactions").insert({
-        session_id: session.id,
-        organization_id: orgId,
-        member_id: selectedMemberId,
-        items: cart.map(item => ({ id: item.product.id, name: item.product.name, price: item.product.price, quantity: item.quantity })),
-        subtotal,
-        discount: (discountValue || 0) + corporateDiscount || null,
-        total,
-        payment_method: paymentMethod,
-        payment_status: "completed",
-        created_by: user?.id ?? null,
-      }).select("id").single()
-      if (txError) throw txError
-
-      // Sync stock movements for physical items (never fails the sale)
-      if (createdTx?.id) {
-        try {
-          await (supabase.rpc as any)("record_pos_sale_stock", { p_transaction_id: createdTx.id })
-        } catch (e) {
-          console.error("record_pos_sale_stock failed", e)
+      // Vente 100% transactionnelle : décrément du stock produits (articles
+      // physiques) + création session/transaction + mouvements de stock sont
+      // réalisés atomiquement côté base. Tout échec annule la vente entière.
+      const { data: checkoutData, error: checkoutError } = await (supabase.rpc as any)(
+        "record_pos_checkout",
+        {
+          p_organization_id: orgId,
+          p_member_id: selectedMemberId,
+          p_items: cart.map(item => ({ id: item.product.id, name: item.product.name, price: item.product.price, quantity: item.quantity })),
+          p_subtotal: subtotal,
+          p_discount: (discountValue || 0) + corporateDiscount || null,
+          p_total: total,
+          p_payment_method: paymentMethod,
+          p_user_id: user?.id ?? null,
         }
-      }
+      )
+      if (checkoutError) throw checkoutError
+      const createdTx = { id: (checkoutData as any)?.transaction_id }
 
       // Record attendance for drop-in sessions (Visiteur)
       const dropInItems = cart.filter(item => item.product.id.startsWith("__dropin__"))
@@ -469,6 +448,8 @@ export default function POSPage() {
       setQrInput("")
       setPanelProductSearch("")
       queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory"] })
+      queryClient.invalidateQueries({ queryKey: ["stock_movements"] })
       queryClient.invalidateQueries({ queryKey: ["subscription-types"] })
       queryClient.invalidateQueries({ queryKey: ["payments"] })
       const { data: { user } } = await supabase.auth.getUser()

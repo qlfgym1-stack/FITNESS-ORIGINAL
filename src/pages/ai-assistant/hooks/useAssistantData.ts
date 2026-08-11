@@ -121,7 +121,7 @@ export function useAssistantData(
   const { from, to } = useMemo(() => computePeriod(filters), [filters])
   const histFrom = useMemo(() => format(subMonths(new Date(to + "T00:00:00"), 11), "yyyy-MM-dd"), [to])
 
-  const { data: attendanceData } = useQuery({
+  const { data: attendanceData, error: attendanceError } = useQuery({
     queryKey: ["assistant", "attendance", orgId, from, to],
     queryFn: async () => {
       const { data, error } = await db
@@ -136,7 +136,7 @@ export function useAssistantData(
     enabled: !!orgId,
   })
 
-  const { data: posData } = useQuery({
+  const { data: posData, error: posError } = useQuery({
     queryKey: ["assistant", "pos", orgId, histFrom, to],
     queryFn: async () => {
       const { data, error } = await db
@@ -157,7 +157,7 @@ export function useAssistantData(
     enabled: !!orgId,
   })
 
-  const { data: productsData } = useQuery({
+  const { data: productsData, error: productsError } = useQuery({
     queryKey: ["assistant", "products", orgId],
     queryFn: async () => {
       const { data, error } = await db
@@ -170,7 +170,7 @@ export function useAssistantData(
     enabled: !!orgId,
   })
 
-  const { data: paymentsData } = useQuery({
+  const { data: paymentsData, error: paymentsError } = useQuery({
     queryKey: ["assistant", "payments", orgId, histFrom, to],
     queryFn: async () => {
       const { data, error } = await db
@@ -189,7 +189,7 @@ export function useAssistantData(
     enabled: !!orgId,
   })
 
-  const { data: subscriptionsData } = useQuery({
+  const { data: subscriptionsData, error: subscriptionsError } = useQuery({
     queryKey: ["assistant", "subscriptions", orgId],
     queryFn: async () => {
       const { data, error } = await db
@@ -222,7 +222,7 @@ export function useAssistantData(
     enabled: !!orgId,
   })
 
-  const { data: membersData } = useQuery({
+  const { data: membersData, error: membersError } = useQuery({
     queryKey: ["assistant", "members", orgId],
     queryFn: async () => {
       const { data, error } = await db
@@ -235,7 +235,7 @@ export function useAssistantData(
     enabled: !!orgId,
   })
 
-  const { data: expensesData } = useQuery({
+  const { data: expensesData, error: expensesError } = useQuery({
     queryKey: ["assistant", "expenses", orgId, from, to],
     queryFn: async () => {
       const { data, error } = await db
@@ -253,7 +253,7 @@ export function useAssistantData(
     enabled: !!orgId,
   })
 
-  const { data: salaryData } = useQuery({
+  const { data: salaryData, error: salaryError } = useQuery({
     queryKey: ["assistant", "salary", orgId, from, to],
     queryFn: async () => {
       const { data, error } = await db
@@ -271,7 +271,7 @@ export function useAssistantData(
     enabled: !!orgId,
   })
 
-  const { data: staffBonusesData } = useQuery({
+  const { data: staffBonusesData, error: staffBonusesError } = useQuery({
     queryKey: ["assistant", "staff-bonuses", orgId],
     queryFn: async () => {
       const { data, error } = await db
@@ -298,8 +298,30 @@ export function useAssistantData(
   const staffBonuses = staffBonusesData ?? 0
 
   const isLoading = useMemo(
-    () => attendanceData === undefined || posData === undefined || productsData === undefined || paymentsData === undefined,
-    [attendanceData, posData, productsData, paymentsData]
+    () =>
+      attendanceData === undefined ||
+      posData === undefined ||
+      productsData === undefined ||
+      paymentsData === undefined ||
+      subscriptionsData === undefined ||
+      membersData === undefined ||
+      expensesData === undefined ||
+      salaryData === undefined ||
+      staffBonusesData === undefined,
+    [
+      attendanceData, posData, productsData, paymentsData,
+      subscriptionsData, membersData, expensesData, salaryData, staffBonusesData,
+    ]
+  )
+
+  const error = useMemo(
+    () =>
+      attendanceError ?? posError ?? productsError ?? paymentsError ?? subscriptionsError ??
+      membersError ?? expensesError ?? salaryError ?? staffBonusesError ?? null,
+    [
+      attendanceError, posError, productsError, paymentsError, subscriptionsError,
+      membersError, expensesError, salaryError, staffBonusesError,
+    ]
   )
 
   return useMemo(() => {
@@ -356,6 +378,7 @@ export function useAssistantData(
 
     return {
       isLoading,
+      error,
       peakHours,
       flagship,
       subscription,
@@ -369,7 +392,7 @@ export function useAssistantData(
       posRevenue,
     }
   }, [
-    isLoading, attendance, posTransactions, products, payments, subscriptions, members,
+    isLoading, error, attendance, posTransactions, products, payments, subscriptions, members,
     expenses, salaryPayments, from, to,
   ])
 }

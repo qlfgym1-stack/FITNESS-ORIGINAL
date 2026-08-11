@@ -52,15 +52,15 @@ export function AiFloatingRobot() {
   const t = useT()
   const { isAuthenticated } = useAuth()
   const { isOnline } = useNetworkStatus()
-  const { loading, responding } = useAiChat()
+  const { loading } = useAiChat()
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<RobotPos>(loadPos)
   const [blinking, setBlinking] = useState(false)
   const [dragging, setDragging] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const dragRef = useRef({ startX: 0, startY: 0, startPosX: 0, startPosY: 0, moved: false })
+  const armedRef = useRef(false)
   const latestPos = useRef<RobotPos>({ x: 0, y: 0 })
-  const fromPointer = useRef(false)
   const gazeTarget = useRef({ x: 0, y: 0 })
   const gazeRaf = useRef<number | null>(null)
   const gazeReturnTimer = useRef<number | null>(null)
@@ -168,17 +168,17 @@ export function AiFloatingRobot() {
     ? "offline"
     : loading
       ? "thinking"
-      : responding
-        ? "responding"
-        : "idle"
+      : "idle"
 
   const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    fromPointer.current = true
+    armedRef.current = true
     dragRef.current = { startX: e.clientX, startY: e.clientY, startPosX: pos.x, startPosY: pos.y, moved: false }
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
   const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    // R1 : drag uniquement après un pointerdown réel (et bouton enfoncé) — jamais au simple survol
+    if (!armedRef.current || e.buttons === 0) return
     const d = dragRef.current
     if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > DRAG_THRESHOLD) d.moved = true
     if (d.moved) {
@@ -201,9 +201,10 @@ export function AiFloatingRobot() {
       } catch {
         /* ignore */
       }
-    } else {
+    } else if (armedRef.current) {
       setOpen((v) => !v)
     }
+    armedRef.current = false
     setDragging(false)
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
   }
@@ -218,20 +219,18 @@ export function AiFloatingRobot() {
         /* ignore */
       }
     }
+    armedRef.current = false
     setDragging(false)
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
   }
 
   const onClick = () => {
-    if (fromPointer.current) {
-      fromPointer.current = false
-      return
-    }
-    setOpen((v) => !v)
+    // Les boutons avec pointer events gèrent le toggle dans onPointerUp ; ce
+    // garde évite un double toggle déclenché par le clic synthétique du navigateur.
+    return
   }
 
-  const stateClass =
-    orbState === "offline" ? " is-offline" : orbState === "thinking" ? " is-thinking" : orbState === "responding" ? " is-responding" : ""
+  const stateClass = orbState === "offline" ? " is-offline" : orbState === "thinking" ? " is-thinking" : ""
 
   return (
     <>
@@ -295,7 +294,7 @@ function AiFloatingPanel({ onClose, onExpand }: { onClose: () => void; onExpand:
         {isLoading || !organization ? (
           <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-            {t("common.loading") || "Chargement du contexte..."}
+            {t("common.loading")}
           </div>
         ) : (
           <ChatSection data={data} t={t} embedded />

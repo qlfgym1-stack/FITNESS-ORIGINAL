@@ -20,6 +20,15 @@ const CASE_PRESERVE_KEYS = new Set([
   "auth.token",
   "settings.apiKey",
   "settings.url",
+  // Chat IA : textes longs/messages à casse normale (le toUpperCase global
+  // transformait les messages du chat en MAJUSCULES, incohérent avec les
+  // réponses LLM en minuscules).
+  "aiAssistant.openAssistant",
+  "aiAssistant.chatTitle",
+  "aiAssistant.chatSubtitle",
+  "aiAssistant.chatWelcome",
+  "aiAssistant.chatThinking",
+  "aiAssistant.chatPlaceholder",
 ]);
 
 type TranslationValue = string | Record<string, unknown>;

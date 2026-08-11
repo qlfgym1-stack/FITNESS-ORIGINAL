@@ -44,6 +44,7 @@ interface InventoryItem {
   price: number
   supplier_id: string | null
   image_url: string | null
+  product_id: string | null
   suppliers?: { name: string } | null
 }
 
@@ -167,11 +168,12 @@ export default function InventoryPage() {
   const { page, setPage, totalPages, paginatedData: paginatedItems } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(i => ({ name: i.name, category: i.category, quantity: i.quantity, unit: i.unit, min_stock: i.min_stock, price: i.price, supplier: i.suppliers?.name ?? '' })),
+    filtered.map(i => ({ name: i.name, category: i.category, stock_initial: i.stock_initial, quantity: i.quantity, unit: i.unit, min_stock: i.min_stock, price: i.price, supplier: i.suppliers?.name ?? '' })),
     'inventory',
     [
       { key: 'name', label: t('inventory.name') },
       { key: 'category', label: t('inventory.category') },
+      { key: 'stock_initial', label: t('inventory.stockInitial') || 'Stock initial' },
       { key: 'quantity', label: t('inventory.quantity') },
       { key: 'unit', label: t('inventory.unit') },
       { key: 'min_stock', label: t('inventory.minStock') },
@@ -183,16 +185,18 @@ export default function InventoryPage() {
   const upsertMutation = useMutation({
     mutationFn: async (values: InventoryForm) => {
       if (!orgId) throw new Error("No organization")
+      // S4 : une fiche liée à un produit (product_id) voit son stock piloté par le
+      // produit — on ne doit pas écraser quantity/stock_initial manuellement.
+      const linked = !!editing?.product_id
       const payload: any = {
         name: values.name,
         category: values.category,
-        quantity: values.quantity,
-        stock_initial: values.stock_initial,
         unit: values.unit,
         min_stock: values.min_stock,
         price: values.price,
         supplier_id: values.supplier_id || null,
         image_url: values.image_url || null,
+        ...(linked ? {} : { quantity: values.quantity, stock_initial: values.stock_initial }),
       }
       if (editing) {
         const { error } = await supabase.from("inventory").update(payload).eq("id", editing.id)
@@ -214,6 +218,16 @@ export default function InventoryPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("No organization")
+      // S5 : la FK stock_movements.inventory_id est ON DELETE CASCADE — supprimer
+      // une fiche avec historique détruirait le ledger. On refuse explicitement.
+      const { count } = await supabase
+        .from("stock_movements")
+        .select("id", { count: "exact", head: true })
+        .eq("inventory_id", id)
+      if (count && count > 0) {
+        throw new Error(t("inventory.deleteBlocked") || "Cannot delete: stock movements exist for this item")
+      }
       const { error } = await supabase.from("inventory").delete().eq("id", id)
       if (error) throw error
     },
@@ -491,14 +505,14 @@ export default function InventoryPage() {
                 <FormField control={form.control} name="quantity" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("inventory.quantity")}</FormLabel>
-                    <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                    <FormControl><Input type="number" min={0} disabled={!!editing?.product_id} {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="stock_initial" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("inventory.stockInitial") || "Stock initial"}</FormLabel>
-                    <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                    <FormControl><Input type="number" min={0} disabled={!!editing?.product_id} {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
