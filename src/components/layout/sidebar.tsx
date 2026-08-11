@@ -34,6 +34,7 @@ import {
   ChevronDown,
   ScrollText,
   FileText,
+  SprayCan,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -98,6 +99,7 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "products", icon: Package, path: "/products" },
       { key: "inventory", icon: Boxes, path: "/inventory" },
+      { key: "consommables", icon: SprayCan, path: "/consommables" },
       { key: "suppliers", icon: Truck, path: "/suppliers" },
       { key: "purchaseOrders", icon: FileText, path: "/purchase-orders" },
       { key: "materiel", icon: Wrench, path: "/materiel" },
@@ -107,7 +109,6 @@ const navGroups: NavGroup[] = [
     groupKey: "access",
     items: [
       { key: "accessControl", icon: Shield, path: "/access-control" },
-      { key: "badges", icon: Award, path: "/badges" },
     ],
   },
   {

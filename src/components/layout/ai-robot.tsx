@@ -68,6 +68,14 @@ export function AiFloatingRobot() {
   const location = useLocation()
   const navigate = useNavigate()
 
+  // Wander (mouvement auto)
+  const wanderTarget = useRef<RobotPos | null>(null)
+  const wanderRaf = useRef<number | null>(null)
+  const wanderTimer = useRef<number | null>(null)
+  const lastInteraction = useRef<"mouse" | "wander">("mouse")
+  const mouseActive = useRef(false)
+  const mouseActiveTimer = useRef<number | null>(null)
+
   const currentModule = location.pathname.split("/")[1] || "dashboard"
 
   // Ferme le panneau lors d'un changement de module (le robot reste visible)
@@ -87,7 +95,68 @@ export function AiFloatingRobot() {
     return () => window.removeEventListener("resize", onResize)
   }, [])
 
-  // Suivi du regard : pointermove + rAF, aucune requête, seule le transform des yeux change
+  // Wander : mouvement auto quand pas de drag, pas de panneau ouvert, en ligne
+  useEffect(() => {
+    if (dragging || open || !isOnline) {
+      if (wanderRaf.current != null) { cancelAnimationFrame(wanderRaf.current); wanderRaf.current = null }
+      if (wanderTimer.current != null) { clearTimeout(wanderTimer.current); wanderTimer.current = null }
+      return
+    }
+
+    const pickTarget = () => {
+      const margin = ROBOT_SIZE + 20
+      const target = {
+        x: margin + Math.random() * (window.innerWidth - margin * 2),
+        y: margin + Math.random() * (window.innerHeight - margin * 2),
+      }
+      wanderTarget.current = target
+      lastInteraction.current = "wander"
+      scheduleNext()
+    }
+
+    const animate = () => {
+      const target = wanderTarget.current
+      if (!target) { wanderRaf.current = null; return }
+      setPos((prev) => {
+        const dx = target.x - prev.x
+        const dy = target.y - prev.y
+        const dist = Math.hypot(dx, dy)
+        if (dist < 2) {
+          wanderTarget.current = null
+          return target
+        }
+        const speed = 1.2
+        const nx = prev.x + (dx / dist) * speed
+        const ny = prev.y + (dy / dist) * speed
+        return { x: nx, y: ny }
+      })
+      wanderRaf.current = requestAnimationFrame(animate)
+    }
+
+    const scheduleNext = () => {
+      if (wanderTimer.current != null) clearTimeout(wanderTimer.current)
+      wanderTimer.current = window.setTimeout(pickTarget, 4000 + Math.random() * 4000) as unknown as number
+    }
+
+    // Démarrer après un délai
+    scheduleNext()
+
+    return () => {
+      if (wanderRaf.current != null) { cancelAnimationFrame(wanderRaf.current); wanderRaf.current = null }
+      if (wanderTimer.current != null) { clearTimeout(wanderTimer.current); wanderTimer.current = null }
+    }
+  }, [dragging, open, isOnline])
+
+  // Sauvegarde la position pendant le wander
+  useEffect(() => {
+    if (lastInteraction.current !== "wander") return
+    const id = setInterval(() => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(pos)) } catch { /* */ }
+    }, 1000)
+    return () => clearInterval(id)
+  }, [pos])
+
+  // Suivi du regard : pointermove + rAF pour la souris, direction wander sinon
   useEffect(() => {
     if (!canHover.current) return
 
@@ -100,8 +169,13 @@ export function AiFloatingRobot() {
       gazeRaf.current = null
     }
 
+    // Souris : suivre le curseur
     const onPointerMove = (e: PointerEvent) => {
       if (!canHover.current) return
+      mouseActive.current = true
+      lastInteraction.current = "mouse"
+      if (mouseActiveTimer.current) clearTimeout(mouseActiveTimer.current)
+      mouseActiveTimer.current = window.setTimeout(() => { mouseActive.current = false }, 2000)
       const nx = e.clientX / window.innerWidth - 0.5
       const ny = e.clientY / window.innerHeight - 0.5
       gazeTarget.current = { x: nx * 16, y: ny * 12 }
@@ -112,6 +186,34 @@ export function AiFloatingRobot() {
       buttonRef.current?.classList.remove("gaze-return")
       if (gazeRaf.current == null) gazeRaf.current = requestAnimationFrame(applyGaze)
     }
+
+    // Wander : les yeux regardent dans la direction du mouvement
+    let prevPos: RobotPos | null = null
+    const checkWanderGaze = () => {
+      if (!mouseActive.current && lastInteraction.current === "wander") {
+        // On utilise la position actuelle du robot via le DOM pour calculer la direction
+        const btn = buttonRef.current
+        if (btn && prevPos) {
+          const curPos = { x: parseFloat(btn.style.left) || 0, y: parseFloat(btn.style.top) || 0 }
+          const dx = curPos.x - prevPos.x
+          const dy = curPos.y - prevPos.y
+          const dist = Math.hypot(dx, dy)
+          if (dist > 0.5) {
+            const nx = Math.min(Math.max((dx / dist) * 8, -8), 8)
+            const ny = Math.min(Math.max((dy / dist) * 6, -6), 6)
+            gazeTarget.current = { x: nx, y: ny }
+            buttonRef.current?.classList.remove("gaze-return")
+            if (gazeRaf.current == null) gazeRaf.current = requestAnimationFrame(applyGaze)
+          }
+          prevPos = curPos
+        } else if (btn) {
+          prevPos = { x: parseFloat(btn.style.left) || 0, y: parseFloat(btn.style.top) || 0 }
+        }
+      } else {
+        prevPos = null
+      }
+    }
+    const wanderGazeInterval = window.setInterval(checkWanderGaze, 100)
 
     const onLeave = () => {
       if (!canHover.current) return
@@ -129,8 +231,10 @@ export function AiFloatingRobot() {
     return () => {
       window.removeEventListener("pointermove", onPointerMove)
       document.documentElement.removeEventListener("mouseleave", onLeave)
+      window.clearInterval(wanderGazeInterval)
       if (gazeRaf.current != null) cancelAnimationFrame(gazeRaf.current)
       if (gazeReturnTimer.current) window.clearTimeout(gazeReturnTimer.current)
+      if (mouseActiveTimer.current) window.clearTimeout(mouseActiveTimer.current)
     }
   }, [])
 
@@ -172,6 +276,8 @@ export function AiFloatingRobot() {
 
   const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     armedRef.current = true
+    mouseActive.current = true
+    lastInteraction.current = "mouse"
     dragRef.current = { startX: e.clientX, startY: e.clientY, startPosX: pos.x, startPosY: pos.y, moved: false }
     e.currentTarget.setPointerCapture(e.pointerId)
   }
@@ -322,13 +428,14 @@ function useLazyAssistantData() {
   return { data, isLoading: data.isLoading }
 }
 
-// ===== Robot premium : tête arrondie, visière, yeux lumineux, corps, noyau =====
-// SVG + CSS natifs, aucun `defs` dupliqué (les ids sont uniques par instance).
+// ===== Robot glass/transparent, QF GYM, néon rouge+bleu =====
+// SVG + CSS natifs, ids uniques par instance via `uid`.
 function AiRobotSvg({ state, small }: { state: "idle" | "thinking" | "responding" | "offline"; small?: boolean }) {
   const uid = small ? "fitm-ai-s" : "fitm-ai"
   const offline = state === "offline"
   const thinking = state === "thinking"
   const responding = state === "responding"
+  const active = thinking || responding
   return (
     <svg
       className="fitmanager-ai-robot"
@@ -339,76 +446,140 @@ function AiRobotSvg({ state, small }: { state: "idle" | "thinking" | "responding
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id={`${uid}-head`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#4b5a7a" />
-          <stop offset="45%" stopColor="#232e4d" />
-          <stop offset="100%" stopColor="#0b1220" />
-        </linearGradient>
-        <linearGradient id={`${uid}-body`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#334063" />
-          <stop offset="100%" stopColor="#0a1120" />
-        </linearGradient>
-        <radialGradient id={`${uid}-core`} cx="0.5" cy="0.4" r="0.7">
-          <stop offset="0%" stopColor="#e0f2fe" />
-          <stop offset="45%" stopColor="#60a5fa" />
-          <stop offset="100%" stopColor="#1d4ed8" />
+        {/* Tête noire glossy */}
+        <radialGradient id={`${uid}-head`} cx="0.45" cy="0.35" r="0.65">
+          <stop offset="0%" stopColor="#2a2a2a" />
+          <stop offset="60%" stopColor="#111111" />
+          <stop offset="100%" stopColor="#050505" />
         </radialGradient>
+        {/* Corps glass/transparent */}
+        <linearGradient id={`${uid}-glass`} x1="0.3" y1="0" x2="0.7" y2="1">
+          <stop offset="0%" stopColor="rgba(180,210,255,0.22)" />
+          <stop offset="50%" stopColor="rgba(100,160,240,0.10)" />
+          <stop offset="100%" stopColor="rgba(60,100,180,0.18)" />
+        </linearGradient>
+        {/* Anneau poitrain rouge-bleu */}
+        <linearGradient id={`${uid}-ring`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ef4444" />
+          <stop offset="50%" stopColor="#7c3aed" />
+          <stop offset="100%" stopColor="#3b82f6" />
+        </linearGradient>
+        {/* Halo yeux bleu */}
         <radialGradient id={`${uid}-eyeGlow`} cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#bae6fd" />
-          <stop offset="60%" stopColor="#3b82f6" />
+          <stop offset="0%" stopColor="#93c5fd" />
+          <stop offset="50%" stopColor="#3b82f6" />
           <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
         </radialGradient>
+        {/* Base hover rouge */}
+        <radialGradient id={`${uid}-hoverRed`} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#ef4444" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
+        </radialGradient>
+        {/* Base hover bleu */}
+        <radialGradient id={`${uid}-hoverBlue`} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+        </radialGradient>
+        {/* Reflet tête */}
+        <linearGradient id={`${uid}-shine`} x1="0.3" y1="0" x2="0.7" y2="0.5">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.45)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
       </defs>
 
       <g className={offline ? "fitmanager-ai-robot--offline" : ""}>
-        {/* Antenne */}
-        <line x1="60" y1="18" x2="60" y2="9" stroke="#64748b" strokeWidth="2" strokeLinecap="round" />
-        <circle cx="60" cy="8" r="2.5" fill={thinking || responding ? "#60a5fa" : "#94a3b8"} className="fitmanager-ai-robot__antenna" />
 
-        {/* Tête arrondie */}
-        <rect x="27" y="16" width="66" height="56" rx="26" fill={`url(#${uid}-head)`} stroke="rgba(96,165,250,0.55)" strokeWidth="1.5" />
+        {/* === BASE DE VOL === */}
+        <ellipse cx="60" cy="122" rx="28" ry="5" fill={`url(#${uid}-hoverRed)`} className="fitmanager-ai-robot__base-ring" />
+        <ellipse cx="60" cy="122" rx="22" ry="3.5" fill="none" stroke="#ef4444" strokeWidth="1.2" opacity="0.7" className="fitmanager-ai-robot__base-ring" />
+        <ellipse cx="60" cy="120" rx="18" ry="3" fill="none" stroke="#3b82f6" strokeWidth="1" opacity="0.6" className="fitmanager-ai-robot__base-ring" />
+        {/* Pilier central */}
+        <rect x="56" y="113" width="8" height="10" rx="4" fill="rgba(30,30,30,0.7)" stroke="rgba(96,165,250,0.2)" strokeWidth="0.8" />
 
-        {/* Ailerons latéraux */}
-        <rect x="20" y="34" width="7" height="18" rx="3.5" fill="rgba(37,99,235,0.4)" stroke="rgba(96,165,250,0.35)" strokeWidth="1" />
-        <rect x="93" y="34" width="7" height="18" rx="3.5" fill="rgba(37,99,235,0.4)" stroke="rgba(96,165,250,0.35)" strokeWidth="1" />
+        {/* === CORPS GLASS === */}
+        <path d="M40 82 Q38 78 42 74 L78 74 Q82 78 80 82 L78 112 Q76 116 60 117 Q44 116 42 112 Z" fill={`url(#${uid}-glass)`} stroke="rgba(147,197,253,0.35)" strokeWidth="1.2" />
+        {/* Reflets corps */}
+        <path d="M44 78 L46 110" stroke="rgba(255,255,255,0.12)" strokeWidth="1" strokeLinecap="round" />
+        <path d="M74 78 L76 108" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" strokeLinecap="round" />
 
-        {/* Micro-détails de tête */}
-        <circle cx="31" cy="26" r="1.4" fill="rgba(148,163,184,0.7)" />
-        <circle cx="89" cy="26" r="1.4" fill="rgba(148,163,184,0.7)" />
-        <rect x="57.5" y="19" width="5" height="3" rx="1.5" fill="rgba(96,165,250,0.5)" />
+        {/* === POITRAIN : Logo QF GYM === */}
+        <circle cx="60" cy="93" r="14" fill="#111" stroke={`url(#${uid}-ring)`} strokeWidth="2" />
+        <circle cx="60" cy="93" r="11" fill="none" stroke="rgba(239,68,68,0.3)" strokeWidth="0.6" />
+        {/* Texte QF GYM */}
+        <text x="60" y="91" textAnchor="middle" fill="#3b82f6" fontSize="7" fontWeight="bold" fontFamily="Arial, sans-serif">QF</text>
+        <text x="60" y="99" textAnchor="middle" fill="#ef4444" fontSize="5" fontWeight="bold" fontFamily="Arial, sans-serif">GYM</text>
 
-        {/* Visière */}
-        <rect x="34" y="33" width="52" height="24" rx="12" fill="rgba(2,8,23,0.55)" stroke="rgba(147,197,253,0.35)" strokeWidth="1.2" />
-        <rect x="34" y="33" width="52" height="12" rx="6" fill="rgba(96,165,250,0.08)" />
+        {/* === ANTENNES === */}
+        {/* Antenne gauche (rouge) */}
+        <line x1="42" y1="22" x2="34" y2="6" stroke="#1a1a1a" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="34" cy="5" r="2.8" fill={active ? "#ef4444" : "#7f1d1d"} className="fitmanager-ai-robot__antenna" />
+        <circle cx="34" cy="5" r="4" fill="none" stroke="#ef4444" strokeWidth="0.6" opacity={active ? "0.8" : "0.3"} />
+        {/* Antenne droite (bleu) */}
+        <line x1="78" y1="22" x2="86" y2="6" stroke="#1a1a1a" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="86" cy="5" r="2.8" fill={active ? "#3b82f6" : "#1e3a5f"} className="fitmanager-ai-robot__antenna" />
+        <circle cx="86" cy="5" r="4" fill="none" stroke="#3b82f6" strokeWidth="0.6" opacity={active ? "0.8" : "0.3"} />
 
-        {/* Yeux lumineux : suivent le curseur via --eye-x/--eye-y, clignent via --eye-blink */}
+        {/* === TÊTE === */}
+        <ellipse cx="60" cy="42" rx="32" ry="28" fill={`url(#${uid}-head)`} stroke="rgba(96,165,250,0.3)" strokeWidth="1" />
+        {/* Reflet gloss */}
+        <ellipse cx="52" cy="30" rx="18" ry="10" fill={`url(#${uid}-shine)`} />
+        {/* Bandeau néon haut */}
+        <path d="M36 30 Q60 22 84 30" fill="none" stroke="#3b82f6" strokeWidth="1.2" opacity="0.5" />
+        <path d="M38 32 Q60 25 82 32" fill="none" stroke="#ef4444" strokeWidth="0.8" opacity="0.4" />
+
+        {/* === ÉCOUTEURS === */}
+        {/* Gauche */}
+        <circle cx="28" cy="42" r="7" fill="#1a1a1a" stroke="rgba(239,68,68,0.5)" strokeWidth="1.2" />
+        <circle cx="28" cy="42" r="4.5" fill="none" stroke="#ef4444" strokeWidth="0.8" opacity="0.6" />
+        <circle cx="28" cy="42" r="2" fill="#ef4444" opacity={active ? "0.9" : "0.4"} />
+        {/* Droite */}
+        <circle cx="92" cy="42" r="7" fill="#1a1a1a" stroke="rgba(59,130,246,0.5)" strokeWidth="1.2" />
+        <circle cx="92" cy="42" r="4.5" fill="none" stroke="#3b82f6" strokeWidth="0.8" opacity="0.6" />
+        <circle cx="92" cy="42" r="2" fill="#3b82f6" opacity={active ? "0.9" : "0.4"} />
+
+        {/* === VISIÈRE / FACE === */}
+        <rect x="38" y="33" width="44" height="22" rx="11" fill="rgba(0,0,0,0.6)" stroke="rgba(147,197,253,0.2)" strokeWidth="0.8" />
+
+        {/* === YEUX : suivent le curseur via --eye-x/--eye-y, clignent via --eye-blink === */}
         <g className="fitmanager-ai-eyes">
-          <circle cx="49" cy="45" r="9" fill={`url(#${uid}-eyeGlow)`} className="fitmanager-ai-robot__eye-glow" />
-          <circle cx="71" cy="45" r="9" fill={`url(#${uid}-eyeGlow)`} className="fitmanager-ai-robot__eye-glow" />
-          <circle cx="49" cy="45" r="3.2" fill="#dbeafe" className="fitmanager-ai-robot__eye" />
-          <circle cx="71" cy="45" r="3.2" fill="#dbeafe" className="fitmanager-ai-robot__eye" />
-          <circle cx="50.2" cy="43.9" r="1" fill="#ffffff" className="fitmanager-ai-robot__eye-hl" />
-          <circle cx="72.2" cy="43.9" r="1" fill="#ffffff" className="fitmanager-ai-robot__eye-hl" />
+          {/* Halo yeux */}
+          <circle cx="50" cy="44" r="8" fill={`url(#${uid}-eyeGlow)`} className="fitmanager-ai-robot__eye-glow" />
+          <circle cx="70" cy="44" r="8" fill={`url(#${uid}-eyeGlow)`} className="fitmanager-ai-robot__eye-glow" />
+          {/* Yeux souriants (arcs) */}
+          <path d="M43 44 Q50 37 57 44" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" className="fitmanager-ai-robot__eye" />
+          <path d="M63 44 Q70 37 77 44" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeLinecap="round" className="fitmanager-ai-robot__eye" />
+          {/* Points lumineux yeux */}
+          <circle cx="50" cy="41" r="1.2" fill="#ffffff" className="fitmanager-ai-robot__eye-hl" />
+          <circle cx="70" cy="41" r="1.2" fill="#ffffff" className="fitmanager-ai-robot__eye-hl" />
         </g>
 
-        {/* Cou */}
-        <rect x="53" y="72" width="14" height="10" rx="4" fill="#0a1120" stroke="rgba(96,165,250,0.25)" strokeWidth="1" />
+        {/* Petit sourire */}
+        <path d="M55 50 Q60 54 65 50" fill="none" stroke="#60a5fa" strokeWidth="1.2" strokeLinecap="round" opacity="0.7" />
 
-        {/* Corps */}
-        <rect x="33" y="80" width="54" height="38" rx="17" fill={`url(#${uid}-body)`} stroke="rgba(96,165,250,0.45)" strokeWidth="1.5" />
+        {/* === MAIN GAUCHE : pouce levé === */}
+        <g transform="translate(18, 78)">
+          {/* Paume */}
+          <rect x="0" y="4" width="10" height="12" rx="3" fill="rgba(30,30,30,0.8)" stroke="rgba(96,165,250,0.25)" strokeWidth="0.8" />
+          {/* Pouce */}
+          <rect x="2" y="-2" width="4" height="8" rx="2" fill="rgba(30,30,30,0.9)" stroke="rgba(96,165,250,0.3)" strokeWidth="0.6" transform="rotate(-15 4 4)" />
+          {/* Doigts */}
+          <rect x="0" y="14" width="3" height="6" rx="1.5" fill="rgba(30,30,30,0.7)" />
+          <rect x="3.5" y="14" width="3" height="6" rx="1.5" fill="rgba(30,30,30,0.7)" />
+          <rect x="7" y="14" width="3" height="5" rx="1.5" fill="rgba(30,30,30,0.7)" />
+        </g>
 
-        {/* Panneau poitrine */}
-        <rect x="42" y="87" width="36" height="24" rx="9" fill="rgba(37,99,235,0.14)" stroke="rgba(96,165,250,0.3)" strokeWidth="1" />
+        {/* === MAIN DROITE : bulle cerveau === */}
+        <g transform="translate(88, 76)">
+          {/* Bras */}
+          <rect x="-2" y="6" width="6" height="10" rx="3" fill="rgba(30,30,30,0.7)" stroke="rgba(96,165,250,0.2)" strokeWidth="0.6" />
+          {/* Bulle */}
+          <circle cx="4" cy="0" r="7" fill="rgba(0,0,0,0.5)" stroke="rgba(239,68,68,0.4)" strokeWidth="0.8" />
+          {/* Icône cerveau simplifiée */}
+          <path d="M1 -2 Q0 -4 2 -4 Q4 -4 3 -2" fill="none" stroke="#ef4444" strokeWidth="0.7" opacity="0.8" />
+          <path d="M5 -2 Q4 -4 6 -4 Q8 -4 7 -2" fill="none" stroke="#3b82f6" strokeWidth="0.7" opacity="0.8" />
+          <line x1="4" y1="-4" x2="4" y2="2" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        </g>
 
-        {/* Noyau central lumineux */}
-        <circle cx="60" cy="99" r="8.5" fill="rgba(96,165,250,0.25)" className="fitmanager-ai-robot__core-halo" />
-        <circle cx="60" cy="99" r="5.5" fill={`url(#${uid}-core)`} className="fitmanager-ai-robot__core" />
-
-        {/* Micro-détails de corps */}
-        <circle cx="38" cy="84" r="1.2" fill="rgba(148,163,184,0.6)" />
-        <circle cx="82" cy="84" r="1.2" fill="rgba(148,163,184,0.6)" />
-        <rect x="38" y="111" width="8" height="2.5" rx="1.25" fill="rgba(96,165,250,0.4)" />
-        <rect x="74" y="111" width="8" height="2.5" rx="1.25" fill="rgba(96,165,250,0.4)" />
       </g>
     </svg>
   )

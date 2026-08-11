@@ -15,10 +15,10 @@ const iconMap = {
 }
 
 const containerClassMap = {
-  positive: "bg-success/10 border-l-4 border-success text-success-foreground",
-  negative: "bg-destructive/10 border-l-4 border-destructive text-destructive-foreground",
-  neutral: "bg-muted/50 border-l-4 border-muted-foreground",
-  warning: "bg-warning/10 border-l-4 border-warning text-warning-foreground",
+  positive: "bg-success/10 border-l-4 border-success text-foreground",
+  negative: "bg-destructive/10 border-l-4 border-destructive text-foreground",
+  neutral: "bg-muted/50 border-l-4 border-muted-foreground text-foreground",
+  warning: "bg-warning/10 border-l-4 border-warning text-foreground",
 }
 
 export function AiInsights({ insights, t }: AiInsightsProps) {

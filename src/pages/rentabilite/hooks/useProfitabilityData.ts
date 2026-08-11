@@ -19,6 +19,7 @@ const INVESTMENT_CATEGORIES: Record<string, string> = {
   marketing: "Marketing",
   publicite: "Publicité",
   formation: "Formation",
+  consommables: "Consommables",
   autres: "Autres",
 }
 
@@ -858,6 +859,7 @@ export function useProfitabilityData(
       totalRevenue,
       totalExpenses,
       totalInvestment,
+      investments,
       investmentsByCategory,
       revenueBySource,
       profitData: {

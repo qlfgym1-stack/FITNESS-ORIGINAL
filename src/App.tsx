@@ -23,6 +23,7 @@ const StaffLeaves = lazy(() => import('@/pages/staff/leaves'))
 const StaffPlanning = lazy(() => import('@/pages/staff/planning'))
 const POS = lazy(() => import('@/pages/pos/pos'))
 const Materiel = lazy(() => import('@/pages/materiel/materiel'))
+const Consommables = lazy(() => import('@/pages/consommables/consommables'))
 const Inventory = lazy(() => import('@/pages/inventory/inventory'))
 const Products = lazy(() => import('@/pages/products/products'))
 const Suppliers = lazy(() => import('@/pages/suppliers/suppliers'))
@@ -151,6 +152,7 @@ export default function App() {
               <Route path="staff/planning" element={<PageTransition><Suspense fallback={<Loading />}><StaffPlanning /></Suspense></PageTransition>} />
               <Route path="pos" element={<PageTransition><Suspense fallback={<Loading />}><POS /></Suspense></PageTransition>} />
               <Route path="materiel" element={<PageTransition><Suspense fallback={<Loading />}><Materiel /></Suspense></PageTransition>} />
+              <Route path="consommables" element={<PageTransition><Suspense fallback={<Loading />}><Consommables /></Suspense></PageTransition>} />
               <Route path="inventory" element={<PageTransition><Suspense fallback={<Loading />}><Inventory /></Suspense></PageTransition>} />
               <Route path="products" element={<PageTransition><Suspense fallback={<Loading />}><Products /></Suspense></PageTransition>} />
               <Route path="suppliers" element={<PageTransition><Suspense fallback={<Loading />}><Suppliers /></Suspense></PageTransition>} />

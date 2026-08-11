@@ -242,7 +242,7 @@
   animation: fitmanager-ai-float 3.6s ease-in-out infinite;
 }
 .fitmanager-ai-floating-button:focus-visible {
-  outline: 2px solid rgba(96, 165, 250, 0.8);
+  outline: 2px solid rgba(239, 68, 68, 0.6);
   outline-offset: 4px;
   border-radius: 8px;
 }
@@ -266,13 +266,41 @@
   50% { transform: translateY(-2px); }
 }
 
-/* SVG robot : seul lui a un glow léger (le float est porté par le bouton) */
+/* SVG robot : glow rouge+bleu (le float est porté par le bouton) */
 .fitmanager-ai-robot {
   display: block;
   width: 100%;
   height: 100%;
   overflow: visible;
-  filter: drop-shadow(0 4px 14px rgba(37, 99, 235, 0.35));
+  filter: drop-shadow(0 4px 14px rgba(239, 68, 68, 0.3)) drop-shadow(0 2px 10px rgba(59, 130, 246, 0.35));
+}
+
+/* Trail flamme rouge sous le robot */
+.fitmanager-ai-floating-button::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 24px;
+  background: radial-gradient(ellipse at center bottom,
+    rgba(255, 50, 10, 0.95) 0%,
+    rgba(255, 80, 0, 0.7) 30%,
+    rgba(255, 40, 0, 0.35) 60%,
+    transparent 100%
+  );
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  animation: fitmanager-ai-flame 0.35s ease-in-out infinite alternate;
+  pointer-events: none;
+  opacity: 0.85;
+  filter: blur(1.5px);
+  z-index: -1;
+}
+@keyframes fitmanager-ai-flame {
+  0%   { transform: translateX(-50%) scaleY(1) scaleX(1); opacity: 0.75; }
+  50%  { transform: translateX(-50%) scaleY(1.2) scaleX(0.8); opacity: 1; }
+  100% { transform: translateX(-50%) scaleY(0.85) scaleX(1.15); opacity: 0.65; }
 }
 
 /* Yeux : suivent le curseur (--eye-x/--eye-y), clignent (--eye-blink) */
@@ -294,12 +322,19 @@
 .fitmanager-ai-robot__eye-glow {
   animation: fitmanager-ai-eye-glow 3.4s ease-in-out infinite;
 }
+.fitmanager-ai-robot__base-ring {
+  animation: fitmanager-ai-base-pulse 2s ease-in-out infinite;
+}
+@keyframes fitmanager-ai-base-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
 @keyframes fitmanager-ai-eye-glow {
   0%, 100% { opacity: 0.85; }
   50% { opacity: 1; }
 }
 
-/* Thinking : pulsation des yeux + glow subtil */
+/* Thinking : pulsation des yeux + glow rouge-bleu */
 .fitmanager-ai-floating-button.is-thinking .fitmanager-ai-robot {
   animation: fitmanager-ai-robot-pulse 1.2s ease-in-out infinite;
 }
@@ -311,8 +346,8 @@
   50% { opacity: 1; }
 }
 @keyframes fitmanager-ai-robot-pulse {
-  0%, 100% { filter: drop-shadow(0 4px 14px rgba(37, 99, 235, 0.35)); }
-  50% { filter: drop-shadow(0 4px 22px rgba(96, 165, 250, 0.65)); }
+  0%, 100% { filter: drop-shadow(0 4px 14px rgba(239, 68, 68, 0.3)) drop-shadow(0 2px 10px rgba(59, 130, 246, 0.35)); }
+  50% { filter: drop-shadow(0 4px 22px rgba(239, 68, 68, 0.6)) drop-shadow(0 2px 18px rgba(59, 130, 246, 0.65)); }
 }
 
 /* Responding : petite pulsation, léger glow */
@@ -323,12 +358,16 @@
   animation: fitmanager-ai-eye-think 1.6s ease-in-out infinite;
 }
 
-/* Offline : robot grisé, yeux éteints */
+/* Offline : robot grisé, yeux éteints, flamme éteinte */
 .fitmanager-ai-floating-button.is-offline .fitmanager-ai-robot {
   filter: grayscale(0.9) brightness(0.85);
 }
 .fitmanager-ai-floating-button.is-offline .fitmanager-ai-eyes {
   opacity: 0.5;
+}
+.fitmanager-ai-floating-button.is-offline::after {
+  opacity: 0;
+  animation: none;
 }
 
 .fitmanager-ai-panel {
@@ -365,9 +404,14 @@
   .fitmanager-ai-robot__eye-glow,
   .fitmanager-ai-robot__core,
   .fitmanager-ai-robot__core-halo,
-  .fitmanager-ai-robot__antenna {
+  .fitmanager-ai-robot__antenna,
+  .fitmanager-ai-robot__base-ring {
     animation: none !important;
     transition: none !important;
+  }
+  .fitmanager-ai-floating-button::after {
+    animation: none !important;
+    opacity: 0;
   }
   .fitmanager-ai-panel {
     animation: none !important;

@@ -136,9 +136,15 @@ export interface Database {
         Relationships: []
       }
       inventory: {
-        Row: { id: string; organization_id: string; name: string; category: string | null; quantity: number; stock_initial: number; unit: string | null; min_stock: number | null; price: number | null; supplier_id: string | null; product_id: string | null; equipment_id: string | null; image_url: string | null; created_at: string }
-        Insert: { id?: string; organization_id: string; name: string; category?: string | null; quantity?: number; stock_initial?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; product_id?: string | null; equipment_id?: string | null; image_url?: string | null; created_at?: string }
-        Update: { id?: string; organization_id?: string; name?: string; category?: string | null; quantity?: number; stock_initial?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; product_id?: string | null; equipment_id?: string | null; image_url?: string | null; created_at?: string }
+        Row: { id: string; organization_id: string; name: string; category: string | null; quantity: number; stock_initial: number; unit: string | null; min_stock: number | null; price: number | null; supplier_id: string | null; product_id: string | null; equipment_id: string | null; consumable_id: string | null; image_url: string | null; created_at: string }
+        Insert: { id?: string; organization_id: string; name: string; category?: string | null; quantity?: number; stock_initial?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; product_id?: string | null; equipment_id?: string | null; consumable_id?: string | null; image_url?: string | null; created_at?: string }
+        Update: { id?: string; organization_id?: string; name?: string; category?: string | null; quantity?: number; stock_initial?: number; unit?: string | null; min_stock?: number | null; price?: number | null; supplier_id?: string | null; product_id?: string | null; equipment_id?: string | null; consumable_id?: string | null; image_url?: string | null; created_at?: string }
+        Relationships: []
+      }
+      consumables: {
+        Row: { id: string; organization_id: string; name: string; category: 'entretien' | 'hygiene' | 'sanitaire' | 'bureau' | 'securite' | 'autre'; brand: string | null; unit: string | null; quantity: number; min_stock: number; cost: number | null; supplier_id: string | null; image_url: string | null; notes: string | null; is_active: boolean; created_at: string }
+        Insert: { id?: string; organization_id: string; name: string; category?: 'entretien' | 'hygiene' | 'sanitaire' | 'bureau' | 'securite' | 'autre'; brand?: string | null; unit?: string | null; quantity?: number; min_stock?: number; cost?: number | null; supplier_id?: string | null; image_url?: string | null; notes?: string | null; is_active?: boolean; created_at?: string }
+        Update: { id?: string; organization_id?: string; name?: string; category?: 'entretien' | 'hygiene' | 'sanitaire' | 'bureau' | 'securite' | 'autre'; brand?: string | null; unit?: string | null; quantity?: number; min_stock?: number; cost?: number | null; supplier_id?: string | null; image_url?: string | null; notes?: string | null; is_active?: boolean; created_at?: string }
         Relationships: []
       }
       stock_movements: {
@@ -268,9 +274,9 @@ export interface Database {
         Relationships: []
       }
       investments: {
-        Row: { id: string; organization_id: string; category: 'produits' | 'materiel' | 'travaux' | 'amenagement' | 'logiciels' | 'marketing' | 'publicite' | 'formation' | 'autres'; description: string; amount: number; investment_date: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string }
-        Insert: { id?: string; organization_id: string; category: 'produits' | 'materiel' | 'travaux' | 'amenagement' | 'logiciels' | 'marketing' | 'publicite' | 'formation' | 'autres'; description?: string; amount?: number; investment_date?: string; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
-        Update: { id?: string; organization_id?: string; category?: 'produits' | 'materiel' | 'travaux' | 'amenagement' | 'logiciels' | 'marketing' | 'publicite' | 'formation' | 'autres'; description?: string; amount?: number; investment_date?: string; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
+        Row: { id: string; organization_id: string; category: 'produits' | 'materiel' | 'travaux' | 'amenagement' | 'logiciels' | 'marketing' | 'publicite' | 'formation' | 'consommables' | 'autres'; description: string; amount: number; investment_date: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; organization_id: string; category: 'produits' | 'materiel' | 'travaux' | 'amenagement' | 'logiciels' | 'marketing' | 'publicite' | 'formation' | 'consommables' | 'autres'; description?: string; amount?: number; investment_date?: string; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; organization_id?: string; category?: 'produits' | 'materiel' | 'travaux' | 'amenagement' | 'logiciels' | 'marketing' | 'publicite' | 'formation' | 'consommables' | 'autres'; description?: string; amount?: number; investment_date?: string; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
         Relationships: []
       }
       profitability_objectives: {
@@ -320,6 +326,7 @@ export type StaffLeave = Tables<'staff_leaves'>
 export type Equipment = Tables<'equipment'>
 export type EquipmentReservation = Tables<'equipment_reservations'>
 export type Inventory = Tables<'inventory'>
+export type Consumable = Tables<'consumables'>
 export type Supplier = Tables<'suppliers'>
 export type PurchaseOrder = Tables<'purchase_orders'>
 export type Product = Tables<'products'>
@@ -337,6 +344,7 @@ export type RfidReadLog = Tables<'rfid_read_logs'>
 export type TurnstileStatus = Tables<'turnstile_status'>
 export type ManualValidation = Tables<'manual_validations'>
 export type Expense = Tables<'expenses'>
+export type Investment = Tables<'investments'>
 export type StaffSalaryPayment = Tables<'staff_salary_payments'>
 export type PaymentChange = Tables<'payment_changes'>
 export type WhatsappOutbox = Tables<'whatsapp_outbox'>

@@ -6,6 +6,7 @@ import KpiCards from "./components/kpi-cards"
 import { RevenueSection } from "./components/revenue-section"
 import { ProfitSection } from "./components/profit-section"
 import { InvestmentSection } from "./components/investment-section"
+import { InvestmentManager } from "./components/investment-manager"
 import { ProfitabilityBreakdown } from "./components/profitability-breakdown"
 import { ForecastsSection } from "./components/forecasts-section"
 import { ObjectivesSection } from "./components/objectives-section"
@@ -131,6 +132,8 @@ export default function RentabilitePage() {
             roiData={data.roiData}
             t={t}
           />
+
+          <InvestmentManager orgId={orgId} t={t} />
 
           <ChartsSection
             monthlyRevenue={data.monthlyRevenue}
