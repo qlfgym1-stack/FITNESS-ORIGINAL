@@ -224,6 +224,161 @@
   }
 }
 
+/* ===== Robot IA flottant ===== */
+.fitmanager-ai-floating-button {
+  position: fixed;
+  z-index: 60;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  cursor: grab;
+  touch-action: none;
+  will-change: transform, left, top;
+  animation: fitmanager-ai-float 3.6s ease-in-out infinite;
+}
+.fitmanager-ai-floating-button:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.8);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+.fitmanager-ai-floating-button.is-dragging {
+  cursor: grabbing;
+  animation-play-state: paused;
+}
+.fitmanager-ai-floating-button.is-dragging .fitmanager-ai-robot {
+  animation-play-state: paused;
+}
+
+@media (min-width: 640px) {
+  .fitmanager-ai-floating-button { width: 54px; height: 54px; }
+}
+@media (min-width: 1024px) {
+  .fitmanager-ai-floating-button { width: 56px; height: 56px; }
+}
+
+@keyframes fitmanager-ai-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* SVG robot : seul lui a un glow léger */
+.fitmanager-ai-robot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 4px 14px rgba(37, 99, 235, 0.35));
+  animation: fitmanager-ai-robot-float 3.6s ease-in-out infinite;
+}
+@keyframes fitmanager-ai-robot-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* Yeux : suivent le curseur (--eye-x/--eye-y), clignent (--eye-blink) */
+.fitmanager-ai-eyes {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: translate(calc(var(--eye-x, 0) * 1px), calc(var(--eye-y, 0) * 1px)) scaleY(var(--eye-blink, 1));
+  transition: transform 0.06s linear;
+  will-change: transform;
+}
+.fitmanager-ai-floating-button.gaze-return .fitmanager-ai-eyes,
+.fitmanager-ai-robot--gaze-return .fitmanager-ai-eyes {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fitmanager-ai-robot__eye {
+  fill: #dbeafe;
+}
+.fitmanager-ai-robot__eye-glow {
+  animation: fitmanager-ai-eye-glow 3.4s ease-in-out infinite;
+}
+@keyframes fitmanager-ai-eye-glow {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+/* Thinking : pulsation des yeux + glow subtil */
+.fitmanager-ai-floating-button.is-thinking .fitmanager-ai-robot {
+  animation: fitmanager-ai-robot-pulse 1.2s ease-in-out infinite;
+}
+.fitmanager-ai-floating-button.is-thinking .fitmanager-ai-eyes {
+  animation: fitmanager-ai-eye-think 1.2s ease-in-out infinite;
+}
+@keyframes fitmanager-ai-eye-think {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+@keyframes fitmanager-ai-robot-pulse {
+  0%, 100% { filter: drop-shadow(0 4px 14px rgba(37, 99, 235, 0.35)); }
+  50% { filter: drop-shadow(0 4px 22px rgba(96, 165, 250, 0.65)); }
+}
+
+/* Responding : petite pulsation, léger glow */
+.fitmanager-ai-floating-button.is-responding .fitmanager-ai-robot {
+  animation: fitmanager-ai-robot-pulse 1.6s ease-in-out infinite;
+}
+.fitmanager-ai-floating-button.is-responding .fitmanager-ai-eyes {
+  animation: fitmanager-ai-eye-think 1.6s ease-in-out infinite;
+}
+
+/* Offline : robot grisé, yeux éteints */
+.fitmanager-ai-floating-button.is-offline .fitmanager-ai-robot {
+  filter: grayscale(0.9) brightness(0.85);
+}
+.fitmanager-ai-floating-button.is-offline .fitmanager-ai-eyes {
+  opacity: 0.5;
+}
+
+.fitmanager-ai-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 106px;
+  z-index: 60;
+  width: min(400px, calc(100vw - 32px));
+  max-height: min(580px, calc(100vh - 130px));
+  display: flex;
+  flex-direction: column;
+  animation: fitmanager-ai-pop 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes fitmanager-ai-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.fitmanager-ai-panel__card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1rem;
+}
+.fitmanager-ai-panel__orb-mini {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fitmanager-ai-floating-button,
+  .fitmanager-ai-robot,
+  .fitmanager-ai-robot__eye,
+  .fitmanager-ai-robot__eye-glow,
+  .fitmanager-ai-robot__core,
+  .fitmanager-ai-robot__core-halo,
+  .fitmanager-ai-robot__antenna {
+    animation: none !important;
+    transition: none !important;
+  }
+  .fitmanager-ai-panel {
+    animation: none !important;
+  }
+}
+
 /* Scrollbar styling */
 html {
   scroll-behavior: smooth;

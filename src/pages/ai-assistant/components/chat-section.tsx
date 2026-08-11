@@ -1,21 +1,17 @@
 import { useState, useRef, useEffect } from "react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useSupabase } from "@/hooks/useSupabase"
+import { useAiChat } from "@/stores/ai-chat"
 import { Bot, User, Loader2, Send, AlertTriangle, Sparkles } from "lucide-react"
 import type { AssistantData } from "../hooks/types"
 
 interface ChatSectionProps {
   data: AssistantData
   t: (key: string) => string
+  embedded?: boolean
 }
 
-interface ChatMessage {
-  role: "user" | "assistant"
-  content: string
-}
-
-function buildContext(data: AssistantData): string {
+export function buildContext(data: AssistantData): string {
   const lines: string[] = []
   lines.push(`Période analysée — Chiffre d'affaires total: ${Math.round(data.totalRevenue)} DA`)
   lines.push(`Ventes au comptoir: ${Math.round(data.posRevenue)} DA · Revenus abonnements inclus`)
@@ -63,14 +59,9 @@ function buildContext(data: AssistantData): string {
   return lines.join("\n")
 }
 
-export function ChatSection({ data, t }: ChatSectionProps) {
-  const db = useSupabase()
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", content: t("aiAssistant.chatWelcome") },
-  ])
+export function ChatSection({ data, t, embedded }: ChatSectionProps) {
+  const { messages, loading, error, send } = useAiChat()
   const [input, setInput] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const context = buildContext(data)
 
@@ -78,30 +69,76 @@ export function ChatSection({ data, t }: ChatSectionProps) {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, loading])
 
-  const send = async () => {
+  const submit = async () => {
     const question = input.trim()
     if (!question || loading) return
     setInput("")
-    setError(null)
-    const userMessage: ChatMessage = { role: "user", content: question }
-    setMessages((prev) => [...prev, userMessage])
-    setLoading(true)
-    try {
-      const { data: res, error: invokeError } = await db.functions.invoke<{ content: string }>("ai-chat", {
-        body: {
-          messages: [{ role: "user", content: question }],
-          context,
-        },
-      })
-      if (invokeError) throw invokeError
-      if (!res?.content) throw new Error("Réponse vide de l'assistant")
-      setMessages((prev) => [...prev, { role: "assistant", content: res.content }])
-    } catch (err: any) {
-      setError(err?.message || "Erreur lors de l'appel à l'assistant")
-      setMessages((prev) => prev.slice(0, -1))
-    } finally {
-      setLoading(false)
-    }
+    await send(question, context)
+  }
+
+  const body = (
+    <>
+      <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-1 mb-4">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex items-start gap-2 ${m.role === "user" ? "justify-end" : ""}`}>
+            {m.role === "assistant" && <Bot className="h-5 w-5 mt-1 shrink-0 text-primary" />}
+            <div
+              className={`rounded-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[85%] ${
+                m.role === "user"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-foreground"
+              }`}
+            >
+              {m.content}
+            </div>
+            {m.role === "user" && <User className="h-5 w-5 mt-1 shrink-0 text-muted-foreground" />}
+          </div>
+        ))}
+        {loading && (
+          <div className="flex items-start gap-2">
+            <Bot className="h-5 w-5 mt-1 shrink-0 text-primary" />
+            <div className="rounded-lg px-3 py-2 text-sm bg-muted text-foreground flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t("aiAssistant.chatThinking")}
+            </div>
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 p-2 mb-3 rounded-md bg-destructive/10 text-destructive text-sm">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          submit()
+        }}
+        className="flex gap-2"
+      >
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={t("aiAssistant.chatPlaceholder")}
+          className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+        />
+        <Button type="submit" size="icon" disabled={!input.trim() || loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        </Button>
+      </form>
+    </>
+  )
+
+  if (embedded) {
+    return (
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {body}
+      </div>
+    )
   }
 
   return (
@@ -113,60 +150,7 @@ export function ChatSection({ data, t }: ChatSectionProps) {
         </CardTitle>
         <CardDescription>{t("aiAssistant.chatSubtitle")}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-1 mb-4">
-          {messages.map((m, i) => (
-            <div key={i} className={`flex items-start gap-2 ${m.role === "user" ? "justify-end" : ""}`}>
-              {m.role === "assistant" && <Bot className="h-5 w-5 mt-1 shrink-0 text-primary" />}
-              <div
-                className={`rounded-lg px-3 py-2 text-sm whitespace-pre-wrap max-w-[85%] ${
-                  m.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground"
-                }`}
-              >
-                {m.content}
-              </div>
-              {m.role === "user" && <User className="h-5 w-5 mt-1 shrink-0 text-muted-foreground" />}
-            </div>
-          ))}
-          {loading && (
-            <div className="flex items-start gap-2">
-              <Bot className="h-5 w-5 mt-1 shrink-0 text-primary" />
-              <div className="rounded-lg px-3 py-2 text-sm bg-muted text-foreground flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t("aiAssistant.chatThinking")}
-              </div>
-            </div>
-          )}
-          <div ref={endRef} />
-        </div>
-
-        {error && (
-          <div className="flex items-center gap-2 p-2 mb-3 rounded-md bg-destructive/10 text-destructive text-sm">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            {error}
-          </div>
-        )}
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            send()
-          }}
-          className="flex gap-2"
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={t("aiAssistant.chatPlaceholder")}
-            className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          <Button type="submit" size="icon" disabled={!input.trim() || loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
-        </form>
-      </CardContent>
+      <CardContent>{body}</CardContent>
     </Card>
   )
 }

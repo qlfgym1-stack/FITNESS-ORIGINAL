@@ -15,7 +15,9 @@
 
 ## Progress
 ### Done
+- **Robot IA flottant global** — `src/components/layout/ai-robot.tsx` : robot premium SVG/CSS natif (tête arrondie, visière, yeux lumineux qui suivent le curseur via pointermove+rAF `--eye-x/--eye-y`, clignement aléatoire 3-7s/120-220ms `--eye-blink`, corps + noyau central lumineux, micro-détails), conteneur totalement transparent (seul le robot a un glow), déplaçable souris/tactile (pointer events, seuil drag 5px, click ≠ drag), position mémorisée localStorage `fitmanager-ai-robot-pos` + clamp écran/resize, états idle/thinking (pulsation yeux+glow)/responding (pulsation douce, état ajouté au store `ai-chat.tsx` sans toucher à la logique)/offline (grisé), retour doux des yeux au centre au `mouseleave`, mobile sans suivi (détection `hover:fine`), responsive 50-56px, clavier (aria-label + Enter/Espace), `prefers-reduced-motion` ; panneau de chat `embedded` + données chargées paresseusement ; store partagé `src/stores/ai-chat.tsx` (`AiChatProvider` + `useAiChat`) monté dans `AppLayout` — un seul historique module ↔ robot ; `ChatSection` vers store partagé avec prop `embedded` ; CSS `.fitmanager-ai-*` dans `index.css` — `npx tsc --noEmit` ✅, `npx vitest --run` ✅ 82/82, `npx vite build` ✅
 - **Rôle super_admin fusionné dans admin** — migration 00059 : UPDATE données, contrainte CHECK sans 'super_admin', trigger `after_organization_insert` assigne 'admin', RPC seed → 'admin' ; types TS, auth store (`isSuperAdmin` retiré), sidebar (groupe superAdmin + pages super-admin/licenses supprimées), admin/users, coach-mode, checkin-dialog, Edge Functions, i18n → 'admin' ; `npx tsc --noEmit` ✅
+- **Salaire coach (fixe + variable)** — `coach_default_salary` / `coach_default_rate_per_member` dans `organizations`, page coach-portal, salaire calculé selon adhérents
 - **Sécurité CRITIQUE** — `renew_subscription` : retrait de `SECURITY DEFINER` → RLS appliqué au caller, plus de contournement possible
 - **Sécurité CRITIQUE** — `user_roles` INSERT policy : restreinte à `role IN ('staff', 'coach')` ; trigger `after_organization_insert` auto-assigne `admin` ; client-side `user_roles.insert()` supprimé de `signUp`
 - **Sécurité MEDIUM** — Recovery Edge Function : validation `!code` déplacée dans les blocs `verify`/`reset` ; `send_code` fonctionne désormais sans code
@@ -175,6 +177,8 @@
 - `src/hooks/useNetworkStatus.ts` → hook isOnline/recovering
 - `src/components/ui/offline-banner.tsx` → bannière offline/online
 - `src/components/layout/navbar.tsx` → avatar/user branchés sur useAuth, locale debug supprimé
+- `src/components/layout/ai-robot.tsx` → robot IA flottant global (orb, panneau, states idle/thinking/offline)
+- `src/stores/ai-chat.tsx` → store partagé du chat IA (AiChatProvider + useAiChat, historique unique)
 - `src/components/layout/sidebar.tsx` → avatar/user branchés sur useAuth, logout onClick signOut, items `expenses`, `assistantComptable`, `rentabilite`, `corporate`, `aiAssistant`
 - `src/pages/expenses/expenses.tsx` → CRUD Dépenses complet
 - `src/pages/assistant-comptable/assistant-comptable.tsx` → tableau de bord comptable (8 modules)
