@@ -91,7 +91,6 @@ export default function EquipmentPage() {
 
   const upsertMutation = useMutation({
     mutationFn: async (values: EquipmentForm) => {
-      const orgId = (await supabase.auth.getUser()).data.user?.id
       if (!orgId) throw new Error("No org")
       const quantityVal = Number(values.quantity)
       const base = {
@@ -114,6 +113,7 @@ export default function EquipmentPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["equipment"] })
       queryClient.invalidateQueries({ queryKey: ["equipment_reservations"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
       toast({ title: editing ? t("equipment.updated") : t("equipment.created") })
       setOpen(false)
       setEditing(null)
@@ -130,6 +130,7 @@ export default function EquipmentPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["equipment"] })
       queryClient.invalidateQueries({ queryKey: ["equipment_reservations"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
       toast({ title: t("equipment.deleted") })
       setDeleteOpen(false)
       setDeleting(null)

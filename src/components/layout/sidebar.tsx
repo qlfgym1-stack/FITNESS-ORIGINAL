@@ -33,6 +33,7 @@ import {
   ChevronRight,
   ChevronDown,
   ScrollText,
+  FileText,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -98,6 +99,7 @@ const navGroups: NavGroup[] = [
       { key: "products", icon: Package, path: "/products" },
       { key: "inventory", icon: Boxes, path: "/inventory" },
       { key: "suppliers", icon: Truck, path: "/suppliers" },
+      { key: "purchaseOrders", icon: FileText, path: "/purchase-orders" },
       { key: "materiel", icon: Wrench, path: "/materiel" },
     ],
   },

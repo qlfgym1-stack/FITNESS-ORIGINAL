@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
@@ -19,8 +19,8 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/toast"
-import { formatDateTime, toUpper } from "@/lib/utils"
-import { Plus, Edit, Trash2, ArrowUpRight, ArrowDownLeft, Loader2, Download } from "lucide-react"
+import { formatDateTime, formatDate, toUpper } from "@/lib/utils"
+import { Plus, ArrowUpRight, ArrowDownLeft, Loader2, Download, ShieldAlert } from "lucide-react"
 import type { Inventory } from "@/types/supabase"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
@@ -37,6 +37,7 @@ interface StockMovement {
   reference_type: string | null
   reference_id: string | null
   notes: string | null
+  movement_date: string
   created_at: string
   inventory?: { name: string } | null
 }
@@ -56,13 +57,11 @@ export default function StockMovementsPage() {
   const { toast } = useToast()
   const supabase = useSupabase()
   const queryClient = useQueryClient()
-  const { organization } = useAuth()
+  const { organization, roles } = useAuth()
   const orgId = organization?.id
+  const isAdmin = roles?.some((r) => r.role === "admin") === true
   const [search, setSearch] = useState("")
-  const [editing, setEditing] = useState<StockMovement | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleting, setDeleting] = useState<StockMovement | null>(null)
   const [form, setForm] = useState<StockForm>({
     inventory_id: "", type: "in", quantity: 1, reason: "", notes: "",
   })
@@ -77,7 +76,7 @@ export default function StockMovementsPage() {
     enabled: !!orgId,
   })
 
-  const { data: movements, isLoading, isError: movementsError, error: movementsQueryError } = useQuery({
+  const { data: movements, isLoading } = useQuery({
     queryKey: ["stock_movements", orgId],
     queryFn: async () => {
       if (!orgId) return []
@@ -86,57 +85,32 @@ export default function StockMovementsPage() {
         .select("*, inventory(name)")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
+        .limit(500)
       return (data ?? []) as StockMovement[]
     },
     enabled: !!orgId,
   })
 
-  useEffect(() => {
-    if (movementsError && movementsQueryError) {
-      toast({ title: t("errors.error") || "Error", description: movementsQueryError.message, variant: "destructive" })
-    }
-  }, [movementsError, movementsQueryError])
-
-  const upsertMutation = useMutation({
+  const addMutation = useMutation({
     mutationFn: async (values: StockForm) => {
       if (!orgId) throw new Error("No organization")
-      const payload = {
-        inventory_id: values.inventory_id,
-        organization_id: orgId,
-        type: values.type,
-        quantity: Number(values.quantity),
-        reason: values.reason || null,
-        notes: values.notes || null,
-      }
-      if (editing) {
-        const { error } = await supabase.from("stock_movements").update(payload).eq("id", editing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from("stock_movements").insert(payload)
-        if (error) throw error
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["stock_movements"] })
-      queryClient.invalidateQueries({ queryKey: ["inventory"] })
-      toast({ title: editing ? t("common.updated") || "Updated" : t("common.created") || "Created" })
-      setDialogOpen(false)
-      setEditing(null)
-      setForm({ inventory_id: "", type: "in", quantity: 1, reason: "", notes: "" })
-    },
-    onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("stock_movements").delete().eq("id", id)
+      const { error } = await (supabase.rpc as any)("record_stock_movement", {
+        p_organization_id: orgId,
+        p_inventory_id: values.inventory_id,
+        p_type: values.type,
+        p_quantity: Number(values.quantity),
+        p_reason: values.reason || "ajustement",
+        p_notes: values.notes || null,
+      })
       if (error) throw error
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock_movements"] })
-      toast({ title: t("common.deleted") || "Deleted" })
-      setDeleteOpen(false)
-      setDeleting(null)
+      queryClient.invalidateQueries({ queryKey: ["inventory"] })
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+      toast({ title: t("common.created") || "Created" })
+      setDialogOpen(false)
+      setForm({ inventory_id: "", type: "in", quantity: 1, reason: "", notes: "" })
     },
     onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
   })
@@ -150,7 +124,7 @@ export default function StockMovementsPage() {
   const { page, setPage, totalPages, paginatedData: paginatedMovements } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(m => ({ product: m.inventory?.name ?? '-', type: m.type, reason: m.reason ?? '', quantity: m.quantity, date: m.created_at, notes: m.notes ?? '' })),
+    filtered.map(m => ({ product: m.inventory?.name ?? '-', type: m.type, reason: m.reason ?? '', quantity: m.quantity, date: m.movement_date, notes: m.notes ?? '' })),
     'stock-movements',
     [
       { key: 'product', label: t('stock.product') || 'Product' },
@@ -163,14 +137,7 @@ export default function StockMovementsPage() {
   )
 
   function openCreate() {
-    setEditing(null)
     setForm({ inventory_id: "", type: "in", quantity: 1, reason: "", notes: "" })
-    setDialogOpen(true)
-  }
-
-  function openEdit(m: StockMovement) {
-    setEditing(m)
-    setForm({ inventory_id: m.inventory_id, type: m.type, quantity: m.quantity, reason: m.reason ?? "", notes: m.notes ?? "" })
     setDialogOpen(true)
   }
 
@@ -182,7 +149,7 @@ export default function StockMovementsPage() {
       })
       return
     }
-    upsertMutation.mutate(parsed.data)
+    addMutation.mutate(parsed.data)
   }
 
   const inventoryName = (m: StockMovement) => m.inventory?.name ?? "-"
@@ -198,12 +165,21 @@ export default function StockMovementsPage() {
               <Download className="mr-2 h-4 w-4" />
               {t("common.export") || "Export"}
             </Button>
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" /> {t("stock.add") || "Add Movement"}
-            </Button>
+            {isAdmin && (
+              <Button onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" /> {t("stock.add") || "Add Movement"}
+              </Button>
+            )}
           </div>
         }
       />
+
+      {!isAdmin && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <ShieldAlert className="h-4 w-4" />
+          {t("stock.readOnly") || "Lecture seule — seuls les administrateurs peuvent enregistrer des mouvements"}
+        </div>
+      )}
 
       <div className="mb-4 flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
@@ -230,19 +206,18 @@ export default function StockMovementsPage() {
               <TableHead className="text-right">{t("stock.quantity") || "Quantity"}</TableHead>
               <TableHead>{t("stock.date") || "Date"}</TableHead>
               <TableHead>{t("stock.notes") || "Notes"}</TableHead>
-              <TableHead className="text-right">{t("common.actions") || "Actions"}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
             ) : paginatedMovements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults") || "No results"}
                 </TableCell>
               </TableRow>
@@ -258,18 +233,8 @@ export default function StockMovementsPage() {
                   </TableCell>
                   <TableCell>{m.reason ? <Badge variant="secondary">{toUpper(m.reason)}</Badge> : "-"}</TableCell>
                   <TableCell className="text-right font-mono">{m.quantity}</TableCell>
-                  <TableCell>{formatDateTime(m.created_at)}</TableCell>
+                  <TableCell>{formatDate(m.movement_date)}</TableCell>
                   <TableCell className="max-w-[200px] truncate text-muted-foreground">{toUpper(m.notes ?? "")}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(m)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => { setDeleting(m); setDeleteOpen(true) }}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -281,7 +246,7 @@ export default function StockMovementsPage() {
           <p className="text-center py-8 text-muted-foreground">{t("common.noResults") || "No results"}</p>
         ) : (
           paginatedMovements.map(m => (
-              <Card key={m.id} className="p-4">
+            <Card key={m.id} className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="font-medium">{toUpper(inventoryName(m))}</span>
                 <Badge variant={m.type === "in" ? "default" : "destructive"} className="gap-1 ml-auto">
@@ -291,26 +256,18 @@ export default function StockMovementsPage() {
               </div>
               <p className="text-sm text-muted-foreground">{t("stock.quantity") || "Qty"}: {m.quantity}</p>
               {m.reason && <p className="text-sm text-muted-foreground">{t("stock.reason") || "Motif"}: {toUpper(m.reason)}</p>}
-              <p className="text-sm text-muted-foreground">{formatDateTime(m.created_at)}</p>
+              <p className="text-sm text-muted-foreground">{formatDate(m.movement_date)}</p>
               {m.notes && <p className="text-sm text-muted-foreground truncate">{toUpper(m.notes)}</p>}
-              <div className="flex justify-end gap-1 mt-2">
-                <Button variant="ghost" size="icon" onClick={() => openEdit(m)}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => { setDeleting(m); setDeleteOpen(true) }}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
             </Card>
           ))
         )}
       </div>
       <Pagination page={page} totalPages={totalPages} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
 
-      <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditing(null); setForm({ inventory_id: "", type: "in", quantity: 1, notes: "" }) } }}>
+      <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setForm({ inventory_id: "", type: "in", quantity: 1, notes: "" }) }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? t("stock.edit") || "Edit Movement" : t("stock.add") || "Add Movement"}</DialogTitle>
+            <DialogTitle>{t("stock.add") || "Add Movement"}</DialogTitle>
             <DialogDescription>{t("stock.formDescription") || "Record a stock movement"}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -369,28 +326,10 @@ export default function StockMovementsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDialogOpen(false); setEditing(null) }}>{t("common.cancel") || "Cancel"}</Button>
-            <Button onClick={handleSave} disabled={upsertMutation.isPending}>
-              {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel") || "Cancel"}</Button>
+            <Button onClick={handleSave} disabled={addMutation.isPending}>
+              {addMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t("common.save") || "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("common.confirm") || "Confirm Delete"}</DialogTitle>
-            <DialogDescription>
-              {t("stock.confirmDelete") || "Are you sure you want to delete this stock movement?"} <strong>{toUpper(deleting?.inventory?.name ?? "")}</strong>? {t("common.cannotUndo") || "This action cannot be undone."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setDeleteOpen(false); setDeleting(null) }}>{t("common.cancel") || "Cancel"}</Button>
-            <Button variant="destructive" onClick={() => deleting && deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t("common.delete") || "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -22,12 +22,14 @@ import {
   Form, FormField, FormItem, FormLabel, FormControl, FormMessage,
 } from "@/components/ui/form"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { toUpper, formatCurrency } from "../../lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Package, Plus, Search, Edit, Trash2, Loader2, Download, Upload, Camera, ImageIcon, X, DollarSign, ShoppingCart, TrendingUp,
+  ArrowDownToLine, ArrowUpFromLine,
 } from "lucide-react"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
@@ -80,6 +82,10 @@ export default function ProductsPage() {
   const [imageUploading, setImageUploading] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [importData, setImportData] = useState<any[]>([])
+  const [stockProduct, setStockProduct] = useState<Product | null>(null)
+  const [stockDialogOpen, setStockDialogOpen] = useState(false)
+  const [stockMode, setStockMode] = useState<"add" | "out">("add")
+  const [stockForm, setStockForm] = useState({ quantity: 1, unit_price: "", supplier_id: "", reference: "", movement_date: "", notes: "" })
   const fileRef = useRef<HTMLInputElement>(null)
   const importFileRef = useRef<HTMLInputElement>(null)
   const nav = useNavigate()
@@ -161,6 +167,7 @@ export default function ProductsPage() {
         return
       }
       queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
       toast({ title: `${products.length} produit(s) importé(s)${skipped ? ` (${skipped} ignoré(s) sans nom)` : ''}` })
       setImportDialogOpen(false)
       setImportData([])
@@ -200,6 +207,58 @@ export default function ProductsPage() {
   const form = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
     defaultValues: { name: "", category: "", brand: "", sku: "", reference: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true },
+  })
+
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ["suppliers", orgId],
+    queryFn: async (): Promise<{ id: string; name: string }[]> => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("suppliers")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .order("name")
+      return (data ?? []) as { id: string; name: string }[]
+    },
+    enabled: !!orgId,
+  })
+
+  const stockMutation = useMutation({
+    mutationFn: async () => {
+      if (!orgId || !stockProduct) throw new Error("No product")
+      if (stockForm.quantity <= 0) throw new Error("Quantity must be at least 1")
+      if (stockMode === "add") {
+        const { error } = await (supabase.rpc as any)("record_product_stock_add", {
+          p_product_id: stockProduct.id,
+          p_quantity: Number(stockForm.quantity),
+          p_unit_price: stockForm.unit_price ? Number(stockForm.unit_price) : null,
+          p_supplier_id: stockForm.supplier_id || null,
+          p_reference: stockForm.reference || null,
+          p_movement_date: stockForm.movement_date || undefined,
+          p_notes: stockForm.notes || null,
+        })
+        if (error) throw error
+      } else {
+        const { error } = await (supabase.rpc as any)("record_product_stock_out", {
+          p_product_id: stockProduct.id,
+          p_quantity: Number(stockForm.quantity),
+          p_reason: stockForm.notes || "ajustement",
+          p_notes: stockForm.reference || null,
+        })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory"] })
+      queryClient.invalidateQueries({ queryKey: ["stock_movements"] })
+      queryClient.invalidateQueries({ queryKey: ["product-expenses"] })
+      toast({ title: stockMode === "add" ? (t("products.stockAdded") || "Stock ajouté") : (t("products.stockOutDone") || "Sortie enregistrée") })
+      setStockDialogOpen(false)
+      setStockProduct(null)
+      setStockForm({ quantity: 1, unit_price: "", supplier_id: "", reference: "", movement_date: "", notes: "" })
+    },
+    onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
   })
 
   const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort() as string[]
@@ -266,11 +325,13 @@ export default function ProductsPage() {
         reference: values.reference || null,
         price: values.price,
         cost: values.cost || null,
-        stock: values.stock || null,
         barcode: values.barcode || null,
         image_url: values.image_url || null,
         is_active: values.is_active,
       }
+      // Le stock n'est JAMAIS modifié à l'édition (ledger obligatoire) :
+      // les variations passent par les RPC record_product_stock_add/out.
+      if (!editing) payload.stock = values.stock || null
       if (editing) {
         const { error } = await supabase.from("products").update(payload).eq("id", editing.id)
         if (error) throw error
@@ -281,6 +342,7 @@ export default function ProductsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
       toast({ title: editing ? t("common.updated") || "Updated" : t("common.created") || "Created" })
       setDialogOpen(false)
       setEditing(null)
@@ -296,6 +358,7 @@ export default function ProductsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
       toast({ title: t("common.deleted") || "Deleted" })
       setDeleteOpen(false)
       setDeleting(null)
@@ -311,6 +374,7 @@ export default function ProductsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory", orgId] })
       toast({ title: 'Tous les produits ont été supprimés' })
       setClearAllOpen(false)
     },
@@ -571,6 +635,12 @@ export default function ProductsPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" title={t("products.stockAdd") || "Rajouter du stock"} onClick={() => { setStockMode("add"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: item.cost ? String(item.cost) : "", supplier_id: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
+                      <ArrowDownToLine className="h-4 w-4 text-emerald-600" />
+                    </Button>
+                    <Button variant="ghost" size="icon" title={t("products.stockOut") || "Sortie / ajustement"} onClick={() => { setStockMode("out"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: "", supplier_id: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
+                      <ArrowUpFromLine className="h-4 w-4 text-destructive" />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -618,6 +688,12 @@ export default function ProductsPage() {
               </p>
               {item.barcode && <p className="text-xs text-muted-foreground font-mono mt-1">{t("products.barcode") || "Barcode"}: {item.barcode}</p>}
               <div className="flex justify-end gap-1 mt-2">
+                <Button variant="ghost" size="icon" title={t("products.stockAdd") || "Rajouter du stock"} onClick={() => { setStockMode("add"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: item.cost ? String(item.cost) : "", supplier_id: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
+                  <ArrowDownToLine className="h-4 w-4 text-emerald-600" />
+                </Button>
+                <Button variant="ghost" size="icon" title={t("products.stockOut") || "Sortie / ajustement"} onClick={() => { setStockMode("out"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: "", supplier_id: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
+                  <ArrowUpFromLine className="h-4 w-4 text-destructive" />
+                </Button>
                 <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                   <Edit className="h-4 w-4" />
                 </Button>
@@ -760,7 +836,9 @@ export default function ProductsPage() {
                 <FormField control={form.control} name="stock" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("products.stock") || "Stock"}</FormLabel>
-                    <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                    <FormControl>
+                      <Input type="number" min={0} readOnly={!!editing} className={editing ? "opacity-60 cursor-not-allowed" : ""} {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -877,6 +955,90 @@ export default function ProductsPage() {
             <Button variant="destructive" onClick={() => clearAllMutation.mutate()} disabled={clearAllMutation.isPending}>
               {clearAllMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Supprimer tout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {stockMode === "add"
+                ? (t("products.stockAddTitle") || "Rajouter du stock")
+                : (t("products.stockOutTitle") || "Sortie de stock")}
+            </DialogTitle>
+            <DialogDescription>
+              {toUpper(stockProduct?.name ?? "")} — {t("products.stock") || "Stock"}: {stockProduct?.stock ?? 0}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>{t("products.quantity") || "Quantité"}</Label>
+                <Input type="number" min={1} value={stockForm.quantity}
+                  onChange={(e) => setStockForm((f) => ({ ...f, quantity: Number(e.target.value) }))} />
+              </div>
+              {stockMode === "add" && (
+                <div className="grid gap-2">
+                  <Label>{t("products.cost") || "Coût unitaire (DA)"}</Label>
+                  <Input type="number" min={0} value={stockForm.unit_price}
+                    onChange={(e) => setStockForm((f) => ({ ...f, unit_price: e.target.value }))} />
+                </div>
+              )}
+            </div>
+            {stockMode === "add" && (
+              <>
+                <div className="grid gap-2">
+                  <Label>{t("products.supplier") || "Fournisseur"}</Label>
+                  <Select value={stockForm.supplier_id} onValueChange={(v) => setStockForm((f) => ({ ...f, supplier_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder={t("products.selectSupplier") || "Sélectionner un fournisseur"} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">—</SelectItem>
+                      {suppliers.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{toUpper(s.name)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>{t("products.reference") || "Référence"}</Label>
+                    <Input value={stockForm.reference} placeholder="BC-0001 / facture…"
+                      onChange={(e) => setStockForm((f) => ({ ...f, reference: e.target.value }))} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>{t("products.movementDate") || "Date"}</Label>
+                    <Input type="date" value={stockForm.movement_date}
+                      onChange={(e) => setStockForm((f) => ({ ...f, movement_date: e.target.value }))} />
+                  </div>
+                </div>
+              </>
+            )}
+            <div className="grid gap-2">
+              <Label>{stockMode === "add" ? (t("products.notes") || "Notes") : (t("stock.reason") || "Motif")}</Label>
+              {stockMode === "add" ? (
+                <Input value={stockForm.notes}
+                  onChange={(e) => setStockForm((f) => ({ ...f, notes: e.target.value }))} />
+              ) : (
+                <Select value={stockForm.notes} onValueChange={(v) => setStockForm((f) => ({ ...f, notes: v }))}>
+                  <SelectTrigger><SelectValue placeholder={t("stock.selectReason") || "Sélectionner un motif"} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="perte">{t("stock.reasonPerte") || "Perte"}</SelectItem>
+                    <SelectItem value="casse">{t("stock.reasonCasse") || "Casse"}</SelectItem>
+                    <SelectItem value="ajustement">{t("stock.reasonAjustement") || "Ajustement"}</SelectItem>
+                    <SelectItem value="inventaire">{t("stock.reasonInventaire") || "Inventaire"}</SelectItem>
+                    <SelectItem value="transfert">{t("stock.reasonTransfert") || "Transfert"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStockDialogOpen(false)}>{t("common.cancel") || "Cancel"}</Button>
+            <Button onClick={() => stockMutation.mutate()} disabled={stockMutation.isPending}>
+              {stockMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {stockMode === "add" ? (t("common.confirm") || "Confirmer") : (t("common.confirm") || "Confirmer")}
             </Button>
           </DialogFooter>
         </DialogContent>
