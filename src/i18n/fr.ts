@@ -649,6 +649,13 @@ const fr = {
     endDate: "Date de fin",
     save: "Enregistrer",
     subscriptionUpdated: "Abonnement mis à jour",
+    abonnement: "Abonnement",
+    addSubscription: "Ajouter un abonnement",
+    addSubscriptionDesc: "Choisissez le type d'abonnement et la date de début pour le membre sélectionné",
+    selectMemberFirst: "Sélectionnez un membre pour ajouter un abonnement",
+    pendingSubExists: "L'abonnement en attente de ce membre est déjà au panier",
+    subscriptionCreated: "Abonnement ajouté au panier",
+    noSubscriptionTypes: "Aucun type d'abonnement disponible",
   },
   corporate: {
     title: "Conventions",

@@ -642,6 +642,13 @@ const en = {
     endDate: "End date",
     save: "Save",
     subscriptionUpdated: "Subscription updated",
+    abonnement: "Subscription",
+    addSubscription: "Add a subscription",
+    addSubscriptionDesc: "Choose the subscription type and start date for the selected member",
+    selectMemberFirst: "Select a member to add a subscription",
+    pendingSubExists: "This member's pending subscription is already in the cart",
+    subscriptionCreated: "Subscription added to cart",
+    noSubscriptionTypes: "No subscription types available",
   },
   corporate: {
     title: "Conventions",

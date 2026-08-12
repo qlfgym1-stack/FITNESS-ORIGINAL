@@ -303,7 +303,7 @@ export default function POSPage() {
     try { return new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).formatToParts(0).find(p => p.type === 'currency')?.value || 'DA' } catch { return 'DA' }
   }, [])
 
-  const CATEGORIES = ["snacks", "boissons", "complements", "vetements", "equipement"]
+  const CATEGORIES = ["snacks", "boissons", "complements", "vetements", "equipement", "abonnement"]
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("snacks")
   const [cart, setCart] = useState<CartItem[]>([])
@@ -322,6 +322,9 @@ export default function POSPage() {
   const [editSubId, setEditSubId] = useState<string | null>(null)
   const [editSubTypeId, setEditSubTypeId] = useState("")
   const [editSubStartDate, setEditSubStartDate] = useState("")
+  const [newSubOpen, setNewSubOpen] = useState(false)
+  const [newSubTypeId, setNewSubTypeId] = useState("")
+  const [newSubStartDate, setNewSubStartDate] = useState("")
 
   const { data: products, isLoading, isError: productsError, error: productsQueryError } = useQuery({
     queryKey: ["products"],
@@ -475,8 +478,8 @@ export default function POSPage() {
       if (IS_MOCK) return []
       const orgId = organization?.id
       if (!orgId) return []
-      const { data } = await supabase.from("subscription_types").select("id, name, price, duration_days").eq("organization_id", orgId).order("name")
-      return (data as { id: string; name: string; price: number; duration_days: number }[]) ?? []
+      const { data } = await supabase.from("subscription_types").select("id, name, price, duration_days, is_drop_in").eq("organization_id", orgId).order("name")
+      return (data as { id: string; name: string; price: number; duration_days: number; is_drop_in?: boolean | null }[]) ?? []
     },
     enabled: !IS_MOCK && !!organization?.id,
   })
@@ -653,6 +656,69 @@ export default function POSPage() {
     },
     onError: (err) => toast({ variant: "destructive", title: t("errors.generic"), description: err.message }),
   })
+
+  // --- Création d'un abonnement en attente pour le membre sélectionné ---
+  const newSubscriptionType = useMemo(() => {
+    return subscriptionTypes?.find(t => t.id === newSubTypeId) ?? null
+  }, [subscriptionTypes, newSubTypeId])
+
+  const newSubscriptionEndDate = useMemo(() => {
+    if (!newSubscriptionType || !newSubStartDate) return ""
+    const d = new Date(newSubStartDate)
+    d.setDate(d.getDate() + newSubscriptionType.duration_days)
+    return d.toISOString().split("T")[0]
+  }, [newSubscriptionType, newSubStartDate])
+
+  const createPendingSubMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedMemberId || !newSubTypeId || !newSubStartDate || !organization?.id) throw new Error("Missing data")
+      if (IS_MOCK) {
+        const subId = `mock-ps-${crypto.randomUUID()}`
+        return {
+          member_id: selectedMemberId,
+          subscription_id: subId,
+          total_amount: newSubscriptionType?.price ?? 0,
+          subscription_name: newSubscriptionType?.name ?? "",
+          organization_id: organization.id,
+          first_name: members?.find(m => m.id === selectedMemberId)?.first_name ?? "",
+          last_name: members?.find(m => m.id === selectedMemberId)?.last_name ?? "",
+        }
+      }
+      const { data, error } = await (supabase.rpc as any)("create_pending_subscription", {
+        p_organization_id: organization.id,
+        p_member_id: selectedMemberId,
+        p_subscription_type_id: newSubTypeId,
+        p_start_date: newSubStartDate,
+      })
+      if (error) throw error
+      return data as PendingSubscriptionInfo
+    },
+    onSuccess: (data) => {
+      setNewSubOpen(false)
+      setPendingSub(data)
+      queryClient.invalidateQueries({ queryKey: ["pos-pending-subscriptions", organization?.id] })
+      toast({ title: t("pos.subscriptionCreated") })
+    },
+    onError: (err) => toast({ variant: "destructive", title: t("errors.generic"), description: err.message }),
+  })
+
+  function openNewSubscription(typeId: string) {
+    if (!selectedMemberId) {
+      toast({ title: t("pos.selectMemberFirst"), variant: "destructive" })
+      return
+    }
+    if (selectedPendingSub && !selectedPendingSubInCart) {
+      addPendingSubToCart()
+      return
+    }
+    if (selectedPendingSubInCart) {
+      toast({ title: t("pos.pendingSubExists") })
+      return
+    }
+    setNewSubTypeId(typeId)
+    setNewSubStartDate(new Date().toISOString().split("T")[0])
+    setNewSubOpen(true)
+  }
 
   const total = Math.max(0, subtotal - discountValue - corporateDiscount)
   const change = amountGiven != null && amountGiven >= total ? amountGiven - total : 0
@@ -893,6 +959,45 @@ export default function POSPage() {
 
           {isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
+          ) : category === "abonnement" ? (
+            <div>
+              {!selectedMemberId && (
+                <Card className="mb-3 border-dashed bg-accent/40">
+                  <CardContent className="p-3 flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <p className="text-xs text-muted-foreground">{t("pos.selectMemberFirst")}</p>
+                  </CardContent>
+                </Card>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {subscriptionTypes?.filter(st => !st.is_drop_in).map(st => (
+                  <Card
+                    key={st.id}
+                    className="cursor-pointer hover:border-primary transition-colors border-dashed bg-primary/5"
+                    onClick={() => openNewSubscription(st.id)}
+                  >
+                    <CardContent className="p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <CreditCard className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{toUpper(st.name)}</p>
+                          <p className="text-[10px] text-muted-foreground">{st.duration_days} {t("subscriptions.days")}</p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-lg font-bold text-primary">{formatCurrency(st.price)}</p>
+                        <p className="text-[10px] text-muted-foreground">{t("pos.addSubscription")}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {subscriptionTypes?.filter(st => !st.is_drop_in).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8 col-span-2">{t("pos.noSubscriptionTypes")}</p>
+                )}
+              </div>
+            </div>
           ) : (
             <>
             {dropInType && (
@@ -1106,6 +1211,65 @@ export default function POSPage() {
             <Button onClick={() => updatePendingSubMutation.mutate()} disabled={updatePendingSubMutation.isPending || !editSubTypeId || !editSubStartDate}>
               {updatePendingSubMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t("pos.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ajouter un abonnement au membre sélectionné */}
+      <Dialog open={newSubOpen} onOpenChange={setNewSubOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("pos.addSubscription")}</DialogTitle>
+            <DialogDescription>{t("pos.addSubscriptionDesc")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <User className="h-4 w-4" />
+              {selectedMemberDetails ? `${toUpper(selectedMemberDetails.first_name)} ${toUpper(selectedMemberDetails.last_name)}` : selectedMemberId}
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t("pos.subscriptionType")}</label>
+              <Select value={newSubTypeId} onValueChange={setNewSubTypeId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {subscriptionTypes?.filter(st => !st.is_drop_in).map(st => (
+                    <SelectItem key={st.id} value={st.id}>
+                      {st.name} — {formatCurrency(st.price)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t("pos.startDate")}</label>
+              <Input
+                type="date"
+                value={newSubStartDate}
+                onChange={e => setNewSubStartDate(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            {newSubscriptionType && newSubStartDate && (
+              <div className="flex justify-between text-sm p-2 rounded-md bg-muted">
+                <span className="text-muted-foreground">{t("pos.endDate")}</span>
+                <span className="font-medium">{newSubscriptionEndDate || "—"}</span>
+              </div>
+            )}
+            {newSubscriptionType && (
+              <div className="flex justify-between text-sm p-2 rounded-md bg-muted">
+                <span className="text-muted-foreground">{t("pos.total")}</span>
+                <span className="font-semibold">{formatCurrency(newSubscriptionType.price)}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewSubOpen(false)}>{t("pos.cancel")}</Button>
+            <Button onClick={() => createPendingSubMutation.mutate()} disabled={createPendingSubMutation.isPending || !newSubTypeId || !newSubStartDate}>
+              {createPendingSubMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("pos.addSubscription")}
             </Button>
           </DialogFooter>
         </DialogContent>

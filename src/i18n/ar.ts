@@ -587,6 +587,13 @@ const ar = {
     endDate: "تاريخ النهاية",
     save: "حفظ",
     subscriptionUpdated: "تم تحديث الاشتراك",
+    abonnement: "اشتراك",
+    addSubscription: "إضافة اشتراك",
+    addSubscriptionDesc: "اختر نوع الاشتراك وتاريخ البداية للعضو المحدد",
+    selectMemberFirst: "حدد عضواً لإضافة اشتراك",
+    pendingSubExists: "اشتراك هذا العضو المعلق موجود بالفعل في السلة",
+    subscriptionCreated: "تمت إضافة الاشتراك إلى السلة",
+    noSubscriptionTypes: "لا توجد أنواع اشتراك متاحة",
   },
   corporate: {
     title: "الاتفاقيات",
