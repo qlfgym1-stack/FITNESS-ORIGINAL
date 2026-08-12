@@ -88,7 +88,7 @@ export default function ConsommablesPage() {
   const [moving, setMoving] = useState<Consumable | null>(null)
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
-  const [movementForm, setMovementForm] = useState({ type: "in" as "in" | "out", quantity: 1, reason: "achat", notes: "" })
+  const [movementForm, setMovementForm] = useState({ type: "in" as "in" | "out", quantity: 1, reason: "achat", notes: "", unit_price: "", supplier_id: "", reference: "", movement_date: new Date().toISOString().slice(0, 10) })
 
   const form = useForm<ConsumableForm>({
     resolver: zodResolver(consumableSchema),
@@ -112,6 +112,20 @@ export default function ConsommablesPage() {
       if (!orgId) return []
       const { data } = await supabase.from("inventory").select("id, consumable_id").eq("organization_id", orgId).not("consumable_id", "is", null)
       return (data ?? []) as { id: string; consumable_id: string }[]
+    },
+    enabled: !!orgId,
+  })
+
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ["suppliers", orgId],
+    queryFn: async (): Promise<{ id: string; name: string }[]> => {
+      if (!orgId) return []
+      const { data } = await supabase
+        .from("suppliers")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .order("name")
+      return (data ?? []) as { id: string; name: string }[]
     },
     enabled: !!orgId,
   })
@@ -192,7 +206,7 @@ export default function ConsommablesPage() {
   })
 
   const movementMutation = useMutation({
-    mutationFn: async ({ id, form }: { id: string; form: { type: "in" | "out"; quantity: number; reason: string; notes: string } }) => {
+    mutationFn: async ({ id, form }: { id: string; form: { type: "in" | "out"; quantity: number; reason: string; notes: string; unit_price: string; supplier_id: string; reference: string; movement_date: string } }) => {
       if (!orgId) throw new Error("No organization")
       const inventoryId = inventoryByConsumable[id]
       if (!inventoryId) throw new Error("No linked inventory record — re-save the consumable")
@@ -203,6 +217,10 @@ export default function ConsommablesPage() {
         p_quantity: Number(form.quantity),
         p_reason: form.reason || "ajustement",
         p_notes: form.notes || null,
+        p_unit_price: form.type === "in" && form.unit_price !== "" ? Number(form.unit_price) : null,
+        p_supplier_id: form.type === "in" && form.supplier_id !== "" ? form.supplier_id : null,
+        p_reference: form.type === "in" && form.reference !== "" ? form.reference : null,
+        p_movement_date: form.type === "in" && form.movement_date !== "" ? form.movement_date : new Date().toISOString().slice(0, 10),
       })
       if (error) throw error
     },
@@ -215,7 +233,7 @@ export default function ConsommablesPage() {
       toast({ title: t("common.success") || "Success" })
       setMovementOpen(false)
       setMoving(null)
-      setMovementForm({ type: "in", quantity: 1, reason: "achat", notes: "" })
+      setMovementForm({ type: "in", quantity: 1, reason: "achat", notes: "", unit_price: "", supplier_id: "", reference: "", movement_date: new Date().toISOString().slice(0, 10) })
     },
     onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
   })
@@ -246,7 +264,7 @@ export default function ConsommablesPage() {
 
   function openMovement(item: Consumable) {
     setMoving(item)
-    setMovementForm({ type: "in", quantity: 1, reason: "achat", notes: "" })
+    setMovementForm({ type: "in", quantity: 1, reason: "achat", notes: "", unit_price: "", supplier_id: "", reference: "", movement_date: new Date().toISOString().slice(0, 10) })
     setMovementOpen(true)
   }
 
@@ -582,6 +600,39 @@ export default function ConsommablesPage() {
                 <Input type="number" min={1} value={movementForm.quantity} onChange={(e) => setMovementForm((f) => ({ ...f, quantity: Number(e.target.value) }))} />
               </div>
             </div>
+            {movementForm.type === "in" && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>{t("consommables.movementUnitPrice") || "Coût unitaire (DA)"}</Label>
+                    <Input type="number" min={0} value={movementForm.unit_price}
+                      onChange={(e) => setMovementForm((f) => ({ ...f, unit_price: e.target.value }))} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>{t("consommables.movementDate") || "Date du mouvement"}</Label>
+                    <Input type="date" value={movementForm.movement_date}
+                      onChange={(e) => setMovementForm((f) => ({ ...f, movement_date: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label>{t("consommables.movementSupplier") || "Fournisseur"}</Label>
+                  <Select value={movementForm.supplier_id} onValueChange={(v) => setMovementForm((f) => ({ ...f, supplier_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder={t("products.selectSupplier") || "Sélectionner un fournisseur"} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">—</SelectItem>
+                      {suppliers.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{toUpper(s.name)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>{t("consommables.movementReference") || "Référence"}</Label>
+                  <Input value={movementForm.reference} placeholder="BC-0001 / facture…"
+                    onChange={(e) => setMovementForm((f) => ({ ...f, reference: e.target.value }))} />
+                </div>
+              </>
+            )}
             <div className="grid gap-2">
               <Label>{t("stock.reason") || "Motif"}</Label>
               <Select value={movementForm.reason} onValueChange={(v) => setMovementForm((f) => ({ ...f, reason: v }))}>

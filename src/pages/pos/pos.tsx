@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useEffect } from "react"
+﻿import React, { useState, useMemo, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
@@ -27,7 +27,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Pagination } from "@/components/ui/pagination"
 import { useToast } from "@/components/ui/toast"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, RefreshCw, Ticket, Building2, RotateCcw } from "lucide-react"
+import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, RefreshCw, Ticket, Building2, RotateCcw, Pencil } from "lucide-react"
 import type { Product, Member } from "@/types/supabase"
 import { IS_MOCK } from "@/lib/config"
 
@@ -35,6 +35,253 @@ interface CartItem {
   product: Product
   quantity: number
 }
+
+interface PendingSubscriptionInfo {
+  member_id: string
+  subscription_id: string
+  total_amount: number
+  subscription_name: string
+  organization_id: string
+  first_name: string
+  last_name: string
+}
+
+interface PendingSubRow {
+  id: string
+  member_id: string
+  subscription_type_id: string
+  start_date: string
+  end_date: string
+  total_amount: number
+  subscription_types: { name: string; price: number; duration_days: number } | null
+}
+
+interface CartPanelProps {
+  cart: CartItem[]
+  setCart: React.Dispatch<React.SetStateAction<CartItem[]>>
+  memberSearch: string
+  setMemberSearch: (v: string) => void
+  selectedMemberId: string | null
+  setSelectedMemberId: (v: string | null) => void
+  discountPercent: number | null
+  setDiscountPercent: (v: number | null) => void
+  discountAmount: number | null
+  setDiscountAmount: (v: number | null) => void
+  subtotal: number
+  total: number
+  currencySymbol: string
+  filteredMembers: { id: string; first_name: string; last_name: string; phone: string | null; member_number: string | null }[]
+  selectedCorporate: { id: string; company_name: string; discount_rate: number; is_active: boolean; contract_start: string | null; contract_end: string | null } | null
+  corporateDiscount: number
+  subscriptionSubtotal: number
+  corporateRemoved: boolean
+  setCorporateRemoved: (v: boolean) => void
+  updateQuantity: (productId: string, delta: number) => void
+  removeFromCart: (productId: string) => void
+  onEditSubscriptionItem: (productId: string) => void
+  selectedPendingSub: PendingSubRow | null
+  selectedPendingSubInCart: boolean
+  onAddPendingSub: () => void
+  isProcessing: boolean
+  mobileCartOpen: boolean
+  t: (key: string) => string
+}
+
+const CartPanel = React.memo(function CartPanel({
+  cart, setCart, memberSearch, setMemberSearch, selectedMemberId, setSelectedMemberId,
+  discountPercent, setDiscountPercent, discountAmount, setDiscountAmount,
+  subtotal, total, currencySymbol, filteredMembers, selectedCorporate,
+  corporateDiscount, subscriptionSubtotal, corporateRemoved, setCorporateRemoved,
+  updateQuantity, removeFromCart, onEditSubscriptionItem,
+  selectedPendingSub, selectedPendingSubInCart, onAddPendingSub,
+  isProcessing, mobileCartOpen, t,
+}: CartPanelProps) {
+  return (
+    <Card className={mobileCartOpen ? "border-0 rounded-none h-full" : "sticky top-4"}>
+      <CardContent className="p-4 flex flex-col h-full">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            <h3 className="font-semibold">{t("pos.cart")} ({cart.length})</h3>
+          </div>
+          {cart.length > 0 && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setCart([])}>
+              {t("pos.clearCart")}
+            </Button>
+          )}
+        </div>
+
+        <ScrollArea className="flex-1 min-h-0 mb-3">
+          {cart.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">{t("pos.emptyCart")}</p>
+          ) : (
+            <div className="space-y-2">
+              {cart.map(item => (
+                <div key={item.product.id} className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-accent/50">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      {item.product.id.startsWith("__subscription__") && <CreditCard className="h-3 w-3 text-primary shrink-0" />}
+                      {item.product.id.startsWith("__renewal__") && <RefreshCw className="h-3 w-3 text-primary shrink-0" />}
+                      {item.product.id.startsWith("__dropin__") && <Ticket className="h-3 w-3 text-primary shrink-0" />}
+                      <p className="text-sm font-medium truncate">{toUpper(item.product.name)}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{formatCurrency(item.product.price)}</p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {item.product.id.startsWith("__subscription__") || item.product.id.startsWith("__renewal__") ? (
+                      <>
+                        <Badge variant="secondary" className="text-xs">
+                          {item.product.id.startsWith("__renewal__") ? "Renouvellement" : t("pos.subscription")}
+                        </Badge>
+                        {item.product.id.startsWith("__subscription__") && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEditSubscriptionItem(item.product.id)} title={t("pos.editSubscription")}>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        )}
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.product.id)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, -1)}>
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
+                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, 1)}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.product.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+
+        <Separator className="mb-3" />
+
+        <div className="space-y-2 mb-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">{t("pos.subtotal")}</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{t("pos.discountPercent")}</span>
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                placeholder="0"
+                value={discountPercent ?? ""}
+                onChange={e => setDiscountPercent(e.target.value ? Number(e.target.value) : null)}
+                className="w-16 h-7 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{t("pos.discountAmount")}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">{currencySymbol}</span>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={discountAmount ?? ""}
+                onChange={e => setDiscountAmount(e.target.value ? Number(e.target.value) : null)}
+                className="w-20 h-7 text-xs"
+              />
+            </div>
+          </div>
+
+          {selectedCorporate && subscriptionSubtotal > 0 && (corporateDiscount > 0 || corporateRemoved) && (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Badge className="bg-emerald-600">
+                  <Building2 className="h-3 w-3" />
+                  {selectedCorporate.company_name}
+                </Badge>
+                <span className="text-xs text-emerald-700 whitespace-nowrap">{t("pos.corporateDiscount")} {Number(selectedCorporate.discount_rate ?? 0)}%</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-emerald-700">−{formatCurrency(corporateDiscount)}</span>
+                {corporateRemoved ? (
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setCorporateRemoved(false)} title={t("pos.restoreCorporate")}>
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setCorporateRemoved(true)} title={t("pos.removeCorporate")}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <Separator />
+          <div className="flex justify-between font-bold text-base">
+            <span>{t("pos.total")}</span>
+            <span>{formatCurrency(total)}</span>
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <label className="text-xs font-medium mb-1 block text-muted-foreground">{t("pos.member")}</label>
+          <Input
+            placeholder={t("pos.searchMember")}
+            value={memberSearch}
+            onChange={e => setMemberSearch(e.target.value)}
+            className="h-8 text-sm mb-1"
+          />
+          {memberSearch && (
+            <div className="max-h-[100px] overflow-y-auto border rounded-md">
+              {filteredMembers.slice(0, 5).map(m => (
+                <div
+                  key={m.id}
+                  className={`p-1.5 text-xs cursor-pointer hover:bg-accent truncate ${selectedMemberId === m.id ? "bg-accent font-medium" : ""}`}
+                  onClick={() => { setSelectedMemberId(m.id); setMemberSearch(`${toUpper(m.first_name)} ${toUpper(m.last_name)}`) }}
+                >
+                  {toUpper(m.first_name)} {toUpper(m.last_name)}
+                  <span className="text-muted-foreground ml-1">{displayPhone(m.phone)}</span>
+                  {m.member_number && <span className="text-muted-foreground ml-1 text-[10px]">({m.member_number})</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {selectedPendingSub && !selectedPendingSubInCart && (
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <CreditCard className="h-3 w-3 text-primary shrink-0" />
+              <span className="text-xs text-foreground truncate">{t("pos.pendingSubscriptionAdd")}</span>
+            </div>
+            <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onAddPendingSub}>
+              {t("pos.addPendingSubscription")}
+            </Button>
+          </div>
+        )}
+
+        <Button
+          className="w-full"
+          size="lg"
+          disabled={cart.length === 0 || isProcessing}
+        >
+          {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          {t("pos.checkout")} — {formatCurrency(total)}
+        </Button>
+      </CardContent>
+    </Card>
+  )
+})
 
 export default function POSPage() {
   const supabase = useSupabase()
@@ -44,12 +291,13 @@ export default function POSPage() {
   const { organization, user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  const pendingSub = location.state?.pendingSubscription as {
-    member_id: string; subscription_id: string; total_amount: number; subscription_name: string; organization_id: string; first_name: string; last_name: string
-  } | undefined
+  const locationPendingSub = location.state?.pendingSubscription as
+    | PendingSubscriptionInfo
+    | undefined
   const pendingRenewal = location.state?.pendingRenewal as {
     member_id: string; old_subscription_id: string; member_name: string; subscription_type_id: string; total_amount: number; start_date: string; end_date: string; organization_id: string
   } | undefined
+  const [pendingSub, setPendingSub] = useState<PendingSubscriptionInfo | null>(locationPendingSub ?? null)
 
   const currencySymbol = useMemo(() => {
     try { return new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).formatToParts(0).find(p => p.type === 'currency')?.value || 'DA' } catch { return 'DA' }
@@ -71,6 +319,9 @@ export default function POSPage() {
   const [panelProductSearch, setPanelProductSearch] = useState("")
   const [mobileCartOpen, setMobileCartOpen] = useState(false)
   const [corporateRemoved, setCorporateRemoved] = useState(false)
+  const [editSubId, setEditSubId] = useState<string | null>(null)
+  const [editSubTypeId, setEditSubTypeId] = useState("")
+  const [editSubStartDate, setEditSubStartDate] = useState("")
 
   const { data: products, isLoading, isError: productsError, error: productsQueryError } = useQuery({
     queryKey: ["products"],
@@ -110,28 +361,38 @@ export default function POSPage() {
   }, [productsError, productsQueryError])
 
   useEffect(() => {
-    if (pendingSub) {
+    if (locationPendingSub) {
       window.history.replaceState({}, "")
-      setCart([{
-        product: {
-          id: `__subscription__${pendingSub.subscription_id}`,
-          organization_id: pendingSub.organization_id,
-          name: pendingSub.subscription_name,
-          category: null,
-          brand: null,
-          sku: null,
-          reference: null,
-          price: pendingSub.total_amount,
-          cost: null,
-          stock: null,
-          stock_initial: 0,
-          image_url: null,
-          barcode: null,
-          is_active: true,
-          created_at: "",
-        },
-        quantity: 1,
-      }])
+      setPendingSub(locationPendingSub)
+    }
+  }, [locationPendingSub])
+
+  useEffect(() => {
+    if (pendingSub) {
+      setCart(prev => {
+        const id = `__subscription__${pendingSub.subscription_id}`
+        if (prev.some(item => item.product.id === id)) return prev
+        return [...prev, {
+          product: {
+            id,
+            organization_id: pendingSub.organization_id,
+            name: pendingSub.subscription_name,
+            category: null,
+            brand: null,
+            sku: null,
+            reference: null,
+            price: pendingSub.total_amount,
+            cost: null,
+            stock: null,
+            stock_initial: 0,
+            image_url: null,
+            barcode: null,
+            is_active: true,
+            created_at: "",
+          },
+          quantity: 1,
+        }]
+      })
       setSelectedMemberId(pendingSub.member_id)
       setMemberSearch(`${toUpper(pendingSub.first_name)} ${toUpper(pendingSub.last_name)}`)
     }
@@ -189,6 +450,37 @@ export default function POSPage() {
     },
   })
 
+  // Abonnements en attente de paiement (status pending_payment) — permet de
+  // retrouver depuis le panier un abonnement créé mais non payé (même après
+  // refresh, quand location.state a été vidé), et de le modifier avant paiement.
+  const { data: pendingSubs } = useQuery({
+    queryKey: ["pos-pending-subscriptions", organization?.id],
+    queryFn: async () => {
+      if (IS_MOCK) return []
+      const orgId = organization?.id
+      if (!orgId) return []
+      const { data } = await supabase.from("member_subscriptions")
+        .select("id, member_id, subscription_type_id, start_date, end_date, total_amount, subscription_types(name, price, duration_days)")
+        .eq("organization_id", orgId)
+        .eq("status", "pending_payment")
+      return (data as unknown as PendingSubRow[]) ?? []
+    },
+    enabled: !IS_MOCK && !!organization?.id,
+  })
+
+  // Tous les types d'abonnement (pour le dialog de modification d'un abo en attente)
+  const { data: subscriptionTypes } = useQuery({
+    queryKey: ["subscription-types-pos", organization?.id],
+    queryFn: async () => {
+      if (IS_MOCK) return []
+      const orgId = organization?.id
+      if (!orgId) return []
+      const { data } = await supabase.from("subscription_types").select("id, name, price, duration_days").eq("organization_id", orgId).order("name")
+      return (data as { id: string; name: string; price: number; duration_days: number }[]) ?? []
+    },
+    enabled: !IS_MOCK && !!organization?.id,
+  })
+
   const { data: selectedMemberDetails } = useQuery({
     queryKey: ["member_details_pos", selectedMemberId],
     queryFn: async () => {
@@ -212,6 +504,11 @@ export default function POSPage() {
   }, [products, category, search])
 
   const { page, setPage, totalPages, paginatedData: paginatedProducts } = usePagination(filteredProducts, 20)
+
+  // Réinitialise la pagination quand la catégorie ou la recherche change :
+  // sinon la page courante peut dépasser le nombre de pages de la nouvelle
+  // liste et la grille s'affiche vide.
+  useEffect(() => { setPage(0) }, [category, search])
 
   const { exportCsv } = useExportCsv(
     filteredProducts.map(p => ({ name: p.name, category: p.category ?? '', price: p.price, stock: p.stock ?? 0, barcode: p.barcode ?? '' })),
@@ -276,6 +573,87 @@ export default function POSPage() {
 
   const subscriptionPaid = Math.max(0, subscriptionSubtotal - corporateDiscount)
 
+  // Abonnement en attente du membre sélectionné (détecté depuis la base)
+  const selectedPendingSub = useMemo<PendingSubRow | null>(() => {
+    if (!selectedMemberId || !pendingSubs) return null
+    return pendingSubs.find(s => s.member_id === selectedMemberId) ?? null
+  }, [pendingSubs, selectedMemberId])
+
+  // True si l'abonnement en attente du membre sélectionné est déjà au panier
+  const selectedPendingSubInCart = useMemo(() => {
+    if (!selectedPendingSub) return false
+    return cart.some(item => item.product.id === `__subscription__${selectedPendingSub.id}`)
+  }, [cart, selectedPendingSub])
+
+  // Ajoute l'abonnement en attente au panier (à la demande, pas de surprise)
+  function addPendingSubToCart() {
+    if (!selectedPendingSub || !organization?.id) return
+    const sub = selectedPendingSub
+    setPendingSub({
+      member_id: sub.member_id,
+      subscription_id: sub.id,
+      total_amount: sub.total_amount,
+      subscription_name: sub.subscription_types?.name ?? t("pos.subscription"),
+      organization_id: organization.id,
+      first_name: members?.find(m => m.id === sub.member_id)?.first_name ?? "",
+      last_name: members?.find(m => m.id === sub.member_id)?.last_name ?? "",
+    })
+  }
+
+  function openEditSubscription(productId: string) {
+    const subId = productId.replace("__subscription__", "")
+    const sub = pendingSubs?.find(s => s.id === subId)
+    if (!sub) return
+    setEditSubId(sub.id)
+    setEditSubTypeId(sub.subscription_type_id)
+    setEditSubStartDate(sub.start_date)
+  }
+
+  const editSubscriptionType = useMemo(() => {
+    return subscriptionTypes?.find(t => t.id === editSubTypeId) ?? null
+  }, [subscriptionTypes, editSubTypeId])
+
+  const editSubscriptionEndDate = useMemo(() => {
+    if (!editSubscriptionType || !editSubStartDate) return ""
+    const d = new Date(editSubStartDate)
+    d.setDate(d.getDate() + editSubscriptionType.duration_days)
+    return d.toISOString().split("T")[0]
+  }, [editSubscriptionType, editSubStartDate])
+
+  const updatePendingSubMutation = useMutation({
+    mutationFn: async () => {
+      if (!editSubId || !editSubTypeId || !editSubStartDate || !organization?.id) throw new Error("Missing data")
+      if (IS_MOCK) {
+        return { total_amount: editSubscriptionType?.price ?? 0, subscription_name: editSubscriptionType?.name ?? "" }
+      }
+      const { data, error } = await (supabase.rpc as any)("update_pending_subscription", {
+        p_subscription_id: editSubId,
+        p_organization_id: organization.id,
+        p_member_id: selectedPendingSub?.member_id,
+        p_subscription_type_id: editSubTypeId,
+        p_start_date: editSubStartDate,
+      })
+      if (error) throw error
+      return data as { total_amount: number; subscription_name: string; start_date: string; end_date: string }
+    },
+    onSuccess: (data) => {
+      // Met à jour l'article virtuel dans le panier
+      setCart(prev => prev.map(item =>
+        item.product.id === `__subscription__${editSubId}`
+          ? { ...item, product: { ...item.product, name: data.subscription_name, price: Number(data.total_amount) } }
+          : item
+      ))
+      // Met à jour le pendingSub courant (montant/prix recalculé)
+      setPendingSub(prev => prev && prev.subscription_id === editSubId
+        ? { ...prev, total_amount: Number(data.total_amount), subscription_name: data.subscription_name }
+        : prev)
+      setEditSubId(null)
+      queryClient.invalidateQueries({ queryKey: ["pos-pending-subscriptions", organization?.id] })
+      toast({ title: t("pos.subscriptionUpdated") })
+    },
+    onError: (err) => toast({ variant: "destructive", title: t("errors.generic"), description: err.message }),
+  })
+
   const total = Math.max(0, subtotal - discountValue - corporateDiscount)
   const change = amountGiven != null && amountGiven >= total ? amountGiven - total : 0
 
@@ -307,6 +685,7 @@ export default function POSPage() {
   }
 
   function removeFromCart(productId: string) {
+    if (productId.startsWith("__subscription__")) setPendingSub(null)
     setCart(prev => prev.filter(item => item.product.id !== productId))
   }
 
@@ -425,11 +804,19 @@ export default function POSPage() {
           p_payment_amount: subscriptionPaid,
         })
         if (renewError) throw renewError
-      } else if (pendingSub) {
+      }
+      // Finalise un abonnement en attente UNIQUEMENT si l'article virtuel est
+      // réellement au panier (corrige le bug : pendingSub restait actif après
+      // suppression de l'article). L'id de l'article porte le subscription_id.
+      const subItem = cart.find(item => item.product.id.startsWith("__subscription__"))
+      if (subItem) {
+        const subId = subItem.product.id.replace("__subscription__", "")
+        const pendingRow = pendingSubs?.find(s => s.id === subId)
+        const memberId = selectedMemberId ?? pendingRow?.member_id ?? pendingSub?.member_id
         const { error: finalizeError } = await (supabase.rpc as any)('finalize_subscription_payment', {
-          p_subscription_id: pendingSub.subscription_id,
+          p_subscription_id: subId,
           p_organization_id: orgId,
-          p_member_id: pendingSub.member_id,
+          p_member_id: memberId,
           p_payment_method: paymentMethod,
           p_amount: subscriptionPaid,
         })
@@ -452,186 +839,12 @@ export default function POSPage() {
       queryClient.invalidateQueries({ queryKey: ["stock_movements"] })
       queryClient.invalidateQueries({ queryKey: ["subscription-types"] })
       queryClient.invalidateQueries({ queryKey: ["payments"] })
+      queryClient.invalidateQueries({ queryKey: ["pos-pending-subscriptions", organization?.id] })
       const { data: { user } } = await supabase.auth.getUser()
       if (user) queryClient.invalidateQueries({ queryKey: ["member-subscriptions", user.id] })
     },
     onError: (err: Error) => toast({ title: t("errors.generic"), description: err.message, variant: "destructive" }),
   })
-
-  // Cart panel component (used in both desktop sidebar and mobile drawer)
-  const CartPanel = () => (
-    <Card className={mobileCartOpen ? "border-0 rounded-none h-full" : "sticky top-4"}>
-      <CardContent className="p-4 flex flex-col h-full">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            <h3 className="font-semibold">{t("pos.cart")} ({cart.length})</h3>
-          </div>
-          {cart.length > 0 && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setCart([])}>
-              {t("pos.clearCart")}
-            </Button>
-          )}
-        </div>
-
-        <ScrollArea className="flex-1 min-h-0 mb-3">
-          {cart.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">{t("pos.emptyCart")}</p>
-          ) : (
-            <div className="space-y-2">
-              {cart.map(item => (
-                <div key={item.product.id} className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-accent/50">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      {item.product.id.startsWith("__subscription__") && <CreditCard className="h-3 w-3 text-primary shrink-0" />}
-                      {item.product.id.startsWith("__renewal__") && <RefreshCw className="h-3 w-3 text-primary shrink-0" />}
-                      {item.product.id.startsWith("__dropin__") && <Ticket className="h-3 w-3 text-primary shrink-0" />}
-                      <p className="text-sm font-medium truncate">{toUpper(item.product.name)}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{formatCurrency(item.product.price)}</p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {item.product.id.startsWith("__subscription__") || item.product.id.startsWith("__renewal__") ? (
-                      <>
-                        <Badge variant="secondary" className="text-xs">
-                          {item.product.id.startsWith("__renewal__") ? "Renouvellement" : t("pos.subscription")}
-                        </Badge>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.product.id)}>
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, -1)}>
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
-                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, 1)}>
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.product.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
-
-        <Separator className="mb-3" />
-
-        <div className="space-y-2 mb-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">{t("pos.subtotal")}</span>
-            <span>{formatCurrency(subtotal)}</span>
-          </div>
-
-          {/* Discount% input */}
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{t("pos.discountPercent")}</span>
-            <div className="flex items-center gap-1">
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                placeholder="0"
-                value={discountPercent ?? ""}
-                onChange={e => setDiscountPercent(e.target.value ? Number(e.target.value) : null)}
-                className="w-16 h-7 text-xs"
-              />
-              <span className="text-xs text-muted-foreground">%</span>
-            </div>
-          </div>
-
-          {/* Fixed discount input */}
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{t("pos.discountAmount")}</span>
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-muted-foreground">{currencySymbol}</span>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={discountAmount ?? ""}
-                onChange={e => setDiscountAmount(e.target.value ? Number(e.target.value) : null)}
-                className="w-20 h-7 text-xs"
-              />
-            </div>
-          </div>
-
-          {/* Corporate discount (auto from member's corporate card) */}
-          {selectedCorporate && subscriptionSubtotal > 0 && (corporateDiscount > 0 || corporateRemoved) && (
-            <div className="flex items-center justify-between gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Badge className="bg-emerald-600">
-                  <Building2 className="h-3 w-3" />
-                  {selectedCorporate.company_name}
-                </Badge>
-                <span className="text-xs text-emerald-700 whitespace-nowrap">{t("pos.corporateDiscount")} {Number(selectedCorporate.discount_rate ?? 0)}%</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-emerald-700">−{formatCurrency(corporateDiscount)}</span>
-                {corporateRemoved ? (
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setCorporateRemoved(false)} title={t("pos.restoreCorporate")}>
-                    <RotateCcw className="h-3 w-3" />
-                  </Button>
-                ) : (
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setCorporateRemoved(true)} title={t("pos.removeCorporate")}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <Separator />
-          <div className="flex justify-between font-bold text-base">
-            <span>{t("pos.total")}</span>
-            <span>{formatCurrency(total)}</span>
-          </div>
-        </div>
-
-        {/* Member selection */}
-        <div className="mb-3">
-          <label className="text-xs font-medium mb-1 block text-muted-foreground">{t("pos.member")}</label>
-          <Input
-            placeholder={t("pos.searchMember")}
-            value={memberSearch}
-            onChange={e => setMemberSearch(e.target.value)}
-            className="h-8 text-sm mb-1"
-          />
-          {memberSearch && (
-            <div className="max-h-[100px] overflow-y-auto border rounded-md">
-              {filteredMembers.slice(0, 5).map(m => (
-                <div
-                  key={m.id}
-                  className={`p-1.5 text-xs cursor-pointer hover:bg-accent truncate ${selectedMemberId === m.id ? "bg-accent font-medium" : ""}`}
-                  onClick={() => { setSelectedMemberId(m.id); setMemberSearch(`${toUpper(m.first_name)} ${toUpper(m.last_name)}`) }}
-                >
-                  {toUpper(m.first_name)} {toUpper(m.last_name)}
-                  <span className="text-muted-foreground ml-1">{displayPhone(m.phone)}</span>
-                  {m.member_number && <span className="text-muted-foreground ml-1 text-[10px]">({m.member_number})</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <Button
-          className="w-full"
-          size="lg"
-          disabled={cart.length === 0 || checkoutMutation.isPending}
-          onClick={() => setShowCheckout(true)}
-        >
-          {checkoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          {t("pos.checkout")} � {formatCurrency(total)}
-        </Button>
-      </CardContent>
-    </Card>
-  )
 
   return (
     <div>
@@ -734,7 +947,26 @@ export default function POSPage() {
 
         {/* Right panel: fixed cart */}
         <div className="hidden lg:block">
-          <CartPanel />
+          <CartPanel
+            cart={cart} setCart={setCart}
+            memberSearch={memberSearch} setMemberSearch={setMemberSearch}
+            selectedMemberId={selectedMemberId} setSelectedMemberId={setSelectedMemberId}
+            discountPercent={discountPercent} setDiscountPercent={setDiscountPercent}
+            discountAmount={discountAmount} setDiscountAmount={setDiscountAmount}
+            subtotal={subtotal} total={total} currencySymbol={currencySymbol}
+            filteredMembers={filteredMembers}
+            selectedCorporate={selectedCorporate}
+            corporateDiscount={corporateDiscount}
+            subscriptionSubtotal={subscriptionSubtotal}
+            corporateRemoved={corporateRemoved} setCorporateRemoved={setCorporateRemoved}
+            updateQuantity={updateQuantity} removeFromCart={removeFromCart}
+            onEditSubscriptionItem={openEditSubscription}
+            selectedPendingSub={selectedPendingSub}
+            selectedPendingSubInCart={selectedPendingSubInCart}
+            onAddPendingSub={addPendingSubToCart}
+            isProcessing={checkoutMutation.isPending}
+            mobileCartOpen={false} t={t}
+          />
         </div>
       </div>
 
@@ -747,7 +979,26 @@ export default function POSPage() {
       </div>
       <Sheet open={mobileCartOpen} onOpenChange={setMobileCartOpen}>
         <SheetContent side="right" className="w-[85vw] p-0 sm:max-w-sm">
-          <CartPanel />
+          <CartPanel
+            cart={cart} setCart={setCart}
+            memberSearch={memberSearch} setMemberSearch={setMemberSearch}
+            selectedMemberId={selectedMemberId} setSelectedMemberId={setSelectedMemberId}
+            discountPercent={discountPercent} setDiscountPercent={setDiscountPercent}
+            discountAmount={discountAmount} setDiscountAmount={setDiscountAmount}
+            subtotal={subtotal} total={total} currencySymbol={currencySymbol}
+            filteredMembers={filteredMembers}
+            selectedCorporate={selectedCorporate}
+            corporateDiscount={corporateDiscount}
+            subscriptionSubtotal={subscriptionSubtotal}
+            corporateRemoved={corporateRemoved} setCorporateRemoved={setCorporateRemoved}
+            updateQuantity={updateQuantity} removeFromCart={removeFromCart}
+            onEditSubscriptionItem={openEditSubscription}
+            selectedPendingSub={selectedPendingSub}
+            selectedPendingSubInCart={selectedPendingSubInCart}
+            onAddPendingSub={addPendingSubToCart}
+            isProcessing={checkoutMutation.isPending}
+            mobileCartOpen={mobileCartOpen} t={t}
+          />
         </SheetContent>
       </Sheet>
 
@@ -800,6 +1051,61 @@ export default function POSPage() {
             <Button onClick={() => checkoutMutation.mutate()} disabled={checkoutMutation.isPending}>
               {checkoutMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t("pos.confirmPayment")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modifier un abonnement en attente (correction d'erreur avant paiement) */}
+      <Dialog open={!!editSubId} onOpenChange={(open) => { if (!open) setEditSubId(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("pos.editSubscription")}</DialogTitle>
+            <DialogDescription>{t("pos.editSubscriptionDesc")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t("pos.subscriptionType")}</label>
+              <Select value={editSubTypeId} onValueChange={setEditSubTypeId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {subscriptionTypes?.map(st => (
+                    <SelectItem key={st.id} value={st.id}>
+                      {st.name} — {formatCurrency(st.price)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t("pos.startDate")}</label>
+              <Input
+                type="date"
+                value={editSubStartDate}
+                onChange={e => setEditSubStartDate(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            {editSubscriptionType && editSubStartDate && (
+              <div className="flex justify-between text-sm p-2 rounded-md bg-muted">
+                <span className="text-muted-foreground">{t("pos.endDate")}</span>
+                <span className="font-medium">{editSubscriptionEndDate || "—"}</span>
+              </div>
+            )}
+            {editSubscriptionType && (
+              <div className="flex justify-between text-sm p-2 rounded-md bg-muted">
+                <span className="text-muted-foreground">{t("pos.total")}</span>
+                <span className="font-semibold">{formatCurrency(editSubscriptionType.price)}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditSubId(null)}>{t("pos.cancel")}</Button>
+            <Button onClick={() => updatePendingSubMutation.mutate()} disabled={updatePendingSubMutation.isPending || !editSubTypeId || !editSubStartDate}>
+              {updatePendingSubMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("pos.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

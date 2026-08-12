@@ -52,7 +52,21 @@ export function AiChatProvider({ children }: { children: ReactNode }) {
           context,
         },
       })
-      if (invokeError) throw invokeError
+      if (invokeError) {
+        // FunctionsHttpError expose context = { status, data } ; le message
+        // générique supabase-js masque le vrai code → on le récupère pour un
+        // diagnostic précis (500 config EF, 502 provider, 401 session...).
+        const ctx = (invokeError as any)?.context as { status?: number; data?: any } | undefined
+        const status = ctx?.status
+        const detail = typeof ctx?.data === "object" && ctx.data !== null ? JSON.stringify(ctx.data) : ctx?.data
+        const err = new Error(
+          status
+            ? `Assistant indisponible (${status})${detail ? ` : ${detail}` : ""}`
+            : invokeError.message || "Erreur lors de l'appel à l'assistant"
+        )
+        ;(err as any).status = status
+        throw err
+      }
       if (!res?.content) throw new Error("Réponse vide de l'assistant")
       // Ignore la réponse si une requête plus récente a été lancée entre-temps
       if (seq !== requestSeq.current) return

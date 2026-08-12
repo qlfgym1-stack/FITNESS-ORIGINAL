@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cn, getInitials, getStatusColor, getDaysRemaining, toUpper, formatPhone, isValidDzPhone, displayPhone } from './utils'
+import { cn, getInitials, getStatusColor, getDaysRemaining, toUpper, formatPhone, isValidDzPhone, displayPhone, memberFullName, splitFullName } from './utils'
 
 describe('cn', () => {
   it('merges class names', () => {
@@ -152,5 +152,41 @@ describe('displayPhone', () => {
 
   it('returns dash for undefined', () => {
     expect(displayPhone(undefined)).toBe('-')
+  })
+})
+
+describe('memberFullName', () => {
+  it('returns full_name when present', () => {
+    expect(memberFullName({ full_name: 'MOUSSA MABROUK', first_name: 'MOUSSA', last_name: 'MABROUK' } as any)).toBe('MOUSSA MABROUK')
+  })
+
+  it('concats first_name and last_name when full_name is missing', () => {
+    expect(memberFullName({ first_name: 'Sara', last_name: 'Mansouri' } as any)).toBe('Sara Mansouri')
+  })
+
+  it('returns empty string when no name', () => {
+    expect(memberFullName({} as any)).toBe('')
+  })
+})
+
+describe('splitFullName', () => {
+  it('splits first token as first name', () => {
+    expect(splitFullName('MOUSSA MABROUK')).toEqual({ first_name: 'MOUSSA', last_name: 'MABROUK' })
+  })
+
+  it('keeps multiple words in last name', () => {
+    expect(splitFullName('Ahmed Ben Ali')).toEqual({ first_name: 'Ahmed', last_name: 'Ben Ali' })
+  })
+
+  it('handles a single word', () => {
+    expect(splitFullName('Zinedine')).toEqual({ first_name: 'Zinedine', last_name: '' })
+  })
+
+  it('handles empty string', () => {
+    expect(splitFullName('')).toEqual({ first_name: '', last_name: '' })
+  })
+
+  it('trims surrounding whitespace', () => {
+    expect(splitFullName('  Sara   Mansouri  ')).toEqual({ first_name: 'Sara', last_name: 'Mansouri' })
   })
 })

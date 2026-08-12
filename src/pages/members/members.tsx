@@ -23,10 +23,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Plus, Download, Upload, Pencil, Trash2, Loader2, Shield, CreditCard, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, X, History } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 import { useExportCsv } from '@/hooks/useExportCsv'
-import { formatDate, getInitials, getStatusColor, toUpper, formatCurrency, formatPhone, isValidDzPhone, displayPhone } from '@/lib/utils'
+import { formatDate, getInitials, getStatusColor, toUpper, formatCurrency, formatPhone, isValidDzPhone, displayPhone, memberFullName, splitFullName } from '@/lib/utils'
 import type { Member, SubscriptionType, RfidCard } from '@/types/supabase'
 import { RfidManagementDialog, RfidCreateSection } from './rfid-management'
 import { MemberHistoryDialog } from './member-history'
+import { MemberProfileDialog } from './member-profile'
 import { AvatarUpload } from '@/components/ui/avatar-upload'
 import { CameraCapture } from '@/components/ui/camera-capture'
 
@@ -48,8 +49,7 @@ const MOCK_MEMBERS: Member[] = [
 const createMemberSchema = (t: (k: string) => string, isCreate: boolean) => {
   if (!isCreate) {
     return z.object({
-      first_name: z.string().min(1, t('errors.firstNameRequired')),
-      last_name: z.string().min(1, t('errors.lastNameRequired')),
+      full_name: z.string().min(1, t('errors.fullNameRequired')),
       email: z.string().email(t('errors.emailRequired')).optional().or(z.literal('')),
       phone: z.string().refine(v => !v || isValidDzPhone(v), t('errors.phoneInvalid')).optional().or(z.literal('')),
       gender: z.string().optional().or(z.literal('')),
@@ -65,8 +65,7 @@ const createMemberSchema = (t: (k: string) => string, isCreate: boolean) => {
     })
   }
   return z.object({
-    first_name: z.string().min(1, t('errors.firstNameRequired')),
-    last_name: z.string().min(1, t('errors.lastNameRequired')),
+    full_name: z.string().min(1, t('errors.fullNameRequired')),
     email: z.string().email(t('errors.invalidEmail')).optional().or(z.literal('')),
     phone: z.string().min(1, t('errors.phoneRequired')).refine(v => isValidDzPhone(v), t('errors.phoneInvalid')),
     gender: z.string().min(1, t('errors.genderRequired')),
@@ -218,6 +217,13 @@ export default function Members() {
   const [rfidUid, setRfidUid] = useState('')
   const [rfidDialogMember, setRfidDialogMember] = useState<{ id: string; name: string } | null>(null)
   const [historyMember, setHistoryMember] = useState<{ id: string; name: string } | null>(null)
+  const [profileMember, setProfileMember] = useState<Member | null>(null)
+  const [renewingMember, setRenewingMember] = useState<Member | null>(null)
+  const [renewOpen, setRenewOpen] = useState(false)
+  const [renewTypeId, setRenewTypeId] = useState('')
+  const [renewStartDate, setRenewStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [renewEndDate, setRenewEndDate] = useState('')
+  const [renewAmount, setRenewAmount] = useState(0)
   const rfidData = rfidManagementQuery.data as Record<string, { rfid_uid: string; status: string } | null> || {}
 
   const pageSize = 10
@@ -276,11 +282,115 @@ export default function Members() {
   })
   const memberSubMap = IS_MOCK ? mockSubMap : (memberSubMapQuery ?? {})
 
+  useEffect(() => {
+    if (renewTypeId && renewStartDate) {
+      const typeDef = subscriptionTypes?.find(st => st.id === renewTypeId)
+      if (typeDef) {
+        const end = new Date(renewStartDate)
+        end.setDate(end.getDate() + typeDef.duration_days)
+        setRenewEndDate(end.toISOString().split('T')[0])
+        setRenewAmount(typeDef.price)
+      }
+    }
+  }, [renewTypeId, renewStartDate, subscriptionTypes])
+
+  function openRenew(member: Member) {
+    const sub = memberSubMap ? (memberSubMap as Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number }>)[member.id] : undefined
+    setRenewingMember(member)
+    setRenewTypeId(sub?.subscription_type_id ?? '')
+    setRenewStartDate(new Date().toISOString().split('T')[0])
+    setRenewEndDate('')
+    setRenewAmount(sub?.total_amount ?? 0)
+    setRenewOpen(true)
+  }
+
+  async function handleRenewPay() {
+    if (!renewingMember || !orgId || !renewTypeId || !renewStartDate || !renewEndDate) return
+    try {
+      const typeDef = subscriptionTypes?.find(st => st.id === renewTypeId)
+      if (!typeDef) return
+      const memberName = memberFullName(renewingMember)
+      const sub = memberSubMap ? (memberSubMap as Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number }>)[renewingMember.id] : undefined
+      const total = renewAmount || typeDef.price
+
+      if (sub && (sub.status === 'active' || sub.status === 'expired')) {
+        navigate('/pos', {
+          state: {
+            pendingRenewal: {
+              member_id: renewingMember.id,
+              old_subscription_id: sub.id,
+              member_name: memberName,
+              subscription_type_id: renewTypeId,
+              total_amount: total,
+              start_date: renewStartDate,
+              end_date: renewEndDate,
+              organization_id: orgId,
+            },
+          },
+        })
+        setRenewOpen(false)
+        setRenewingMember(null)
+        return
+      }
+
+      if (IS_MOCK) {
+        const subId = `mock-ms-renew-${renewingMember.id}`
+        setMockSubMap(prev => ({ ...prev, [renewingMember.id]: { id: subId, subscription_type_id: renewTypeId, name: typeDef.name, status: 'pending_payment', total_amount: total } }))
+        navigate('/pos', {
+          state: {
+            pendingSubscription: {
+              member_id: renewingMember.id,
+              subscription_id: subId,
+              total_amount: total,
+              subscription_name: typeDef.name,
+              organization_id: orgId,
+              first_name: renewingMember.first_name,
+              last_name: renewingMember.last_name,
+            },
+          },
+        })
+        setRenewOpen(false)
+        setRenewingMember(null)
+        return
+      }
+
+      const { data: subData, error: subError } = await supabase.from('member_subscriptions').insert({
+        organization_id: orgId,
+        member_id: renewingMember.id,
+        subscription_type_id: renewTypeId,
+        start_date: renewStartDate,
+        end_date: renewEndDate,
+        total_amount: total,
+        amount_paid: 0,
+        status: 'pending_payment',
+      } as any).select().single()
+      if (subError) throw subError
+
+      navigate('/pos', {
+        state: {
+          pendingSubscription: {
+            member_id: renewingMember.id,
+            subscription_id: subData.id,
+            total_amount: total,
+            subscription_name: typeDef.name,
+            organization_id: orgId,
+            first_name: renewingMember.first_name,
+            last_name: renewingMember.last_name,
+          },
+        },
+      })
+      setRenewOpen(false)
+      setRenewingMember(null)
+    } catch (err) {
+      toast({ variant: 'destructive', title: t('errors.generic'), description: (err as Error).message })
+    }
+  }
+
   const memberSchema = useMemo(() => createMemberSchema(t, !editingMember), [t, editingMember])
 
   const form = useForm<MemberForm>({
     resolver: zodResolver(memberSchema),
-    defaultValues: { first_name: '', last_name: '', email: '', phone: '', gender: '', birth_date: '', address: '', emergency_contact: '', emergency_phone: '', notes: '', subscription_type_id: '', start_date: new Date().toISOString().split('T')[0], coach_id: '' },
+    defaultValues: { full_name: '', email: '', phone: '', gender: '', birth_date: '', address: '', emergency_contact: '', emergency_phone: '', notes: '', subscription_type_id: '', start_date: new Date().toISOString().split('T')[0], coach_id: '' },
   })
 
   useEffect(() => {
@@ -296,7 +406,7 @@ export default function Members() {
         let filtered = [...mockMembers]
         if (search) {
           const q = search.toLowerCase()
-          filtered = filtered.filter(m => m.first_name.toLowerCase().includes(q) || m.last_name.toLowerCase().includes(q) || (m.email && m.email.toLowerCase().includes(q)) || (m.phone && m.phone.includes(q)) || (m.member_number && m.member_number.toLowerCase().includes(q)))
+          filtered = filtered.filter(m => memberFullName(m).toLowerCase().includes(q) || (m.email && m.email.toLowerCase().includes(q)) || (m.phone && m.phone.includes(q)) || (m.member_number && m.member_number.toLowerCase().includes(q)))
         }
         if (statusFilter !== 'all') filtered = filtered.filter(m => m.status === statusFilter)
         if (genderFilter !== 'all') filtered = filtered.filter(m => m.gender === genderFilter)
@@ -313,7 +423,7 @@ export default function Members() {
       query = query.order(sortBy, { ascending: sortDir === 'asc' })
 
       if (debouncedSearch) {
-        query = query.or(`first_name.ilike.%${debouncedSearch}%,last_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%,member_number.ilike.%${debouncedSearch}%`)
+        query = query.or(`full_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%,member_number.ilike.%${debouncedSearch}%`)
       }
       if (statusFilter !== 'all') query = query.eq('status', statusFilter as any)
       if (genderFilter !== 'all') query = query.eq('gender', genderFilter)
@@ -328,8 +438,7 @@ export default function Members() {
 
   const { exportCsv } = useExportCsv(
     (membersData?.data ?? []).map((m: Member) => ({
-      first_name: m.first_name,
-      last_name: m.last_name,
+      full_name: memberFullName(m),
       email: m.email ?? '',
       phone: formatPhone(m.phone) ?? '',
       gender: m.gender ?? '',
@@ -337,8 +446,7 @@ export default function Members() {
     })),
     'members',
     [
-      { key: 'first_name', label: t('members.firstName') },
-      { key: 'last_name', label: t('members.lastName') },
+      { key: 'full_name', label: t('members.fullName') },
       { key: 'email', label: t('members.email') },
       { key: 'phone', label: t('members.phone') },
       { key: 'gender', label: t('members.gender') },
@@ -360,6 +468,7 @@ export default function Members() {
     mutationFn: async (values: MemberForm) => {
       if (!orgId) throw new Error('No organization')
       const photo_url: string | null = photoUrlRef.current
+      const { first_name, last_name } = splitFullName(values.full_name)
       if (IS_MOCK) {
         const memberId = `mock-${crypto.randomUUID()}`
         const nextNum = mockMembers.length + 1
@@ -367,8 +476,8 @@ export default function Members() {
         const newMember: Member = {
           id: memberId,
           organization_id: orgId,
-          first_name: values.first_name || '',
-          last_name: values.last_name || '',
+          first_name,
+          last_name,
           email: values.email || null,
           phone: values.phone || null,
           gender: values.gender || null,
@@ -393,7 +502,7 @@ export default function Members() {
             const subId = `mock-sub-${crypto.randomUUID()}`
             setMockSubMap(prev => ({ ...prev, [memberId]: { id: subId, subscription_type_id: values.subscription_type_id!, name: typeDef.name, status: 'pending_payment', total_amount: typeDef.price } }))
             if (rfidUid) setMockRfidMap(prev => ({ ...prev, [memberId]: rfidUid }))
-            return { member_id: memberId, subscription_id: subId, total_amount: typeDef.price, subscription_name: typeDef.name, organization_id: orgId, first_name: values.first_name, last_name: values.last_name }
+            return { member_id: memberId, subscription_id: subId, total_amount: typeDef.price, subscription_name: typeDef.name, organization_id: orgId, first_name, last_name }
           }
         }
         if (rfidUid) setMockRfidMap(prev => ({ ...prev, [memberId]: rfidUid }))
@@ -402,8 +511,8 @@ export default function Members() {
       if (values.subscription_type_id && values.start_date) {
         const { data, error } = await (supabase.rpc as any)('create_member_with_pending_subscription', {
           p_organization_id: orgId,
-          p_first_name: values.first_name,
-          p_last_name: values.last_name,
+          p_first_name: first_name,
+          p_last_name: last_name,
           p_email: values.email || null,
           p_phone: values.phone || null,
           p_gender: values.gender || null,
@@ -427,8 +536,8 @@ export default function Members() {
         }
         return data as { member_id: string; subscription_id: string; total_amount: number; subscription_name: string; organization_id: string; first_name: string; last_name: string }
       }
-      const { subscription_type_id, start_date, ...memberFields } = values
-      const { error } = await supabase.from('members').insert({ ...memberFields, organization_id: orgId, photo_url, email: values.email || null, phone: values.phone || null, gender: values.gender || null, birth_date: values.birth_date || null, address: values.address || null, emergency_contact: values.emergency_contact || null, emergency_phone: values.emergency_phone || null, coach_id: memberFields.coach_id || null, corporate_id: values.corporate_id || null } as any)
+      const { subscription_type_id, start_date, full_name: _fullName, ...memberFields } = values
+      const { error } = await supabase.from('members').insert({ ...memberFields, organization_id: orgId, first_name, last_name, photo_url, email: values.email || null, phone: values.phone || null, gender: values.gender || null, birth_date: values.birth_date || null, address: values.address || null, emergency_contact: values.emergency_contact || null, emergency_phone: values.emergency_phone || null, coach_id: memberFields.coach_id || null, corporate_id: values.corporate_id || null } as any)
       if (error) throw error
       if (rfidUid) {
         const { data: newMember } = await supabase.from('members').select('id').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(1).single()
@@ -465,8 +574,9 @@ export default function Members() {
     mutationFn: async ({ id, values }: { id: string; values: MemberForm }) => {
       if (!orgId) throw new Error('No organization')
       const photo_url: string | null = photoUrlRef.current ?? editingMember?.photo_url ?? null
+      const { first_name, last_name } = splitFullName(values.full_name)
       if (IS_MOCK) {
-        setMockMembers(prev => prev.map(m => m.id === id ? { ...m, ...values, photo_url, updated_at: new Date().toISOString() } as Member : m))
+        setMockMembers(prev => prev.map(m => m.id === id ? { ...m, ...values, first_name, last_name, photo_url, updated_at: new Date().toISOString() } as Member : m))
         if (values.subscription_type_id && values.start_date) {
           const typeDef = subscriptionTypes?.find(t => t.id === values.subscription_type_id)
           if (typeDef) {
@@ -475,15 +585,15 @@ export default function Members() {
               const subId = `mock-sub-${crypto.randomUUID()}`
               setMockSubMap(prev => ({ ...prev, [id]: { id: subId, subscription_type_id: values.subscription_type_id!, name: typeDef.name, status: 'pending_payment', total_amount: typeDef.price } }))
               if (rfidUid) setMockRfidMap(prev => ({ ...prev, [id]: rfidUid }))
-              return { member_id: id, subscription_id: subId, total_amount: typeDef.price, subscription_name: typeDef.name, organization_id: orgId, first_name: values.first_name, last_name: values.last_name }
+              return { member_id: id, subscription_id: subId, total_amount: typeDef.price, subscription_name: typeDef.name, organization_id: orgId, first_name, last_name }
             }
           }
         }
         if (rfidUid) setMockRfidMap(prev => ({ ...prev, [id]: rfidUid }))
         return null
       }
-      const { subscription_type_id, start_date, ...memberFields } = values
-      const { error } = await supabase.from('members').update({ ...memberFields, photo_url, email: memberFields.email || null, phone: memberFields.phone || null, gender: memberFields.gender || null, birth_date: memberFields.birth_date || null, address: memberFields.address || null, emergency_contact: memberFields.emergency_contact || null, emergency_phone: memberFields.emergency_phone || null, coach_id: memberFields.coach_id || null, corporate_id: memberFields.corporate_id || null }).eq('id', id)
+      const { subscription_type_id, start_date, full_name: _fullName, ...memberFields } = values
+      const { error } = await supabase.from('members').update({ ...memberFields, first_name, last_name, photo_url, email: memberFields.email || null, phone: memberFields.phone || null, gender: memberFields.gender || null, birth_date: memberFields.birth_date || null, address: memberFields.address || null, emergency_contact: memberFields.emergency_contact || null, emergency_phone: memberFields.emergency_phone || null, coach_id: memberFields.coach_id || null, corporate_id: memberFields.corporate_id || null }).eq('id', id)
       if (error) throw error
       if (subscription_type_id && start_date) {
         const typeDef = subscriptionTypes?.find(t => t.id === subscription_type_id)
@@ -512,8 +622,8 @@ export default function Members() {
               total_amount: typeDef.price,
               subscription_name: typeDef.name,
               organization_id: orgId,
-              first_name: values.first_name,
-              last_name: values.last_name,
+              first_name,
+              last_name,
             }
           }
         }
@@ -563,7 +673,7 @@ export default function Members() {
     setEditingMember(null)
     setAvatarUploadedUrl(null)
     setRfidUid('')
-    form.reset({ first_name: '', last_name: '', email: '', phone: '', gender: '', birth_date: '', address: '', emergency_contact: '', emergency_phone: '', notes: '', subscription_type_id: '', start_date: new Date().toISOString().split('T')[0], coach_id: '', corporate_id: '' })
+    form.reset({ full_name: '', email: '', phone: '', gender: '', birth_date: '', address: '', emergency_contact: '', emergency_phone: '', notes: '', subscription_type_id: '', start_date: new Date().toISOString().split('T')[0], coach_id: '', corporate_id: '' })
     setDialogOpen(true)
   }
 
@@ -573,8 +683,7 @@ export default function Members() {
     setAvatarUploadedUrl(null)
     const sub = memberSubMap ? (memberSubMap as Record<string, { id: string; subscription_type_id: string; name: string; status: string }>)[member.id] : null
     form.reset({
-      first_name: member.first_name,
-      last_name: member.last_name,
+      full_name: memberFullName(member),
       email: member.email ?? '',
       phone: formatPhone(member.phone) ?? '',
       gender: member.gender ?? '',
@@ -611,32 +720,40 @@ export default function Members() {
 
   const handleImport = useCallback(async (rows: any[]) => {
     if (!orgId) return
-    const imported = rows.map((r: any) => ({
-      id: `mock-${crypto.randomUUID()}`,
-      organization_id: orgId,
-      first_name: r.first_name || r.FirstName || r.firstName || '',
-      last_name: r.last_name || r.LastName || r.lastName || '',
-      email: r.email || r.Email || null,
-      phone: formatPhone(r.phone || r.Phone || null),
-      gender: r.gender || r.Gender || null,
-      photo_url: null,
-      status: 'active' as const,
-      last_visit: null,
-      notes: null,
-      birth_date: null,
-      address: null,
-      emergency_contact: null,
-      emergency_phone: formatPhone(r.emergency_phone || r.EmergencyPhone || null),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      member_number: null,
-    })) as Member[]
+    const imported = rows.map((r: any) => {
+      const rawName = String(
+        r.nomprenom || r.nom_prenom || r.nom_complet || r.full_name || r.FullName ||
+        `${r.first_name || r.FirstName || r.firstName || ''} ${r.last_name || r.LastName || r.lastName || ''}`.trim()
+      )
+      const { first_name, last_name } = splitFullName(rawName)
+      return {
+        id: `mock-${crypto.randomUUID()}`,
+        organization_id: orgId,
+        first_name,
+        last_name,
+        full_name: rawName,
+        email: r.email || r.Email || null,
+        phone: formatPhone(r.phone || r.Phone || null),
+        gender: r.gender || r.Gender || null,
+        photo_url: null,
+        status: 'active' as const,
+        last_visit: null,
+        notes: null,
+        birth_date: null,
+        address: null,
+        emergency_contact: null,
+        emergency_phone: formatPhone(r.emergency_phone || r.EmergencyPhone || null),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        member_number: null,
+      }
+    }) as Member[]
     if (IS_MOCK) {
       setMockMembers(prev => [...imported, ...prev])
       toast({ title: t('members.imported').replace('{count}', String(imported.length)) })
       return
     }
-    const members = imported.map(({ id, last_visit, notes, created_at, updated_at, photo_url, ...rest }) => rest)
+    const members = imported.map(({ id, last_visit, notes, created_at, updated_at, photo_url, full_name: _fullName, ...rest }) => rest)
     const { error } = await supabase.from('members').insert(members)
     if (error) {
       toast({ variant: 'destructive', title: t('members.importError'), description: error.message })
@@ -680,7 +797,7 @@ export default function Members() {
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder={t('common.search')} value={search} onChange={(e) => { setSearch(e.target.value); setPage(0) }} className="pl-9" />
+              <Input placeholder={t('common.search')} value={search} onChange={(e) => { setSearch(e.target.value); if (page !== 0) setPage(0) }} className="pl-9" />
             </div>
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0) }}>
               <SelectTrigger className="w-[140px]"><SelectValue placeholder={t('common.status')} /></SelectTrigger>
@@ -765,17 +882,17 @@ export default function Members() {
                   </TableRow>
                 )}
               {membersData?.data.map((member: Member) => (
-                <TableRow key={member.id}>
-                  <TableCell>
+                <TableRow key={member.id} className="cursor-pointer group">
+                  <TableCell onClick={() => setProfileMember(member)} className="transition-colors group-hover:text-primary">
                     <code className="text-xs font-mono font-semibold bg-muted px-1.5 py-0.5 rounded">{member.member_number ?? '—'}</code>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={() => setProfileMember(member)}>
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={member.photo_url ?? undefined} />
                       <AvatarFallback className="text-[10px]">{getInitials(member.first_name, member.last_name)}</AvatarFallback>
                     </Avatar>
                   </TableCell>
-                  <TableCell className="font-medium">{toUpper(member.first_name)} {toUpper(member.last_name)}</TableCell>
+                  <TableCell onClick={() => setProfileMember(member)} className="font-medium transition-colors group-hover:text-primary">{toUpper(memberFullName(member))}</TableCell>
                   <TableCell>{member.email ?? '-'}</TableCell>
                   <TableCell>{displayPhone(member.phone)}</TableCell>
                   <TableCell>
@@ -809,11 +926,9 @@ export default function Members() {
                           <CreditCard className="h-4 w-4 text-primary" />
                         </Button>
                       )}
-                      {(memberSubMap[member.id]?.status === 'active' || memberSubMap[member.id]?.status === 'expired') && (
-                        <Button variant="ghost" size="icon" onClick={() => navigate('/subscriptions')} title="Renouveler">
-                          <RefreshCw className="h-4 w-4 text-warning" />
-                        </Button>
-                      )}
+                      <Button variant="ghost" size="icon" onClick={() => openRenew(member)} title={t('members.renew') || 'Renouveler'}>
+                        <RefreshCw className="h-4 w-4 text-warning" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => setRfidDialogMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })}>
                         <Shield className="h-4 w-4" />
                       </Button>
@@ -842,7 +957,7 @@ export default function Members() {
               <p className="text-center py-8 text-muted-foreground">{t('members.noData')}</p>
             )}
             {membersData?.data.map((member: Member) => (
-              <Card key={member.id} className="p-4">
+              <Card key={member.id} className="p-4 cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setProfileMember(member)}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
@@ -850,24 +965,22 @@ export default function Members() {
                       <AvatarFallback>{getInitials(member.first_name, member.last_name)}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{toUpper(member.first_name)} {toUpper(member.last_name)}</p>
+                      <p className="font-medium">{toUpper(memberFullName(member))}</p>
                       <p className="text-xs text-muted-foreground">N° {member.member_number ?? '—'} · {displayPhone(member.phone)}</p>
                     </div>
                   </div>
                   <Badge className={getStatusColor(member.status)}>{toUpper(member.status)}</Badge>
                 </div>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>
                   {memberSubMap && (memberSubMap as Record<string, { id: string; status: string; total_amount: number; name: string; subscription_type_id: string }>)[member.id]?.status === 'pending_payment' && (
                     <Button variant="ghost" size="icon" className="h-8 w-8" title={t('members.collectSubscription')} onClick={() => {
                       const sub = (memberSubMap as Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number }>)[member.id]
                       navigate('/pos', { state: { pendingSubscription: { member_id: member.id, subscription_id: sub.id, total_amount: sub.total_amount, subscription_name: sub.name, organization_id: orgId, first_name: member.first_name, last_name: member.last_name } } })
                     }}><CreditCard className="h-4 w-4 text-primary" /></Button>
                   )}
-                  {(memberSubMap[member.id]?.status === 'active' || memberSubMap[member.id]?.status === 'expired') && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/subscriptions')} title="Renouveler">
-                      <RefreshCw className="h-4 w-4 text-warning" />
-                    </Button>
-                  )}
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openRenew(member)} title={t('members.renew') || 'Renouveler'}>
+                    <RefreshCw className="h-4 w-4 text-warning" />
+                  </Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" title={t('members.history.title') || 'Historique'} onClick={() => setHistoryMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })}><History className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(member)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setDeletingMember(member); setDeleteOpen(true) }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -910,8 +1023,8 @@ export default function Members() {
                   orgId={orgId!}
                   memberId={editingMember?.id ?? tempMemberIdRef.current}
                   currentUrl={editingMember?.photo_url}
-                  firstName={editingMember?.first_name ?? form.watch('first_name')}
-                  lastName={editingMember?.last_name ?? form.watch('last_name')}
+                  firstName={editingMember ? editingMember.first_name : splitFullName(form.watch('full_name') ?? '').first_name}
+                  lastName={editingMember ? editingMember.last_name : splitFullName(form.watch('full_name') ?? '').last_name}
                   onUploadComplete={(url) => { setAvatarUploadedUrl(url); photoUrlRef.current = url }}
                 />
                 <div className="flex-1 space-y-2">
@@ -970,14 +1083,9 @@ export default function Members() {
                   <p className="text-xs text-muted-foreground">{t('members.corporateCardHint')}</p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="first_name" render={({ field }) => (
-                  <FormItem><FormLabel required>{t('members.firstName')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="last_name" render={({ field }) => (
-                  <FormItem><FormLabel required>{t('members.lastName')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-              </div>
+              <FormField control={form.control} name="full_name" render={({ field }) => (
+                <FormItem><FormLabel required>{t('members.fullName')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="email" render={({ field }) => (
                   <FormItem><FormLabel>{t('members.email')}</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
@@ -1078,6 +1186,99 @@ export default function Members() {
         open={!!historyMember}
         onOpenChange={(o) => { if (!o) setHistoryMember(null) }}
       />
+
+      <MemberProfileDialog
+        member={profileMember}
+        open={!!profileMember}
+        onOpenChange={(o) => { if (!o) setProfileMember(null) }}
+        onShowHistory={(member) => {
+          setProfileMember(null)
+          setHistoryMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })
+        }}
+        onEdit={(member) => {
+          setProfileMember(null)
+          openEditDialog(member)
+        }}
+        onShowRfid={(member) => {
+          setProfileMember(null)
+          setRfidDialogMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })
+        }}
+      />
+
+      <Dialog open={renewOpen} onOpenChange={(open) => { if (!open) { setRenewOpen(false); setRenewingMember(null) } }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{t('members.renewTitle')}</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const sub = renewingMember && memberSubMap ? (memberSubMap as Record<string, { id: string; name: string; status: string; total_amount: number }>)[renewingMember.id] : undefined
+                if (renewingMember && sub?.status === 'expired') return t('members.renewExpiredDescription')
+                if (renewingMember && sub) return t('members.renewDescription').replace('{member}', toUpper(memberFullName(renewingMember)))
+                return t('members.renewNoSubscription')
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-4">
+            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">{t('members.renewMember')}</p>
+                <p className="font-medium">{renewingMember ? toUpper(memberFullName(renewingMember)) : ''}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">{t('members.renewOldSubscription')}</p>
+                {renewingMember && memberSubMap && (memberSubMap as Record<string, { id: string; name: string; status: string; total_amount: number }>)[renewingMember.id] ? (
+                  <p className="font-medium">{toUpper((memberSubMap as Record<string, { name: string; status: string }>)[renewingMember.id].name)}</p>
+                ) : (
+                  <p className="text-muted-foreground">—</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">{t('subscriptions.type')}</label>
+              <Select value={renewTypeId} onValueChange={setRenewTypeId}>
+                <SelectTrigger><SelectValue placeholder={t('subscriptions.type')} /></SelectTrigger>
+                <SelectContent>
+                  {(subscriptionTypes ?? []).filter(st => st.is_active).map(st => (
+                    <SelectItem key={st.id} value={st.id}>
+                      {toUpper(st.name)} — {formatCurrency(st.price)} / {st.duration_days} {t('subscriptions.days')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">{t('subscriptions.startDate')}</label>
+                <Input type="date" value={renewStartDate} onChange={(e) => setRenewStartDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">{t('subscriptions.endDate')}</label>
+                <Input type="date" value={renewEndDate} disabled className="bg-muted text-muted-foreground" />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">{t('subscriptions.price')}</label>
+              <div className="text-2xl font-bold text-primary">
+                {formatCurrency(renewAmount || 0)}
+                <span className="text-sm font-normal text-muted-foreground ml-2">{t('members.renewPaidInCash')}</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-3 pt-2">
+            <Button variant="outline" size="lg" onClick={() => { setRenewOpen(false); setRenewingMember(null) }}>
+              {t('common.cancel')}
+            </Button>
+            <Button size="lg" onClick={handleRenewPay} disabled={!renewTypeId || !renewStartDate}>
+              {t('members.renewPayAtCheckout')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

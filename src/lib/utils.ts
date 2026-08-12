@@ -34,6 +34,23 @@ export function getInitials(firstName: string, lastName: string): string {
   return `${firstName?.charAt(0)?.toUpperCase() || ''}${lastName?.charAt(0)?.toUpperCase() || ''}`;
 }
 
+type NameParts = { first_name?: string | null; last_name?: string | null; full_name?: string | null };
+
+/** Nom complet d'un membre (NOM & PRÉNOM) : full_name si présent, sinon concaténation. */
+export function memberFullName(m: NameParts): string {
+  const full = m.full_name?.trim()
+  if (full) return full
+  return [m.first_name, m.last_name].filter(Boolean).join(" ")
+}
+
+/** Découpe un champ unique "NOM & PRÉNOM" en first_name/last_name (compat colonnes existantes). */
+export function splitFullName(fullName: string): { first_name: string; last_name: string } {
+  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return { first_name: "", last_name: "" }
+  if (parts.length === 1) return { first_name: parts[0], last_name: "" }
+  return { first_name: parts[0], last_name: parts.slice(1).join(" ") }
+}
+
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
     active: 'bg-success/10 text-success',
