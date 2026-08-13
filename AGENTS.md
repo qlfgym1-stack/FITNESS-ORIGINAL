@@ -84,6 +84,7 @@
 - **Bug F-7** — `members.tsx` lit `?q=` via `useSearchParams` → recherche navbar fonctionnelle (init `search`/`debouncedSearch` depuis l'URL)
 - **Bug F-6** — `navbar.tsx` importe `useQuery`/`useMutation`/`useQueryClient` depuis `@/hooks/useQuery`
 - **Déploiement Vercel** — ErrorBoundary auto-reload sur chunk dynamique périmé (stale PWA) + `cleanupOutdatedCaches` ; déploiement prod https://qlfgym.vercel.app ✅
+- **Déploiement Vercel 13/08/2026** — branche `deploy/member-insights` déployée en prod (member-insights, noImplicitAny C1, dialogue notif, store IA partagé) → https://qlfgym.vercel.app ✅
 - **Paie — Bonus exceptionnel** : champ BONUS « prime exceptionnelle » par employé dans `rh.tsx` (colonne `staff.bonus` existante via 00051) — éditable admin, sauvegardé avec salaire (autosave), badge bonus dans la liste staff, ligne « Total salaire » = fixe + bonus
 - **Assistant IA — Bonus intégré** : `useAssistantData.ts` somme les `staff.bonus` actifs et les ajoute aux dépenses salariales (`totalExpenses`) → impacte le bénéfice net, KPI et synthèse
 - **Fix UI — Synthèse intelligente** : `insights-section.tsx` textes passés en `text-foreground` (noir) au lieu de `text-*-foreground` blancs sur fonds teintés 10% (illisibles) ; action `opacity-80` → noir plein
@@ -92,6 +93,8 @@
 
 ### In Progress
 - Intégration des anomalies de l'audit (reste : sign-in i18n F-4 intentionnel, Git branches G2)
+- Configurer les variables d'env Edge Functions (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`) — nécessite `supabase login`
+- Remplacer `SUPABASE_PROJECT_REF` dans `00004_cron_jobs.sql` et activer les cron jobs
 
 ### Blocked
 - **(none)**
