@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe, Wifi, WifiOff, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, CheckCheck, MailOpen, UserRound } from "lucide-react"
+import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe, Wifi, WifiOff, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, CheckCheck, MessageCircle, UserRound } from "lucide-react"
 import { motion } from "framer-motion"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useNavigate } from "react-router-dom"
@@ -195,10 +195,10 @@ function NotificationsDropdown() {
               return (
                 <div
                   key={notif.id}
-                  onClick={() => { setOpen(false); setViewTarget(notif) }}
+                  onClick={() => { setOpen(false); if (!notif.is_read && notif.user_id === user?.id) markAsRead.mutate(notif.id); setViewTarget(notif) }}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(false); setViewTarget(notif) } }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(false); if (!notif.is_read && notif.user_id === user?.id) markAsRead.mutate(notif.id); setViewTarget(notif) } }}
                   className={`flex cursor-pointer items-start gap-3 border-b px-4 py-3 last:border-0 transition-colors hover:bg-accent ${!notif.is_read ? "bg-primary/5" : ""}`}
                 >
                   <div className="mt-0.5 rounded-full bg-muted p-1.5">
@@ -269,7 +269,7 @@ function NotificationsDropdown() {
           })()}
           {viewTarget && !viewTarget.is_read && viewTarget.user_id === user?.id && (
             <Button onClick={() => { markAsRead.mutate(viewTarget.id); setViewTarget(null) }}>
-              <MailOpen className="mr-2 h-4 w-4" /> {t("notifications.markAsRead")}
+              <MessageCircle className="mr-2 h-4 w-4" /> {t("notifications.markAsRead")}
             </Button>
           )}
         </DialogFooter>

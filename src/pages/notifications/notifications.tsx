@@ -26,7 +26,7 @@ import {
 } from "@/lib/whatsapp"
 import type { Notification, WhatsappOutbox } from "@/types/supabase"
 import {
-  Bell, CheckCheck, MailOpen, Trash2, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, Info,
+  Bell, CheckCheck, Trash2, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, Info,
   MessageCircle, Settings2, Send, RefreshCw, CalendarClock, CalendarX, Loader2, Cake, Search, History, Megaphone, Users, CheckCircle, UserRound,
 } from "lucide-react"
 
@@ -107,6 +107,7 @@ export default function NotificationsPage() {
   const [viewTarget, setViewTarget] = useState<Notification | null>(null)
   const [search, setSearch] = useState("")
   const [subSearch, setSubSearch] = useState("")
+  const [historySearch, setHistorySearch] = useState("")
 
   const typeLabel = (type: string): string => {
     switch (type) {
@@ -600,6 +601,18 @@ export default function NotificationsPage() {
     }
   }
 
+  const filteredHistory = useMemo(() => {
+    const q = historySearch.trim().toLowerCase()
+    if (!q) return history
+    return history.filter((h: WhatsappOutbox) => {
+      const name = (h.member_name ?? "").toLowerCase()
+      const digits = (h.phone ?? "").replace(/\D/g, "")
+      const tpl = (templateLabel(h.template_key as WaTemplateKey) || h.template_key).toLowerCase()
+      const msg = (h.message ?? "").toLowerCase()
+      return name.includes(q) || digits.includes(q.replace(/\D/g, "")) || tpl.includes(q) || msg.includes(q)
+    })
+  }, [history, historySearch])
+
   function renderRow(sub: SubWithRelations, isExpired: boolean) {
     const member = sub.members
     const name = member ? `${member.first_name} ${member.last_name}` : "-"
@@ -722,10 +735,13 @@ export default function NotificationsPage() {
                 return (
                   <Card
                     key={n.id}
-                    onClick={() => setViewTarget(n)}
+                    onClick={() => {
+                      if (!n.is_read && n.user_id === user?.id) markAsRead.mutate(n.id)
+                      setViewTarget(n)
+                    }}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setViewTarget(n) } }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!n.is_read && n.user_id === user?.id) markAsRead.mutate(n.id); setViewTarget(n) } }}
                     className={`cursor-pointer transition-colors hover:border-primary/40 ${!n.is_read ? "border-primary/50 bg-primary/5" : ""}`}
                   >
                     <CardContent className="p-4">
@@ -786,7 +802,7 @@ export default function NotificationsPage() {
                           })()}
                           {!n.is_read && n.user_id === user?.id && (
                             <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); markAsRead.mutate(n.id) }}>
-                              <MailOpen className="h-4 w-4" />
+                              <MessageCircle className="h-4 w-4" />
                             </Button>
                           )}
                         </div>
@@ -1120,11 +1136,23 @@ export default function NotificationsPage() {
                   <h3 className="text-lg font-semibold">{t("notifications.historyTitle") || "Historique des envois WhatsApp"}</h3>
                   <p className="text-sm text-muted-foreground">{t("notifications.historyDesc") || "Consultez les messages envoyés via WhatsApp"}</p>
                 </div>
+                {history.length > 0 && (
+                  <Badge variant="outline" className="ml-auto shrink-0">{filteredHistory.length} / {history.length}</Badge>
+                )}
               </div>
-              {history.length === 0 ? (
+              <div className="relative max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  className="pl-9"
+                  placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+                />
+              </div>
+              {filteredHistory.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <History className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>{t("notifications.historyEmpty") || "Aucun message envoyé"}</p>
+                  <p>{historySearch ? t("notifications.noResult") || "Aucun message ne correspond à la recherche" : t("notifications.historyEmpty") || "Aucun message envoyé"}</p>
                 </div>
               ) : (
                 <Card>
@@ -1142,7 +1170,7 @@ export default function NotificationsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {history.map((h: WhatsappOutbox) => (
+                        {filteredHistory.map((h: WhatsappOutbox) => (
                           <tr key={h.id} className="border-b">
                             <td className="px-4 py-3 font-medium">
                               {h.member_id ? (
@@ -1338,7 +1366,7 @@ export default function NotificationsPage() {
             })()}
             {viewTarget && !viewTarget.is_read && viewTarget.user_id === user?.id && (
               <Button onClick={() => { markAsRead.mutate(viewTarget.id); setViewTarget(null) }}>
-                <MailOpen className="mr-2 h-4 w-4" /> {t("notifications.markAsRead")}
+                <MessageCircle className="mr-2 h-4 w-4" /> {t("notifications.markAsRead")}
               </Button>
             )}
           </DialogFooter>
