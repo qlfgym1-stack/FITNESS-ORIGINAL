@@ -194,7 +194,7 @@ export function MemberHistoryDialog({ memberId, memberName, open, onOpenChange }
 
   const filtered = useMemo(() => {
     const list = entries ?? []
-    return list.filter((e) => {
+    return list.filter((e: HistoryEntry) => {
       if (moduleFilter !== 'all' && e.module !== moduleFilter) return false
       const ts = new Date(e.timestamp).getTime()
       if (dateFrom && ts < new Date(`${dateFrom}T00:00:00`).getTime()) return false
@@ -258,7 +258,7 @@ export function MemberHistoryDialog({ memberId, memberName, open, onOpenChange }
               <p className="text-xs text-muted-foreground mt-1">{t('members.history.emptyHint') || 'Aucun événement ne correspond aux critères'}</p>
             </div>
           )}
-          {!isLoading && filtered.map((entry) => (
+          {!isLoading && filtered.map((entry: HistoryEntry) => (
             <Card key={`${entry.module}-${entry.id}`} className="p-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">

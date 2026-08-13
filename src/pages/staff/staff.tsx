@@ -178,7 +178,7 @@ export default function StaffPage() {
   const { page, setPage, totalPages, paginatedData: paginatedStaff } = usePagination(staffList, 20)
 
   const { exportCsv } = useExportCsv(
-    (staffList ?? []).map(s => ({ first_name: s.first_name, last_name: s.last_name, email: s.email ?? '', phone: s.phone ?? '', role: s.role ?? '', salary: s.salary ?? 0, hire_date: s.hire_date ?? '', is_active: s.is_active })),
+    (staffList ?? []).map((s: Staff) => ({ first_name: s.first_name, last_name: s.last_name, email: s.email ?? '', phone: s.phone ?? '', role: s.role ?? '', salary: s.salary ?? 0, hire_date: s.hire_date ?? '', is_active: s.is_active })),
     'staff',
     [
       { key: 'first_name', label: t('staff.firstName') },

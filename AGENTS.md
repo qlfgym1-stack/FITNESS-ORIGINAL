@@ -15,6 +15,9 @@
 
 ## Progress
 ### Done
+- **noImplicitAny activé (C1)** — `tsconfig.json` `noImplicitAny: true`, 340 erreurs TS7006 corrigées sur 41 fichiers (typage des callbacks, `unknown` + casts JSONB, interfaces locales) ; `npx tsc --noEmit` ✅ zéro erreur
+- **Page Analyses membres `/member-insights`** — hook `useMemberInsightsData` (5 queries Supabase parallèles + mock), 7 composants (KPI agrégés, activité, risque churn, matrice comportementale, fréquentation recharts, types abonnement, top membres LTV), route + sidebar, i18n FR/EN/AR, 4 fichiers de tests (29 tests) ; `notifPrefill` orphelin retiré des 3 i18n
+- **Chat IA sur OpenRouter :free** — `supabase/functions/ai-chat` basculé de NVIDIA NIM vers OpenRouter (`https://openrouter.ai/api/v1/chat/completions`, clé `OPENROUTER_API_KEY`) : whitelist de modèles gratuits `:free` (prompt = 0, completion = 0) vérifiés (`openai/gpt-oss-20b:free` défaut et code, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` analyse, `google/gemma-4-26b-a4b-it:free` multilingue, fallback auto si modèle indisponible) ; JWT + CORS conservés ; clé ajoutée au `.env` local (gitignored)
 - **Robot IA flottant global** — `src/components/layout/ai-robot.tsx` : robot premium SVG/CSS natif (tête arrondie, visière, yeux lumineux qui suivent le curseur via pointermove+rAF `--eye-x/--eye-y`, clignement aléatoire 3-7s/120-220ms `--eye-blink`, corps + noyau central lumineux, micro-détails), conteneur totalement transparent (seul le robot a un glow), déplaçable souris/tactile (pointer events, seuil drag 5px, click ≠ drag), position mémorisée localStorage `fitmanager-ai-robot-pos` + clamp écran/resize, états idle/thinking (pulsation yeux+glow)/responding (pulsation douce, état ajouté au store `ai-chat.tsx` sans toucher à la logique)/offline (grisé), retour doux des yeux au centre au `mouseleave`, mobile sans suivi (détection `hover:fine`), responsive 50-56px, clavier (aria-label + Enter/Espace), `prefers-reduced-motion` ; panneau de chat `embedded` + données chargées paresseusement ; store partagé `src/stores/ai-chat.tsx` (`AiChatProvider` + `useAiChat`) monté dans `AppLayout` — un seul historique module ↔ robot ; `ChatSection` vers store partagé avec prop `embedded` ; CSS `.fitmanager-ai-*` dans `index.css` — `npx tsc --noEmit` ✅, `npx vitest --run` ✅ 82/82, `npx vite build` ✅
 - **Rôle super_admin fusionné dans admin** — migration 00059 : UPDATE données, contrainte CHECK sans 'super_admin', trigger `after_organization_insert` assigne 'admin', RPC seed → 'admin' ; types TS, auth store (`isSuperAdmin` retiré), sidebar (groupe superAdmin + pages super-admin/licenses supprimées), admin/users, coach-mode, checkin-dialog, Edge Functions, i18n → 'admin' ; `npx tsc --noEmit` ✅
 - **Salaire coach (fixe + variable)** — `coach_default_salary` / `coach_default_rate_per_member` dans `organizations`, page coach-portal, salaire calculé selon adhérents
@@ -88,7 +91,7 @@
 - **Boutons Premium v2 (uiverse.io)** : couleurs refondues light+dark dans `button.tsx` — default **blue→indigo** glossy `#3b82f6→#2563eb→#4f46e5` (dark `#60a5fa→#3b82f6→#6366f1`), destructive dégradé rouge avec inset highlight, secondary **glass** (`indigo-50`/`white/5`), outline **Stripe-like**, ghost/`link` adaptés au mode ; `.btn-shine` overlay adapté dark (blanc 0.4 light / 0.18 dark) ; focus ring `primary/50`
 
 ### In Progress
-- Intégration des anomalies de l'audit (reste : sign-in i18n F-4 intentionnel, `noImplicitAny` C1, Git branches G2)
+- Intégration des anomalies de l'audit (reste : sign-in i18n F-4 intentionnel, Git branches G2)
 
 ### Blocked
 - **(none)**
@@ -126,18 +129,18 @@
 - **Assistant IA** : moteur règles locales (aucune clé API, hors-ligne, testable), prévisions par régression linéaire + saisonnalité, insights/actions via clés i18n paramétrées `{param}` — cohérent avec rentabilite/assistant-comptable
 
 ## Next Steps
-- Test manuel navigateur (Ctrl+Shift+R) : `/ai-assistant` (KPIs, actions P0/P1/P2, graphique heures, produits phares, prévisions confiance, insights EN/AR/FR) + test corporate POS (adhérent avec carte → panier abonnement → remise auto/retirable → paiement RPC montant remisé) + recherche navbar (`/members?q=`)
+- Test manuel navigateur (Ctrl+Shift+R) : `/ai-assistant` (KPIs, actions P0/P1/P2, graphique heures, produits phares, prévisions confiance, insights EN/AR/FR) + test corporate POS (adhérent avec carte → panier abonnement → remise auto/retirable → paiement RPC montant remisé) + recherche navbar (`/members?q=`) + `/member-insights` (KPIs, churn, segments, matrice, fréquentation)
 - ✅ Bug rentabilite corrigé : filtre `organization_id` sur `class_enrollments` (`useProfitabilityData.ts:260` via `classes!inner`) + clés i18n rentabilite FR/AR/EN complètes
-- Corriger les anomalies restantes (F-4 sign-in i18n intentionnel, C1 `noImplicitAny`, G2 branches Git)
+- Corriger les anomalies restantes (F-4 sign-in i18n intentionnel, G2 branches Git)
 - Configurer les variables d'env Edge Functions (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
 - Remplacer `SUPABASE_PROJECT_REF` dans `00004_cron_jobs.sql` et activer les cron jobs
 
 ## Critical Context
-- `npx tsc --noEmit` ✅ zéro erreur
-- `npx vitest --run` ✅ 67/67 tests (utils, recovery, auth, ai-assistant lib)
+- `npx tsc --noEmit` ✅ zéro erreur (`noImplicitAny: true`)
+- `npx vitest --run` ✅ 119/119 tests (utils, recovery, auth, ai-assistant lib, member-insights lib)
 - `npx vite build` ✅ succès
 - 62 migrations (`00001`→`00062`) — toutes appliquées remote (dont 00061/00062 sécurité RPC, 00060 corporate, 00059 admin)
-- 3 Edge Functions (recovery, send-subscription-reminder, send-payment-reminder)
+- 4 Edge Functions (ai-chat, recovery, send-subscription-reminder, send-payment-reminder) — `ai-chat` requiert le secret `OPENROUTER_API_KEY`
 - Le bucket `photos` Supabase Storage doit exister pour l'upload des avatars
 - RLS role-based : `admin` peut tout modifier, `coach`/`staff` sont en lecture seule
 - Le recovery code est affiché côté serveur (pas de canal email/SMS implémenté)

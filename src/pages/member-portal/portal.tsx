@@ -102,7 +102,7 @@ export default function PortalPage() {
   const { page: payPage, setPage: setPayPage, totalPages: payTotalPages, paginatedData: paginatedPayments } = usePagination(payments, 10)
 
   const { exportCsv: exportSubscriptions } = useExportCsv(
-    subscriptions.map(s => ({ name: s.name, start_date: s.start_date, end_date: s.end_date, status: s.status, total_amount: s.total_amount, amount_paid: s.amount_paid })),
+    subscriptions.map((s: { id: string; name: string; start_date: string; end_date: string; status: string; total_amount: number; amount_paid: number }) => ({ name: s.name, start_date: s.start_date, end_date: s.end_date, status: s.status, total_amount: s.total_amount, amount_paid: s.amount_paid })),
     'subscriptions',
     [
       { key: 'name', label: t('portal.subscription') || 'Subscription' },
@@ -115,7 +115,7 @@ export default function PortalPage() {
   )
 
   const { exportCsv: exportAttendance } = useExportCsv(
-    attendance.map(a => ({ date: a.date, type: a.type, time: a.time, class_name: a.class_name ?? '' })),
+    attendance.map((a: { id: string; date: string; type: string; time: string; class_name: string | undefined }) => ({ date: a.date, type: a.type, time: a.time, class_name: a.class_name ?? '' })),
     'attendance',
     [
       { key: 'date', label: t('common.date') || 'Date' },
@@ -126,7 +126,7 @@ export default function PortalPage() {
   )
 
   const { exportCsv: exportPayments } = useExportCsv(
-    payments.map(p => ({ date: p.date, amount: p.amount, method: p.method, status: p.status, description: p.description })),
+    payments.map((p: { id: string; date: string; amount: number; method: string; status: string; description: string }) => ({ date: p.date, amount: p.amount, method: p.method, status: p.status, description: p.description })),
     'payments',
     [
       { key: 'date', label: t('common.date') || 'Date' },

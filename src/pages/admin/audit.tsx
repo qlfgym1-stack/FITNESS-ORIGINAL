@@ -149,7 +149,7 @@ export default function AuditPage() {
   }, [logs])
 
   const filtered = useMemo(() => {
-    return logs.filter((log) => {
+    return logs.filter((log: AuditLog) => {
       if (action !== "all" && log.action !== action) return false
       if (entityType !== "all" && log.entity_type !== entityType) return false
       if (search && !log.entity_id.toLowerCase().includes(search.toLowerCase())) return false

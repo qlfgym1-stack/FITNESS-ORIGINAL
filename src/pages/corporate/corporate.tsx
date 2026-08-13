@@ -79,7 +79,7 @@ export default function CorporatePage() {
 
   const accounts = IS_MOCK ? mockAccounts : (data ?? [])
 
-  const filtered = accounts.filter((a) => {
+  const filtered = accounts.filter((a: Corporate) => {
     const matchesSearch = (a.company_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (a.contact_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (a.email ?? "").toLowerCase().includes(search.toLowerCase())
@@ -92,7 +92,7 @@ export default function CorporatePage() {
   const { page, setPage, totalPages, paginatedData: paginatedAccounts } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(a => ({ company_name: a.company_name, contact_name: a.contact_name, email: a.email, phone: a.phone, address: a.address, discount_rate: a.discount_rate, contract_start: a.contract_start, contract_end: a.contract_end, active: a.is_active ? 'Yes' : 'No' })),
+    filtered.map((a: Corporate) => ({ company_name: a.company_name, contact_name: a.contact_name, email: a.email, phone: a.phone, address: a.address, discount_rate: a.discount_rate, contract_start: a.contract_start, contract_end: a.contract_end, active: a.is_active ? 'Yes' : 'No' })),
     'corporate',
     [
       { key: 'company_name', label: t('corporate.company') },

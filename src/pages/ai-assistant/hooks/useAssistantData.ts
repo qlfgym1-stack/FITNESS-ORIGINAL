@@ -325,17 +325,17 @@ export function useAssistantData(
   )
 
   return useMemo(() => {
-    const windowPos = posTransactions.filter((tx) => tx.created_at.slice(0, 10) >= from && tx.created_at.slice(0, 10) <= to)
-    const windowPayments = payments.filter((p) => p.payment_date.slice(0, 10) >= from && p.payment_date.slice(0, 10) <= to)
+    const windowPos = posTransactions.filter((tx: PosTransactionRow) => tx.created_at.slice(0, 10) >= from && tx.created_at.slice(0, 10) <= to)
+    const windowPayments = payments.filter((p: PaymentRow) => p.payment_date.slice(0, 10) >= from && p.payment_date.slice(0, 10) <= to)
 
     const peakHours = analyzePeakHours(attendance)
     const flagship = analyzeFlagshipProducts(windowPos, products)
     const subscription = analyzeSubscriptions(subscriptions, members)
 
-    const posRevenue = windowPos.reduce((s, tx) => s + bucketPosRevenue(tx), 0)
-    const subscriptionRevenue = windowPayments.reduce((s, p) => s + p.amount, 0)
+    const posRevenue = windowPos.reduce((s: number, tx: PosTransactionRow) => s + bucketPosRevenue(tx), 0)
+    const subscriptionRevenue = windowPayments.reduce((s: number, p: PaymentRow) => s + p.amount, 0)
     const totalRevenue = posRevenue + subscriptionRevenue
-    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0) + salaryPayments.reduce((s, p) => s + p.amount, 0)
+    const totalExpenses = expenses.reduce((s: number, e: ExpenseRow) => s + e.amount, 0) + salaryPayments.reduce((s: number, p: SalaryPaymentRow) => s + p.amount, 0)
     const netProfit = totalRevenue - totalExpenses
 
     const monthLabels: string[] = []
@@ -345,8 +345,8 @@ export function useAssistantData(
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
       monthLabels.push(`${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]} ${d.getFullYear()}`)
       const rev =
-        payments.filter((p) => monthKey(p.payment_date) === key).reduce((s, p) => s + p.amount, 0) +
-        posTransactions.filter((tx) => monthKey(tx.created_at) === key).reduce((s, tx) => s + bucketPosRevenue(tx), 0)
+        payments.filter((p: PaymentRow) => monthKey(p.payment_date) === key).reduce((s: number, p: PaymentRow) => s + p.amount, 0) +
+        posTransactions.filter((tx: PosTransactionRow) => monthKey(tx.created_at) === key).reduce((s: number, tx: PosTransactionRow) => s + bucketPosRevenue(tx), 0)
       monthly.push(Math.round(rev))
     }
 

@@ -77,7 +77,7 @@ export default function DisplayPage() {
   })
 
   const { exportCsv } = useExportCsv(
-    todayCheckins.map(r => ({ name: r.name, time: r.time, type: r.type })),
+    todayCheckins.map((r: { id: string; name: string; time: string; type: "check-in" }) => ({ name: r.name, time: r.time, type: r.type })),
     'checkins-today',
     [
       { key: 'name', label: t('common.name') || 'Name' },
@@ -137,7 +137,7 @@ export default function DisplayPage() {
               <div className="space-y-3">
                 {todayCheckins.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">{t("common.noData")}</p>
-                ) : todayCheckins.map((r) => (
+                ) : todayCheckins.map((r: { id: string; name: string; time: string; type: "check-in" }) => (
                   <div key={r.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback>{getInitials(r.name.split(" ")[0] ?? "", r.name.split(" ")[1] ?? "")}</AvatarFallback>
@@ -173,7 +173,7 @@ export default function DisplayPage() {
               <div className="space-y-3">
                 {todayClasses.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">{t("common.noData")}</p>
-                ) : todayClasses.map((c) => (
+                ) : todayClasses.map((c: { id: string; name: string; time: string; coach: string; enrolled: number; capacity: number }) => (
                   <div key={c.id} className="p-3 rounded-lg bg-muted/30 border">
                     <p className="font-medium text-sm">{c.name}</p>
                     <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">

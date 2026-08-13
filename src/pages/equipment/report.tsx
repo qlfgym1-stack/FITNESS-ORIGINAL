@@ -67,13 +67,13 @@ export default function ReportPage() {
 
   const equipmentMap = useMemo(() => {
     const map = new Map<string, Equipment>()
-    equipmentList?.forEach(e => map.set(e.id, e))
+    equipmentList?.forEach((e: Equipment) => map.set(e.id, e))
     return map
   }, [equipmentList])
 
   const categoryData = useMemo(() => {
     const counts = new Map<string, number>()
-    equipmentList?.forEach(e => {
+    equipmentList?.forEach((e: Equipment) => {
       const cat = e.category || "other"
       counts.set(cat, (counts.get(cat) || 0) + 1)
     })
@@ -82,7 +82,7 @@ export default function ReportPage() {
 
   const usageData = useMemo(() => {
     const counts = new Map<string, number>()
-    reservations?.forEach(r => {
+    reservations?.forEach((r: EquipmentReservation) => {
       const equip = equipmentMap.get(r.equipment_id)
       const name = equip?.name || "Unknown"
       counts.set(name, (counts.get(name) || 0) + 1)
@@ -156,7 +156,7 @@ export default function ReportPage() {
                       cx="50%"
                       cy="50%"
                       labelLine
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
                       outerRadius={100}
                       dataKey="value"
                     >

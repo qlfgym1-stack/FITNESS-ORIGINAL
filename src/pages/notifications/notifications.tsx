@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { PageHeader } from "@/components/layout"
+import { NotificationDetails } from "@/components/notifications/notification-details"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -24,7 +26,7 @@ import {
 import type { Notification, WhatsappOutbox } from "@/types/supabase"
 import {
   Bell, CheckCheck, MailOpen, Trash2, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, Info,
-  MessageCircle, Settings2, Send, RefreshCw, CalendarClock, CalendarX, Loader2, Cake, Search, History, Megaphone, Users, CheckCircle,
+  MessageCircle, Settings2, Send, RefreshCw, CalendarClock, CalendarX, Loader2, Cake, Search, History, Megaphone, Users, CheckCircle, UserRound,
 } from "lucide-react"
 
 const typeIcons: Record<string, React.ElementType> = {
@@ -96,9 +98,22 @@ export default function NotificationsPage() {
   const { user, roles, organization } = useAuth()
   const supabase = useSupabase()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [filter, setFilter] = useState<FilterType>("all")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [topTab, setTopTab] = useState<TopTab>("notifications")
+  const [viewTarget, setViewTarget] = useState<Notification | null>(null)
+
+  const typeLabel = (type: string): string => {
+    switch (type) {
+      case "subscription_expiring": return t("notifications.subscriptionExpiring")
+      case "payment_overdue": return t("notifications.paymentOverdue")
+      case "member_checkin": return t("notifications.memberCheckin")
+      case "staff_leave": return t("notifications.staffLeave")
+      case "system": return t("notifications.system")
+      default: return type
+    }
+  }
 
   const orgId = organization?.id
   const isAdmin = roles?.some((r) => r.role === "admin")
@@ -132,12 +147,12 @@ export default function NotificationsPage() {
 
   const markAllRead = useMutation({
     mutationFn: async () => {
-      const unread = notifications.filter((n) => !n.is_read && n.user_id === user?.id)
+      const unread = notifications.filter((n: Notification) => !n.is_read && n.user_id === user?.id)
       if (unread.length === 0) return
       await supabase
         .from("notifications")
         .update({ is_read: true })
-        .in("id", unread.map((n) => n.id))
+        .in("id", unread.map((n: Notification) => n.id))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] })
@@ -146,14 +161,14 @@ export default function NotificationsPage() {
   })
 
   const unreadCount = useMemo(
-    () => notifications.filter((n) => !n.is_read).length,
+    () => notifications.filter((n: Notification) => !n.is_read).length,
     [notifications],
   )
 
   const filtered = useMemo(() => {
     let result = notifications
-    if (filter === "unread") result = result.filter((n) => !n.is_read)
-    if (typeFilter !== "all") result = result.filter((n) => n.type === typeFilter)
+    if (filter === "unread") result = result.filter((n: Notification) => !n.is_read)
+    if (typeFilter !== "all") result = result.filter((n: Notification) => n.type === typeFilter)
     return result
   }, [notifications, filter, typeFilter])
 
@@ -278,7 +293,7 @@ export default function NotificationsPage() {
   const birthdays = useMemo(() => {
     const today = new Date()
     const todayStr = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
-    return members.filter((m) => {
+    return members.filter((m: CampaignMember) => {
       if (!m.phone || !m.birth_date || m.birth_date.length < 10) return false
       return m.birth_date.substring(5, 10) === todayStr
     })
@@ -335,7 +350,7 @@ export default function NotificationsPage() {
       if (error) throw error
       return data as { created: number }
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { created: number }) => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] })
       toast({
         title: t("notifications.alertsGenerated") || "Alertes générées",
@@ -425,7 +440,7 @@ export default function NotificationsPage() {
 
   const campaignList = useMemo(() => {
     const q = campaignSearch.trim().toLowerCase()
-    return members.filter((m) => {
+    return members.filter((m: CampaignMember) => {
       if (!m.phone) return false
       if (campaignStatus !== "all" && m.status !== campaignStatus) return false
       if (!q) return true
@@ -447,13 +462,13 @@ export default function NotificationsPage() {
   const toggleSelectAll = () => {
     setSelectedMembers((prev) => {
       if (prev.size === campaignList.length) return new Set()
-      return new Set(campaignList.map((m) => m.id))
+      return new Set(campaignList.map((m: CampaignMember) => m.id))
     })
   }
 
   const sendCampaign = useMutation({
     mutationFn: async () => {
-      const targets = campaignList.filter((m) => selectedMembers.has(m.id))
+      const targets = campaignList.filter((m: CampaignMember) => selectedMembers.has(m.id))
       if (targets.length === 0) throw new Error("No targets")
       setSentCount(0)
       for (const m of targets) {
@@ -639,12 +654,16 @@ export default function NotificationsPage() {
             <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
           ) : (
             <div className="space-y-2">
-              {filtered.map((n) => {
+              {filtered.map((n: Notification) => {
                 const Icon = typeIcons[n.type] || Bell
                 return (
                   <Card
                     key={n.id}
-                    className={`transition-colors ${!n.is_read ? "border-primary/50 bg-primary/5" : ""}`}
+                    onClick={() => setViewTarget(n)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setViewTarget(n) } }}
+                    className={`cursor-pointer transition-colors hover:border-primary/40 ${!n.is_read ? "border-primary/50 bg-primary/5" : ""}`}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start gap-4">
@@ -668,12 +687,12 @@ export default function NotificationsPage() {
                             </p>
                             {!n.is_read && <div className="h-2 w-2 rounded-full bg-primary" />}
                           </div>
-                          <p className="text-sm text-muted-foreground mt-1">{n.message}</p>
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{n.message}</p>
                           <p className="text-xs text-muted-foreground mt-1">{formatDate(n.created_at)}</p>
                         </div>
                         <div className="flex gap-1">
                           {!n.is_read && n.user_id === user?.id && (
-                            <Button variant="ghost" size="icon" onClick={() => markAsRead.mutate(n.id)}>
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); markAsRead.mutate(n.id) }}>
                               <MailOpen className="h-4 w-4" />
                             </Button>
                           )}
@@ -736,7 +755,7 @@ export default function NotificationsPage() {
                 <p>{t("notifications.noRenewals") || "Aucun abonnement à renouveler"}</p>
               </div>
             ) : (
-              <div className="space-y-2">{renewals.map((s) => renderRow(s, false))}</div>
+              <div className="space-y-2">{renewals.map((s: SubWithRelations) => renderRow(s, false))}</div>
             )}
           </div>
         </TabsContent>
@@ -774,7 +793,7 @@ export default function NotificationsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {birthdays.map((m) => {
+                {birthdays.map((m: CampaignMember) => {
                   const name = `${m.first_name} ${m.last_name}`
                   return (
                     <Card key={m.id} className="border-rose-500/30">
@@ -794,7 +813,7 @@ export default function NotificationsPage() {
                             <Button
                               variant="outline"
                               size="icon"
-                              onClick={() => openWhatsApp({ member_id: m.id, name, phone: m.phone, date: m.birth_date ?? "", kind: "birthday" })}
+                              onClick={() => openWhatsApp({ member_id: m.id, name, phone: m.phone ?? "", date: m.birth_date ?? "", kind: "birthday" })}
                             >
                               <MessageCircle className="h-4 w-4" />
                             </Button>
@@ -901,7 +920,7 @@ export default function NotificationsPage() {
                           </td>
                         </tr>
                       ) : (
-                        campaignList.map((m) => {
+                        campaignList.map((m: CampaignMember) => {
                           const name = `${m.first_name} ${m.last_name}`
                           return (
                             <tr key={m.id} className="border-b">
@@ -998,7 +1017,7 @@ export default function NotificationsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {history.map((h) => (
+                        {history.map((h: WhatsappOutbox) => (
                           <tr key={h.id} className="border-b">
                             <td className="px-4 py-3 font-medium">{h.member_name || "-"}</td>
                             <td className="px-4 py-3 text-muted-foreground">{h.phone ? displayPhone(h.phone) : "-"}</td>
@@ -1132,6 +1151,60 @@ export default function NotificationsPage() {
               )}
               {t("notifications.delete") || "Supprimer"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!viewTarget} onOpenChange={(o) => { if (!o) setViewTarget(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{viewTarget?.title}</DialogTitle>
+            <DialogDescription>
+              {viewTarget ? formatDate(viewTarget.created_at) : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {viewTarget && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="rounded-full p-2 bg-muted">
+                  {(() => { const Icon = typeIcons[viewTarget.type] || Bell; return <Icon className="h-4 w-4 text-muted-foreground" /> })()}
+                </div>
+                <Badge variant="outline">{typeLabel(viewTarget.type)}</Badge>
+                {!viewTarget.is_read && (
+                  <Badge variant="default">{t("notifications.unreadOnly")}</Badge>
+                )}
+              </div>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">{viewTarget.message}</p>
+              {viewTarget.body && (
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{viewTarget.body}</p>
+              )}
+              {viewTarget.data && (
+                <div className="space-y-1">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t("notifications.details") || "Détails"}</p>
+                  <NotificationDetails data={viewTarget.data} />
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewTarget(null)}>
+              {t("common.close")}
+            </Button>
+            {(() => {
+              const d = viewTarget?.data
+              if (!d || typeof d !== "object") return null
+              const memberId = (d as Record<string, unknown>).member_id
+              if (memberId == null) return null
+              return (
+                <Button onClick={() => { setViewTarget(null); navigate(`/members?id=${encodeURIComponent(String(memberId))}`) }}>
+                  <UserRound className="mr-2 h-4 w-4" /> {t("notifications.openMember") || "Ouvrir le membre"}
+                </Button>
+              )
+            })()}
+            {viewTarget && !viewTarget.is_read && viewTarget.user_id === user?.id && (
+              <Button onClick={() => { markAsRead.mutate(viewTarget.id); setViewTarget(null) }}>
+                <MailOpen className="mr-2 h-4 w-4" /> {t("notifications.markAsRead")}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

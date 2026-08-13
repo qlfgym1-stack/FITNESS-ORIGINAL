@@ -48,6 +48,7 @@ const Expenses = lazy(() => import('@/pages/expenses/expenses'))
 const AssistantComptable = lazy(() => import('@/pages/assistant-comptable/assistant-comptable'))
 const Rentabilite = lazy(() => import('@/pages/rentabilite/rentabilite'))
 const AiAssistant = lazy(() => import('@/pages/ai-assistant/ai-assistant'))
+const MemberInsights = lazy(() => import('@/pages/member-insights/member-insights'))
 const Install = lazy(() => import('@/pages/install/install'))
 
 function Loading() {
@@ -175,6 +176,7 @@ export default function App() {
               <Route path="admin/audit" element={<PageTransition><Suspense fallback={<Loading />}><Audit /></Suspense></PageTransition>} />
               <Route path="display" element={<PageTransition><Suspense fallback={<Loading />}><Display /></Suspense></PageTransition>} />
               <Route path="ai-assistant" element={<PageTransition><Suspense fallback={<Loading />}><AiAssistant /></Suspense></PageTransition>} />
+              <Route path="member-insights" element={<PageTransition><Suspense fallback={<Loading />}><MemberInsights /></Suspense></PageTransition>} />
               <Route path="install" element={<PageTransition><Suspense fallback={<Loading />}><Install /></Suspense></PageTransition>} />
             </Route>
             <Route path="*" element={<NotFound />} />

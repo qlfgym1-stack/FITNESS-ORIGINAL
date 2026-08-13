@@ -187,13 +187,13 @@ export default function PaymentsPage() {
       form.reset()
       toast({ title: t("payments.paymentAdded") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
 
   const filteredPayments = useMemo(() => {
-    return payments?.filter((p) => {
+    return payments?.filter((p: PaymentWithRelations) => {
       const name = `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`.toLowerCase()
       const matchesSearch = name.includes(search.toLowerCase()) || p.notes?.toLowerCase().includes(search.toLowerCase())
       const matchesStatus = statusFilter === "all" || p.status === statusFilter
@@ -205,7 +205,7 @@ export default function PaymentsPage() {
   const { page, setPage, totalPages, paginatedData: paginatedPayments } = usePagination(filteredPayments, 20)
 
   const { exportCsv, isExporting } = useExportCsv(
-    (filteredPayments ?? []).map((p) => ({
+    (filteredPayments ?? []).map((p: PaymentWithRelations) => ({
       member_name: `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`,
       amount: p.amount,
       payment_date: p.payment_date,
@@ -316,7 +316,7 @@ export default function PaymentsPage() {
       { header: "Statut", key: "Statut", width: 15 },
       { header: "Notes", key: "Notes", width: 30 },
     ]
-    payments.forEach((p) => {
+    payments.forEach((p: PaymentWithRelations) => {
       ws.addRow({
         Membre: `${p.members?.first_name ?? ""} ${p.members?.last_name ?? ""}`,
         Montant: p.amount,
@@ -329,7 +329,7 @@ export default function PaymentsPage() {
     await wb.xlsx.writeFile("paiements.xlsx")
   }, [payments, getMethodLabel])
 
-  const filteredMembers = members?.filter((m) =>
+  const filteredMembers = members?.filter((m: Pick<Member, "id" | "first_name" | "last_name">) =>
     `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase())
   )
 
@@ -383,7 +383,7 @@ export default function PaymentsPage() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     <ScrollArea className="h-48">
-                                      {filteredMembers?.map((m) => (
+                                      {filteredMembers?.map((m: Pick<Member, "id" | "first_name" | "last_name">) => (
                                         <SelectItem key={m.id} value={m.id}>
                                           {toUpper(m.first_name)} {toUpper(m.last_name)}
                                         </SelectItem>
@@ -412,7 +412,7 @@ export default function PaymentsPage() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">Aucun</SelectItem>
-                                {subscriptions?.map((s) => (
+                                {subscriptions?.map((s: Pick<SubscriptionType, "id" | "name" | "price">) => (
                                   <SelectItem key={s.id} value={s.id}>
                                     {toUpper(s.name)} - {s.price.toLocaleString()} DZD
                                   </SelectItem>

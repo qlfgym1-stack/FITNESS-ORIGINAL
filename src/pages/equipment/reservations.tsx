@@ -107,10 +107,10 @@ export default function ReservationsPage() {
   }, [reservationsError, reservationsQueryError])
 
   const equipmentMap = new Map<string, Equipment>()
-  equipmentList?.forEach(e => equipmentMap.set(e.id, e))
+  equipmentList?.forEach((e: Equipment) => equipmentMap.set(e.id, e))
 
   const memberMap = new Map<string, { first_name: string; last_name: string }>()
-  members?.forEach(m => memberMap.set(m.id, m))
+  members?.forEach((m: { id: string; first_name: string; last_name: string }) => memberMap.set(m.id, m))
 
   const createMutation = useMutation({
     mutationFn: async (values: ReservationForm) => {
@@ -185,7 +185,7 @@ export default function ReservationsPage() {
   const { page, setPage, totalPages, paginatedData: paginatedReservations } = usePagination(reservations, 20)
 
   const { exportCsv } = useExportCsv(
-    (reservations ?? []).map(res => {
+    (reservations ?? []).map((res: EquipmentReservation) => {
       const equipment = equipmentMap.get(res.equipment_id)
       const member = memberMap.get(res.member_id)
       return {
@@ -339,7 +339,7 @@ export default function ReservationsPage() {
                       <SelectTrigger><SelectValue placeholder="Select equipment" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {equipmentList?.map(e => (
+                      {equipmentList?.map((e: Equipment) => (
                         <SelectItem key={e.id} value={e.id}>{toUpper(e.name)} ({e.available_quantity} available)</SelectItem>
                       ))}
                     </SelectContent>
@@ -355,7 +355,7 @@ export default function ReservationsPage() {
                       <SelectTrigger><SelectValue placeholder="Select member" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {members?.map(m => (
+                      {members?.map((m: { id: string; first_name: string; last_name: string }) => (
                         <SelectItem key={m.id} value={m.id}>{toUpper(m.first_name)} {toUpper(m.last_name)}</SelectItem>
                       ))}
                     </SelectContent>

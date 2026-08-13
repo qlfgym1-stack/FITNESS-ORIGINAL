@@ -79,7 +79,7 @@ export default function SuppliersPage() {
     defaultValues: { name: "", contact_name: "", email: "", phone: "", address: "" },
   })
 
-  const filtered = suppliers.filter((s) =>
+  const filtered = suppliers.filter((s: Supplier) =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.contact_name.toLowerCase().includes(search.toLowerCase()) ||
     s.email.toLowerCase().includes(search.toLowerCase())
@@ -88,7 +88,7 @@ export default function SuppliersPage() {
   const { page, setPage, totalPages, paginatedData: paginatedSuppliers } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(s => ({ name: s.name, contact_name: s.contact_name, email: s.email, phone: s.phone, address: s.address })),
+    filtered.map((s: Supplier) => ({ name: s.name, contact_name: s.contact_name, email: s.email, phone: s.phone, address: s.address })),
     'suppliers',
     [
       { key: 'name', label: t('suppliers.name') },

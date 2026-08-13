@@ -13,6 +13,12 @@ interface AiChatContextValue {
   error: string | null
   send: (question: string, context: string) => Promise<void>
   reset: () => void
+  panelOpen: boolean
+  input: string
+  openPanel: () => void
+  closePanel: () => void
+  togglePanel: () => void
+  setInput: (v: string) => void
 }
 
 const AiChatContext = createContext<AiChatContextValue | null>(null)
@@ -32,6 +38,8 @@ export function AiChatProvider({ children }: { children: ReactNode }) {
   ])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [input, setInputState] = useState("")
   const requestSeq = useRef(0)
 
   const send = useCallback(async (question: string, context: string) => {
@@ -86,9 +94,26 @@ export function AiChatProvider({ children }: { children: ReactNode }) {
     setLoading(false)
   }, [t])
 
+  const openPanel = useCallback(() => {
+    setPanelOpen(true)
+  }, [])
+
+  const closePanel = useCallback(() => {
+    setPanelOpen(false)
+    setInputState("")
+  }, [])
+
+  const togglePanel = useCallback(() => {
+    setPanelOpen((v) => !v)
+  }, [])
+
+  const setInput = useCallback((v: string) => {
+    setInputState(v)
+  }, [])
+
   const value = useMemo<AiChatContextValue>(
-    () => ({ messages, loading, error, send, reset }),
-    [messages, loading, error, send, reset]
+    () => ({ messages, loading, error, send, reset, panelOpen, input, openPanel, closePanel, togglePanel, setInput }),
+    [messages, loading, error, send, reset, panelOpen, input, openPanel, closePanel, togglePanel, setInput]
   )
 
   return <AiChatContext.Provider value={value}>{children}</AiChatContext.Provider>

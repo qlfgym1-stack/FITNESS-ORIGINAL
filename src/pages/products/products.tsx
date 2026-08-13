@@ -291,10 +291,10 @@ export default function ProductsPage() {
     onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
   })
 
-  const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort() as string[]
-  const brands = [...new Set(items.map(i => i.brand).filter(Boolean))].sort() as string[]
+  const categories = [...new Set(items.map((i: Product) => i.category).filter(Boolean))].sort() as string[]
+  const brands = [...new Set(items.map((i: Product) => i.brand).filter(Boolean))].sort() as string[]
 
-  const filtered = items.filter((i) => {
+  const filtered = items.filter((i: Product) => {
     const matchesSearch = !search ||
       i.name.toLowerCase().includes(search.toLowerCase()) ||
       (i.category ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -320,13 +320,13 @@ export default function ProductsPage() {
 
   const { page, setPage, totalPages, paginatedData: paginatedItems } = usePagination(filtered, 20)
 
-  const totalInventoryValue = items.reduce((sum, p) => sum + ((p.cost ?? 0) * (p.stock ?? 0)), 0)
-  const totalProductExpenses = productExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
-  const activeProducts = items.filter(p => p.is_active).length
-  const lowStockCount = items.filter(p => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 10).length
+  const totalInventoryValue = items.reduce((sum: number, p: Product) => sum + ((p.cost ?? 0) * (p.stock ?? 0)), 0)
+  const totalProductExpenses = productExpenses.reduce((sum: number, e: { amount: number; description: string; expense_date: string }) => sum + (Number(e.amount) || 0), 0)
+  const activeProducts = items.filter((p: Product) => p.is_active).length
+  const lowStockCount = items.filter((p: Product) => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 10).length
 
   const { exportCsv } = useExportCsv(
-    filtered.map(i => ({
+    filtered.map((i: Product) => ({
       name: i.name, category: normalizeCategory(i.category ?? '') ?? '', brand: i.brand ?? "", sku: i.sku ?? "",
       price: i.price, cost: i.cost ?? 0, stock: i.stock ?? 0, barcode: i.barcode ?? "", status: i.is_active ? "Active" : "Inactive"
     })),
@@ -1030,7 +1030,7 @@ export default function ProductsPage() {
                     <SelectTrigger><SelectValue placeholder={t("products.selectSupplier") || "Sélectionner un fournisseur"} /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">—</SelectItem>
-                      {suppliers.map((s) => (
+                      {suppliers.map((s: { id: string; name: string }) => (
                         <SelectItem key={s.id} value={s.id}>{toUpper(s.name)}</SelectItem>
                       ))}
                     </SelectContent>

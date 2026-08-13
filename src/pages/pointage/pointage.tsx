@@ -65,6 +65,26 @@ type ScanLog = {
   reason?: string
 }
 
+type MonthAttendanceRow = {
+  id: string
+  member_id: string
+  check_in: string
+  check_out: string | null
+  member: { first_name: string; last_name: string } | null
+}
+
+type RfidScanResult = {
+  result: string
+  reason?: string
+  member_id?: string
+  member_name?: string
+  action?: string
+  attendance_id?: string
+  _isStaff?: boolean
+  _staffName?: string
+  _totalHours?: number
+}
+
 function formatTime(d: string | null) {
   if (!d) return "—"
   return new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
@@ -160,14 +180,14 @@ export default function PointagePage() {
   })
 
   const checkedInToday = todayAttendance ?? []
-  const entryCount = checkedInToday.filter(a => a.check_in).length
-  const checkedOutCount = checkedInToday.filter(a => a.check_out).length
-  const insideCount = checkedInToday.filter(a => a.check_in && !a.check_out).length
+  const entryCount = checkedInToday.filter((a: AttendanceRow) => a.check_in).length
+  const checkedOutCount = checkedInToday.filter((a: AttendanceRow) => a.check_out).length
+  const insideCount = checkedInToday.filter((a: AttendanceRow) => a.check_in && !a.check_out).length
 
   const peakAffluence = useMemo(() => {
     if (checkedInToday.length === 0) return null
     const hourly: Record<number, number> = {}
-    checkedInToday.forEach(a => {
+    checkedInToday.forEach((a: AttendanceRow) => {
       if (a.check_in) {
         const h = new Date(a.check_in).getHours()
         hourly[h] = (hourly[h] || 0) + 1
@@ -178,7 +198,7 @@ export default function PointagePage() {
   }, [checkedInToday])
 
   const avgStay = useMemo(() => {
-    const stays = checkedInToday.map(a => computeStay(a)).filter(Boolean) as string[]
+    const stays = checkedInToday.map((a: AttendanceRow) => computeStay(a)).filter(Boolean) as string[]
     if (stays.length === 0) return null
     const totalMins = stays.reduce((sum, s) => {
       const parts = s.split(/[h ]/)
@@ -197,14 +217,14 @@ export default function PointagePage() {
     return `${Math.round((checkedInToday.length / 100) * 100)}%`
   }, [checkedInToday])
 
-  const filteredToday = checkedInToday.filter(a =>
+  const filteredToday = checkedInToday.filter((a: AttendanceRow) =>
     `${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const { page, setPage, totalPages, paginatedData: paginatedAttendance } = usePagination(filteredToday, 20)
 
   const { exportCsv } = useExportCsv(
-    filteredToday.map(a => ({
+    filteredToday.map((a: AttendanceRow) => ({
       name: `${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`,
       check_in: a.check_in ?? '',
       check_out: a.check_out ?? '',
@@ -242,13 +262,13 @@ export default function PointagePage() {
     if (rows.length === 0) return null
 
     const stays = rows
-      .filter(r => r.check_in && r.check_out)
-      .map(r => (new Date(r.check_out!).getTime() - new Date(r.check_in).getTime()) / 60000)
-    const avgMins = stays.length > 0 ? Math.round(stays.reduce((a, b) => a + b, 0) / stays.length) : 0
+      .filter((r: MonthAttendanceRow) => r.check_in && r.check_out)
+      .map((r: MonthAttendanceRow) => (new Date(r.check_out!).getTime() - new Date(r.check_in).getTime()) / 60000)
+    const avgMins = stays.length > 0 ? Math.round(stays.reduce((a: number, b: number) => a + b, 0) / stays.length) : 0
 
     const dayNames = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
     const dayCounts: Record<number, number> = {}
-    rows.forEach(r => {
+    rows.forEach((r: MonthAttendanceRow) => {
       if (r.check_in) {
         const d = new Date(r.check_in).getDay()
         dayCounts[d] = (dayCounts[d] || 0) + 1
@@ -258,7 +278,7 @@ export default function PointagePage() {
     const favDay = sortedDays.length > 0 ? { name: dayNames[Number(sortedDays[0][0])], count: sortedDays[0][1] } : null
 
     const slots = { "Matin (6h-12h)": 0, "Après-midi (12h-18h)": 0, "Soir (18h-24h)": 0 }
-    rows.forEach(r => {
+    rows.forEach((r: MonthAttendanceRow) => {
       if (r.check_in) {
         const h = new Date(r.check_in).getHours()
         if (h >= 6 && h < 12) slots["Matin (6h-12h)"]++
@@ -268,7 +288,7 @@ export default function PointagePage() {
     })
 
     const memberVisits: Record<string, { name: string; count: number; totalMins: number }> = {}
-    rows.forEach(r => {
+    rows.forEach((r: MonthAttendanceRow) => {
       if (!r.member) return
       const key = r.member_id
       if (!memberVisits[key]) memberVisits[key] = { name: `${r.member.first_name} ${r.member.last_name}`, count: 0, totalMins: 0 }
@@ -287,14 +307,14 @@ export default function PointagePage() {
       }))
 
     const hourCounts: Record<number, number> = {}
-    rows.forEach(r => {
+    rows.forEach((r: MonthAttendanceRow) => {
       if (r.check_in) {
         const h = new Date(r.check_in).getHours()
         hourCounts[h] = (hourCounts[h] || 0) + 1
       }
     })
 
-    const totalUnique = new Set(rows.map(r => r.member_id)).size
+    const totalUnique = new Set(rows.map((r: MonthAttendanceRow) => r.member_id)).size
     const maxHourCount = Math.max(...Object.values(hourCounts), 1)
 
     return {
@@ -422,7 +442,7 @@ export default function PointagePage() {
 
       return { ...result, _raw: result } as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string; attendance_id?: string; _raw: any }
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data: RfidScanResult) => {
       const isGranted = data.result === "granted"
       setScanResult({
         result: isGranted ? "granted" : "denied",
@@ -485,7 +505,7 @@ export default function PointagePage() {
 
   const checkoutMutation = useMutation({
     mutationFn: async (attendanceId: string) => {
-      const row = checkedInToday.find(a => a.id === attendanceId)
+      const row = checkedInToday.find((a: AttendanceRow) => a.id === attendanceId)
       const { error } = await supabase
         .from("attendance")
         .update({ check_out: new Date().toISOString() })
@@ -493,7 +513,7 @@ export default function PointagePage() {
       if (error) throw error
       return { memberName: row?.member ? `${row.member.first_name} ${row.member.last_name}` : null }
     },
-    onSuccess: (_data) => {
+    onSuccess: (_data: { memberName: string | null }) => {
       toast({ title: "Check-out effectué" })
       queryClient.invalidateQueries({ queryKey: ["pointage-today"] })
     },
@@ -505,12 +525,12 @@ export default function PointagePage() {
   const phoneCheckInMutation = useMutation({
     mutationFn: async (memberId: string) => {
       const { data } = await (supabase.rpc as any)("phone_check_in", {
-        p_phone: phoneMembers?.find(m => m.id === memberId)?.phone ?? "",
+        p_phone: phoneMembers?.find((m: PhoneMember) => m.id === memberId)?.phone ?? "",
         p_org_id: orgId,
       })
       return { ...data, _memberId: memberId } as { result: string; reason?: string; member_id?: string; member_name?: string; action?: string; _memberId: string }
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data: { result: string; reason?: string; member_id?: string; member_name?: string; action?: string; _memberId: string }) => {
       let memberInfo: ScanLogMember | null = null
       if (data._memberId) {
         memberInfo = await fetchMemberInfo(data._memberId)
@@ -540,7 +560,7 @@ export default function PointagePage() {
         .eq("id", attendanceId)
       if (error) throw error
     },
-    onSuccess: (_data, attendanceId) => {
+    onSuccess: (_data: void, attendanceId: string) => {
       setCheckedOutLogIds(prev => new Set(prev).add(attendanceId))
       toast({ title: "Check-out effectué" })
     },
@@ -595,7 +615,7 @@ export default function PointagePage() {
       if (updateErr) throw updateErr
       return { result: "granted" as const, action: "check_out", member_name: `${member.first_name} ${member.last_name}`, member_id: member.id, attendance_id: attendance.id }
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data: { result: string; reason?: string; action?: string; member_name?: string; member_id?: string; attendance_id?: string }) => {
       setIsCheckoutScanning(false)
       setRfidCheckoutInput("")
       const isGranted = data.result === "granted"
@@ -759,7 +779,7 @@ export default function PointagePage() {
             <div className="pt-3 border-t space-y-2">
               <p className="text-xs text-muted-foreground font-medium flex items-center gap-1">
                 <LogOut className="h-3 w-3" />
-                Check-out ({checkedInToday.filter(a => !a.check_out).length})
+                Check-out ({checkedInToday.filter((a: AttendanceRow) => !a.check_out).length})
               </p>
               <div className="flex gap-2">
                 <Input
@@ -777,10 +797,10 @@ export default function PointagePage() {
                   {isCheckoutScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
                 </Button>
               </div>
-              {checkedInToday.filter(a => !a.check_out).length === 0 ? (
+              {checkedInToday.filter((a: AttendanceRow) => !a.check_out).length === 0 ? (
                 <p className="text-[10px] text-muted-foreground text-center py-1">Aucun membre en salle</p>
               ) : (
-                checkedInToday.filter(a => !a.check_out).map(a => (
+                checkedInToday.filter((a: AttendanceRow) => !a.check_out).map((a: AttendanceRow) => (
                   <div key={a.id} className="flex items-center gap-2 p-2 rounded-lg bg-destructive/5 border border-destructive/20">
                     <Avatar className="h-7 w-7">
                       {a.member?.photo_url ? <AvatarImage src={a.member.photo_url} /> : null}
@@ -849,9 +869,9 @@ export default function PointagePage() {
 
               {phoneMembers && phoneMembers.length > 0 && (
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {phoneMembers.map(m => {
-                    const hasActiveSub = m.member_subscriptions?.some(s => s.status === "active" || s.status === "trial")
-                    const isInside = checkedInToday.some(a => a.member_id === m.id && !a.check_out)
+                  {phoneMembers.map((m: PhoneMember) => {
+                    const hasActiveSub = m.member_subscriptions?.some((s: { status: string }) => s.status === "active" || s.status === "trial")
+                    const isInside = checkedInToday.some((a: AttendanceRow) => a.member_id === m.id && !a.check_out)
                     return (
                       <div key={m.id} className={`flex items-center gap-3 p-2 rounded-lg border transition-colors ${isInside ? "bg-destructive/5 border-destructive/20 hover:bg-destructive/10" : "bg-card hover:bg-accent/50"}`}>
                         <Avatar className="h-9 w-9">

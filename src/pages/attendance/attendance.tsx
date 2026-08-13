@@ -36,6 +36,8 @@ interface MemberWithAttendance extends Pick<Member, "id" | "first_name" | "last_
   attendance: Attendance | null
 }
 
+type HistoryEntry = Attendance & { members: { first_name: string; last_name: string } }
+
 export default function AttendancePage() {
   const t = useT()
   const supabase = useSupabase()
@@ -132,7 +134,7 @@ export default function AttendancePage() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
       toast({ title: t("attendance.toastCheckIn") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
@@ -150,7 +152,7 @@ export default function AttendancePage() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
       toast({ title: t("attendance.toastCheckOut") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
@@ -159,9 +161,9 @@ export default function AttendancePage() {
     if (!activeMembers || !todayAttendance) return []
     const filteredAttendance = sourceFilter === "all"
       ? todayAttendance
-      : todayAttendance.filter((a) => a.source === sourceFilter)
-    return activeMembers.map((m) => {
-      const att = filteredAttendance.find((a) => a.member_id === m.id)
+      : todayAttendance.filter((a: Attendance) => a.source === sourceFilter)
+    return activeMembers.map((m: Pick<Member, "id" | "first_name" | "last_name" | "photo_url">) => {
+      const att = filteredAttendance.find((a: Attendance) => a.member_id === m.id)
       return { ...m, attendance: att ?? null }
     })
   }, [activeMembers, todayAttendance, sourceFilter])
@@ -177,7 +179,7 @@ export default function AttendancePage() {
   const { page: historyPage, setPage: setHistoryPage, totalPages: historyTotalPages, paginatedData: paginatedHistory } = usePagination(history, 20)
 
   const { exportCsv: exportHistoryCsv } = useExportCsv(
-    (history ?? []).map((h) => ({
+    (history ?? []).map((h: HistoryEntry) => ({
       member_name: `${h.members?.first_name ?? ""} ${h.members?.last_name ?? ""}`,
       check_in: h.check_in ? format(new Date(h.check_in), "HH:mm") : "-",
       check_out: h.check_out ? format(new Date(h.check_out), "HH:mm") : "-",
@@ -217,7 +219,7 @@ export default function AttendancePage() {
       { header: sourceLabel, key: sourceLabel, width: 15 },
       { header: statusLabel, key: statusLabel, width: 15 },
     ]
-    history.forEach((h) => {
+    history.forEach((h: HistoryEntry) => {
       ws.addRow({
         [memberLabel]: `${h.members?.first_name ?? ""} ${h.members?.last_name ?? ""}`,
         [checkInLabel]: h.check_in ? format(new Date(h.check_in), "HH:mm") : "-",

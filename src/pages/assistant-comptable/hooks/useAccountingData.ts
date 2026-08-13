@@ -182,19 +182,19 @@ export function useAccountingData(
   const isLoading = paymentsLoading || posLoading || expensesLoading
 
   const subscriptionRevenue = useMemo(
-    () => paymentsRaw.reduce((s, p) => s + safeNum(p.amount), 0),
+    () => paymentsRaw.reduce((s: number, p: PaymentRow) => s + safeNum(p.amount), 0),
     [paymentsRaw]
   )
 
   const posRevenue = useMemo(
-    () => posRaw.reduce((s, t) => s + safeNum(t.total), 0),
+    () => posRaw.reduce((s: number, t: PosRow) => s + safeNum(t.total), 0),
     [posRaw]
   )
 
   const totalRevenue = subscriptionRevenue + posRevenue
 
   const totalExpenses = useMemo(
-    () => expensesRaw.reduce((s, e) => s + safeNum(e.amount), 0),
+    () => expensesRaw.reduce((s: number, e: ExpenseRow) => s + safeNum(e.amount), 0),
     [expensesRaw]
   )
 
@@ -203,8 +203,8 @@ export function useAccountingData(
   const cashFlow = profit
 
   const prevMonthRevenue = useMemo(
-    () => lastMonthPayments.reduce((s, p) => s + safeNum(p.amount), 0)
-      + lastMonthPos.reduce((s, t) => s + safeNum(t.total), 0),
+    () => lastMonthPayments.reduce((s: number, p: { amount: number }) => s + safeNum(p.amount), 0)
+      + lastMonthPos.reduce((s: number, t: { total: number }) => s + safeNum(t.total), 0),
     [lastMonthPayments, lastMonthPos]
   )
 
@@ -280,13 +280,13 @@ export function useAccountingData(
   }, [expensesRaw, totalExpenses])
 
   const expenseTransactions: ExpenseTransaction[] = useMemo(() => {
-    return expensesRaw.map(e => ({
+    return expensesRaw.map((e: ExpenseRow) => ({
       id: e.id,
       description: e.description,
       amount: safeNum(e.amount),
       date: e.expense_date,
       category: e.category,
-    })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    })).sort((a: ExpenseTransaction, b: ExpenseTransaction) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [expensesRaw])
 
   const { data: monthlyHistory = [] } = useQuery({
@@ -343,11 +343,12 @@ export function useAccountingData(
   })
 
   const salesJournal: JournalEntry[] = useMemo(() => {
-    return posRaw.map(t => {
+    return posRaw.map((t: PosRow) => {
       const items = Array.isArray(t.items) ? t.items : []
-      const hasSubscription = items.some(
-        (it: Record<string, unknown>) => typeof it.id === "string" && it.id.startsWith("__subscription__")
-      )
+      const hasSubscription = items.some((it: unknown) => {
+        const rec = it as Record<string, unknown>
+        return typeof it === "object" && it !== null && typeof rec.id === "string" && rec.id.startsWith("__subscription__")
+      })
       if (hasSubscription) return null
       return {
         date: t.created_at,
@@ -360,7 +361,7 @@ export function useAccountingData(
   }, [posRaw])
 
   const expenseJournal: JournalEntry[] = useMemo(() => {
-    return expensesRaw.map(e => ({
+    return expensesRaw.map((e: ExpenseRow) => ({
       date: e.expense_date,
       label: e.description,
       debit: 0,
@@ -370,7 +371,7 @@ export function useAccountingData(
   }, [expensesRaw])
 
   const cashReceiptsJournal: JournalEntry[] = useMemo(() => {
-    return paymentsRaw.map(p => ({
+    return paymentsRaw.map((p: PaymentRow) => ({
       date: p.payment_date,
       label: "Abonnement",
       debit: safeNum(p.amount),
@@ -608,28 +609,28 @@ export function useAccountingData(
   })
 
   const revToday = useMemo(() => {
-    const p = dailyPayments.reduce((s, r) => s + safeNum(r.amount), 0)
-    const pos = dailyPos.reduce((s, r) => s + safeNum(r.total), 0)
+    const p = dailyPayments.reduce((s: number, r: { amount: number }) => s + safeNum(r.amount), 0)
+    const pos = dailyPos.reduce((s: number, r: { total: number }) => s + safeNum(r.total), 0)
     return p + pos
   }, [dailyPayments, dailyPos])
 
-  const expToday = useMemo(() => dailyExpenses.reduce((s, r) => s + safeNum(r.amount), 0), [dailyExpenses])
+  const expToday = useMemo(() => dailyExpenses.reduce((s: number, r: { amount: number }) => s + safeNum(r.amount), 0), [dailyExpenses])
 
   const revWeek = useMemo(() => {
-    const p = weekPayments.reduce((s, r) => s + safeNum(r.amount), 0)
-    const pos = weekPos.reduce((s, r) => s + safeNum(r.total), 0)
+    const p = weekPayments.reduce((s: number, r: { amount: number }) => s + safeNum(r.amount), 0)
+    const pos = weekPos.reduce((s: number, r: { total: number }) => s + safeNum(r.total), 0)
     return p + pos
   }, [weekPayments, weekPos])
 
-  const expWeek = useMemo(() => weekExpenses.reduce((s, r) => s + safeNum(r.amount), 0), [weekExpenses])
+  const expWeek = useMemo(() => weekExpenses.reduce((s: number, r: { amount: number }) => s + safeNum(r.amount), 0), [weekExpenses])
 
   const revMonth = useMemo(() => {
-    const p = monthPayments.reduce((s, r) => s + safeNum(r.amount), 0)
-    const pos = monthPos.reduce((s, r) => s + safeNum(r.total), 0)
+    const p = monthPayments.reduce((s: number, r: { amount: number }) => s + safeNum(r.amount), 0)
+    const pos = monthPos.reduce((s: number, r: { total: number }) => s + safeNum(r.total), 0)
     return p + pos
   }, [monthPayments, monthPos])
 
-  const expMonth = useMemo(() => monthExpenses.reduce((s, r) => s + safeNum(r.amount), 0), [monthExpenses])
+  const expMonth = useMemo(() => monthExpenses.reduce((s: number, r: { amount: number }) => s + safeNum(r.amount), 0), [monthExpenses])
 
   const aiAnalysis: AiAnalysis = useMemo(() => {
     const periodLabel = filters.period === "daily" ? "du jour" : filters.period === "weekly" ? "de la semaine" : filters.period === "monthly" ? "du mois" : "de la période sélectionnée"

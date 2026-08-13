@@ -137,7 +137,7 @@ export default function PurchaseOrdersPage() {
     return map
   }, [products])
 
-  const filtered = orders.filter((o) =>
+  const filtered = orders.filter((o: PurchaseOrder) =>
     (o.suppliers?.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (o.notes ?? "").toLowerCase().includes(search.toLowerCase())
   )
@@ -145,7 +145,7 @@ export default function PurchaseOrdersPage() {
   const { page, setPage, totalPages, paginatedData: paginatedOrders } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(o => ({ supplier: o.suppliers?.name ?? "", date: o.order_date, status: o.status, total: o.total_amount, notes: o.notes ?? "" })),
+    filtered.map((o: PurchaseOrder) => ({ supplier: o.suppliers?.name ?? "", date: o.order_date, status: o.status, total: o.total_amount, notes: o.notes ?? "" })),
     'purchase-orders',
     [
       { key: 'supplier', label: t('purchaseOrders.supplier') },
@@ -165,7 +165,7 @@ export default function PurchaseOrdersPage() {
       if (i !== index) return line
       const next = { ...line, ...patch }
       if (patch.product_id) {
-        const p = products.find(pr => pr.id === patch.product_id)
+        const p = products.find((pr: Product) => pr.id === patch.product_id)
         if (p && (line.unit_price === 0 || !line.unit_price)) next.unit_price = p.cost ?? p.price
       }
       return next
@@ -397,7 +397,7 @@ export default function PurchaseOrdersPage() {
                       <Select value={field.value} onValueChange={field.onChange}>
                         <SelectTrigger><SelectValue placeholder={t("purchaseOrders.selectSupplier") || "Sélectionner un fournisseur"} /></SelectTrigger>
                         <SelectContent>
-                          {suppliers.map(s => (
+                          {suppliers.map((s: { id: string; name: string }) => (
                             <SelectItem key={s.id} value={s.id}>{toUpper(s.name)}</SelectItem>
                           ))}
                         </SelectContent>
@@ -432,7 +432,7 @@ export default function PurchaseOrdersPage() {
                       <Select value={line.product_id} onValueChange={(v) => updateLine(i, { product_id: v })}>
                         <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
                         <SelectContent>
-                          {products.map(p => (
+                          {products.map((p: Product) => (
                             <SelectItem key={p.id} value={p.id}>{toUpper(p.name)}</SelectItem>
                           ))}
                         </SelectContent>

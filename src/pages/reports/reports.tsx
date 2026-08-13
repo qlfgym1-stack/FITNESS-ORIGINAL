@@ -160,7 +160,7 @@ export default function ReportsPage() {
   })
 
   const { exportCsv } = useExportCsv(
-    (revenueData ?? []).map(r => ({ month: r.month, revenue: r.revenue, expenses: r.expenses })),
+    (revenueData ?? []).map((r: { month: string; revenue: number; expenses: number }) => ({ month: r.month, revenue: r.revenue, expenses: r.expenses })),
     'revenue-report',
     [
       { key: 'month', label: t('reports.month') || 'Month' },
@@ -230,7 +230,7 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={subscriptionPie ?? []} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" label>
-                          {(subscriptionPie ?? []).map((_, i) => (
+                          {(subscriptionPie ?? []).map((_: { name: string; value: number }, i: number) => (
                             <Cell key={i} fill={COLORS[i % COLORS.length]} />
                           ))}
                         </Pie>

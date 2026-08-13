@@ -83,6 +83,16 @@ const createMemberSchema = (t: (k: string) => string, isCreate: boolean) => {
 
 type MemberForm = z.infer<ReturnType<typeof createMemberSchema>>
 
+interface PendingSubscriptionResult {
+  member_id: string
+  subscription_id: string
+  total_amount: number
+  subscription_name: string
+  organization_id: string
+  first_name: string
+  last_name: string
+}
+
 interface ImportDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -163,8 +173,9 @@ export default function Members() {
   const { organization, user } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const urlQuery = searchParams.get('q') ?? ''
+  const urlMemberId = searchParams.get('id') ?? ''
   const orgId = organization?.id
 
   const [search, setSearch] = useState(urlQuery)
@@ -282,9 +293,31 @@ export default function Members() {
   })
   const memberSubMap = IS_MOCK ? mockSubMap : (memberSubMapQuery ?? {})
 
+  const { data: urlMember } = useQuery({
+    queryKey: ['member-by-id', urlMemberId, orgId],
+    queryFn: async () => {
+      if (!urlMemberId || !orgId) return null
+      const { data, error } = await supabase
+        .from('members')
+        .select('*')
+        .eq('organization_id', orgId)
+        .eq('id', urlMemberId)
+        .maybeSingle()
+      if (error) throw error
+      return (data ?? null) as Member | null
+    },
+    enabled: !!urlMemberId && !!orgId && !IS_MOCK,
+  })
+
+  useEffect(() => {
+    if (urlMember && !profileMember) {
+      setProfileMember(urlMember)
+    }
+  }, [urlMember, profileMember])
+
   useEffect(() => {
     if (renewTypeId && renewStartDate) {
-      const typeDef = subscriptionTypes?.find(st => st.id === renewTypeId)
+      const typeDef = subscriptionTypes?.find((st: SubscriptionType) => st.id === renewTypeId)
       if (typeDef) {
         const end = new Date(renewStartDate)
         end.setDate(end.getDate() + typeDef.duration_days)
@@ -307,7 +340,7 @@ export default function Members() {
   async function handleRenewPay() {
     if (!renewingMember || !orgId || !renewTypeId || !renewStartDate || !renewEndDate) return
     try {
-      const typeDef = subscriptionTypes?.find(st => st.id === renewTypeId)
+      const typeDef = subscriptionTypes?.find((st: SubscriptionType) => st.id === renewTypeId)
       if (!typeDef) return
       const memberName = memberFullName(renewingMember)
       const sub = memberSubMap ? (memberSubMap as Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number }>)[renewingMember.id] : undefined
@@ -497,7 +530,7 @@ export default function Members() {
         }
         setMockMembers(prev => [newMember, ...prev])
         if (values.subscription_type_id && values.start_date) {
-          const typeDef = subscriptionTypes?.find(t => t.id === values.subscription_type_id)
+          const typeDef = subscriptionTypes?.find((t: SubscriptionType) => t.id === values.subscription_type_id)
           if (typeDef) {
             const subId = `mock-sub-${crypto.randomUUID()}`
             setMockSubMap(prev => ({ ...prev, [memberId]: { id: subId, subscription_type_id: values.subscription_type_id!, name: typeDef.name, status: 'pending_payment', total_amount: typeDef.price } }))
@@ -549,7 +582,7 @@ export default function Members() {
       }
       return null
     },
-    onSuccess: (data) => {
+    onSuccess: (data: PendingSubscriptionResult | null) => {
       queryClient.invalidateQueries({ queryKey: ['members'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       queryClient.invalidateQueries({ queryKey: ['members-list'] })
@@ -567,7 +600,7 @@ export default function Members() {
         toast({ title: t('members.memberAdded') })
       }
     },
-    onError: (err) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
+    onError: (err: Error) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
   })
 
   const updateMutation = useMutation({
@@ -578,7 +611,7 @@ export default function Members() {
       if (IS_MOCK) {
         setMockMembers(prev => prev.map(m => m.id === id ? { ...m, ...values, first_name, last_name, photo_url, updated_at: new Date().toISOString() } as Member : m))
         if (values.subscription_type_id && values.start_date) {
-          const typeDef = subscriptionTypes?.find(t => t.id === values.subscription_type_id)
+          const typeDef = subscriptionTypes?.find((t: SubscriptionType) => t.id === values.subscription_type_id)
           if (typeDef) {
             const existingSub = mockSubMap[id]
             if (!existingSub || existingSub.subscription_type_id !== values.subscription_type_id) {
@@ -596,7 +629,7 @@ export default function Members() {
       const { error } = await supabase.from('members').update({ ...memberFields, first_name, last_name, photo_url, email: memberFields.email || null, phone: memberFields.phone || null, gender: memberFields.gender || null, birth_date: memberFields.birth_date || null, address: memberFields.address || null, emergency_contact: memberFields.emergency_contact || null, emergency_phone: memberFields.emergency_phone || null, coach_id: memberFields.coach_id || null, corporate_id: memberFields.corporate_id || null }).eq('id', id)
       if (error) throw error
       if (subscription_type_id && start_date) {
-        const typeDef = subscriptionTypes?.find(t => t.id === subscription_type_id)
+        const typeDef = subscriptionTypes?.find((t: SubscriptionType) => t.id === subscription_type_id)
         if (typeDef) {
           const end = new Date(start_date)
           end.setDate(end.getDate() + typeDef.duration_days)
@@ -633,7 +666,7 @@ export default function Members() {
       }
       return null
     },
-    onSuccess: (data) => {
+    onSuccess: (data: PendingSubscriptionResult | null) => {
       queryClient.invalidateQueries({ queryKey: ['members'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       queryClient.invalidateQueries({ queryKey: ['members-list'] })
@@ -653,7 +686,7 @@ export default function Members() {
         toast({ title: t('members.memberUpdated') })
       }
     },
-    onError: (err) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
+    onError: (err: Error) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
   })
 
   const deleteMutation = useMutation({
@@ -666,7 +699,7 @@ export default function Members() {
       if (error) throw error
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['members'] }); queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }); queryClient.invalidateQueries({ queryKey: ['members-list'] }); queryClient.invalidateQueries({ queryKey: ['members-active'] }); queryClient.invalidateQueries({ queryKey: ['inactive-members'] }); queryClient.invalidateQueries({ queryKey: ['expiring-subscriptions'] }); setDeleteOpen(false); setDeletingMember(null); toast({ title: t('members.memberDeleted') }) },
-    onError: (err) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
+    onError: (err: Error) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
   })
 
   function openAddDialog() {
@@ -1047,7 +1080,7 @@ export default function Members() {
                         <Select value={field.value} onValueChange={field.onChange}>
                           <SelectTrigger><SelectValue placeholder={t('common.all')} /></SelectTrigger>
                           <SelectContent>
-                            {subscriptionTypes.map(st => (
+                            {subscriptionTypes.map((st: SubscriptionType) => (
                               <SelectItem key={st.id} value={st.id}>{st.description} — {formatCurrency(st.price)}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1071,7 +1104,7 @@ export default function Members() {
                           <SelectTrigger><SelectValue placeholder={t('members.noCorporateCard')} /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="">{t('members.noCorporateCard')}</SelectItem>
-                            {corporateAccounts.map(c => (
+                            {corporateAccounts.map((c: { id: string; company_name: string; discount_rate: number | null }) => (
                               <SelectItem key={c.id} value={c.id}>{c.company_name}{c.discount_rate ? ` — ${c.discount_rate}%` : ''}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1117,7 +1150,7 @@ export default function Members() {
                       <SelectTrigger><SelectValue placeholder={t('members.selectCoach')} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">{t('members.noCoach')}</SelectItem>
-                        {(coaches ?? []).map(c => (
+                        {(coaches ?? []).map((c: { id: string; first_name: string; last_name: string }) => (
                           <SelectItem key={c.id} value={c.id}>{toUpper(c.first_name)} {toUpper(c.last_name)}</SelectItem>
                         ))}
                       </SelectContent>
@@ -1190,7 +1223,16 @@ export default function Members() {
       <MemberProfileDialog
         member={profileMember}
         open={!!profileMember}
-        onOpenChange={(o) => { if (!o) setProfileMember(null) }}
+        onOpenChange={(o) => {
+          if (!o) {
+            setProfileMember(null)
+            if (searchParams.get('id')) {
+              const next = new URLSearchParams(searchParams)
+              next.delete('id')
+              setSearchParams(next, { replace: true })
+            }
+          }
+        }}
         onShowHistory={(member) => {
           setProfileMember(null)
           setHistoryMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })
@@ -1240,7 +1282,7 @@ export default function Members() {
               <Select value={renewTypeId} onValueChange={setRenewTypeId}>
                 <SelectTrigger><SelectValue placeholder={t('subscriptions.type')} /></SelectTrigger>
                 <SelectContent>
-                  {(subscriptionTypes ?? []).filter(st => st.is_active).map(st => (
+                  {(subscriptionTypes ?? []).filter((st: SubscriptionType) => st.is_active).map((st: SubscriptionType) => (
                     <SelectItem key={st.id} value={st.id}>
                       {toUpper(st.name)} — {formatCurrency(st.price)} / {st.duration_days} {t('subscriptions.days')}
                     </SelectItem>

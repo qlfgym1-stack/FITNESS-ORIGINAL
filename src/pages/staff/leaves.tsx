@@ -103,9 +103,9 @@ export default function LeavesPage() {
   }, [leavesError, leavesQueryError])
 
   const staffMap = new Map<string, Staff>()
-  staffList?.forEach(s => staffMap.set(s.id, s))
+  staffList?.forEach((s: Staff) => staffMap.set(s.id, s))
 
-  const filtered = (leaves ?? []).filter(l => {
+  const filtered = (leaves ?? []).filter((l: StaffLeave) => {
     const staff = staffMap.get(l.staff_id)
     const name = staff ? `${staff.first_name} ${staff.last_name}`.toLowerCase() : ""
     const matchesSearch = !search || name.includes(search.toLowerCase()) || l.reason?.toLowerCase().includes(search.toLowerCase())
@@ -277,7 +277,7 @@ export default function LeavesPage() {
                       <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {staffList?.map(s => (
+                      {staffList?.map((s: Staff) => (
                         <SelectItem key={s.id} value={s.id}>{toUpper(s.first_name)} {toUpper(s.last_name)}</SelectItem>
                       ))}
                     </SelectContent>

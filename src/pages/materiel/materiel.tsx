@@ -121,16 +121,16 @@ export default function MaterielPage() {
     enabled: !!orgId,
   })
 
-  const filteredList = (equipmentList ?? []).filter(item => {
+  const filteredList = (equipmentList ?? []).filter((item: Equipment) => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || (item.brand ?? "").toLowerCase().includes(search.toLowerCase())
     const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
     const matchesStatus = statusFilter === "all" || item.status === statusFilter
     return matchesSearch && matchesCategory && matchesStatus
   })
 
-  const totalValue = (equipmentList ?? []).reduce((sum, e) => sum + (e.quantity * (e.purchase_price ?? 0)), 0)
-  const needsAttention = (equipmentList ?? []).filter(e => e.status === "hors_service" || e.status === "retire").length
-  const enMaintenance = (equipmentList ?? []).filter(e => e.status === "maintenance").length
+  const totalValue = (equipmentList ?? []).reduce((sum: number, e: Equipment) => sum + (e.quantity * (e.purchase_price ?? 0)), 0)
+  const needsAttention = (equipmentList ?? []).filter((e: Equipment) => e.status === "hors_service" || e.status === "retire").length
+  const enMaintenance = (equipmentList ?? []).filter((e: Equipment) => e.status === "maintenance").length
 
   const upsertMutation = useMutation({
     mutationFn: async (values: MaterielForm) => {

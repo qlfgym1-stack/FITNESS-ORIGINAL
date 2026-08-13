@@ -164,7 +164,7 @@ export default function EquipmentPage() {
   const { page, setPage, totalPages, paginatedData: paginatedEquipment } = usePagination(equipmentList, 20)
 
   const { exportCsv } = useExportCsv(
-    (equipmentList ?? []).map(item => ({ name: item.name, category: item.category ?? '-', quantity: item.quantity, available_quantity: item.available_quantity, status: item.status ?? 'available', purchase_date: item.purchase_date ?? '-', last_maintenance: item.last_maintenance ?? '-' })),
+    (equipmentList ?? []).map((item: Equipment) => ({ name: item.name, category: item.category ?? '-', quantity: item.quantity, available_quantity: item.available_quantity, status: item.status ?? 'available', purchase_date: item.purchase_date ?? '-', last_maintenance: item.last_maintenance ?? '-' })),
     'equipment',
     [
       { key: 'name', label: t('equipment.name') || 'Name' },

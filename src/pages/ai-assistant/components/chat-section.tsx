@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useRef, useEffect } from "react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAiChat } from "@/stores/ai-chat"
@@ -60,8 +60,7 @@ export function buildContext(data: AssistantData, t: (key: string) => string): s
 }
 
 export function ChatSection({ data, t, embedded }: ChatSectionProps) {
-  const { messages, loading, error, send } = useAiChat()
-  const [input, setInput] = useState("")
+  const { messages, loading, error, send, input, setInput } = useAiChat()
   const endRef = useRef<HTMLDivElement>(null)
   const context = buildContext(data, t)
 

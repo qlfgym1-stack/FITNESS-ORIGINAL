@@ -23,7 +23,7 @@ import { Pagination } from "@/components/ui/pagination"
 import { Loader2, Wallet, Search, Download, Pencil, Trash2, History } from "lucide-react"
 import { IS_MOCK } from "@/lib/config"
 import { useToast } from "@/components/ui/toast"
-import type { PaymentChange } from "@/types/supabase"
+import type { PaymentChange, Member } from "@/types/supabase"
 
 interface EncaissementRow {
   id: string
@@ -105,7 +105,7 @@ export default function Encaissement() {
 
   const filteredMembers = useMemo(() => {
     if (!members) return []
-    return members.filter(m =>
+    return members.filter((m: Pick<Member, "id" | "first_name" | "last_name" | "phone" | "member_number">) =>
       `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase()) ||
       (m.phone && m.phone.includes(memberSearch))
     )
@@ -175,7 +175,7 @@ export default function Encaissement() {
 
   const filtered = useMemo(() => {
     if (!rawData) return []
-    return rawData.filter(r => {
+    return rawData.filter((r: EncaissementRow) => {
       if (methodFilter !== "all" && r.method !== methodFilter) return false
       if (typeFilter !== "all" && r.type !== typeFilter) return false
       if (selectedMemberId && r.memberId !== selectedMemberId) return false
@@ -203,11 +203,11 @@ export default function Encaissement() {
   }, [rawData])
 
   const totals = useMemo(() => {
-    return { total: filtered.reduce((s, r) => s + r.amount, 0), count: filtered.length }
+    return { total: filtered.reduce((s: number, r: EncaissementRow) => s + r.amount, 0), count: filtered.length }
   }, [filtered])
 
   const handleExport = useCallback(() => {
-    const exportData = filtered.map(r => ({
+    const exportData = filtered.map((r: EncaissementRow) => ({
       date: new Date(r.date).toLocaleDateString("fr-FR"),
       type: r.type === "subscription" ? (t("encaissement.subscription") || "Abonnement") : (t("encaissement.pos") || "Vente POS"),
       member: r.memberName,
@@ -280,7 +280,7 @@ export default function Encaissement() {
       setModifyReason("")
       toast({ title: t("encaissement.modifySuccess"), variant: "success" })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
@@ -301,7 +301,7 @@ export default function Encaissement() {
       setCancelReason("")
       toast({ title: t("encaissement.cancelSuccess"), variant: "success" })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
@@ -404,7 +404,7 @@ export default function Encaissement() {
               </div>
               {memberSearch && !selectedMemberId && (
                 <div className="absolute z-10 mt-1 w-[200px] max-h-[120px] overflow-y-auto border rounded-md bg-background shadow-md">
-                  {filteredMembers.slice(0, 5).map(m => (
+                  {filteredMembers.slice(0, 5).map((m: Pick<Member, "id" | "first_name" | "last_name" | "phone" | "member_number">) => (
                     <div
                       key={m.id}
                       className="p-1.5 text-xs cursor-pointer hover:bg-accent truncate"
@@ -631,7 +631,7 @@ export default function Encaissement() {
             <div className="text-center py-8 text-sm text-muted-foreground">{t("encaissement.noHistory") || "Aucun historique"}</div>
           ) : (
             <div className="max-h-[50vh] overflow-y-auto space-y-3">
-              {(historyData ?? []).map(c => (
+              {(historyData ?? []).map((c: PaymentChange) => (
                 <div key={c.id} className="rounded-md border p-3">
                   <div className="flex items-center justify-between mb-2">
                     <Badge variant={c.action === "cancel" ? "destructive" : "default"}>

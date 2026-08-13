@@ -106,7 +106,7 @@ export function InvestmentManager({ orgId, t }: InvestmentManagerProps) {
       form.reset()
       toast({ title: t("expenses.added") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
@@ -122,12 +122,12 @@ export function InvestmentManager({ orgId, t }: InvestmentManagerProps) {
       setDeleteId(null)
       toast({ title: t("expenses.deleted") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
 
-  const total = investments?.reduce((s, inv) => s + Number(inv.amount || 0), 0) ?? 0
+  const total = investments?.reduce((s: number, inv: Investment) => s + Number(inv.amount || 0), 0) ?? 0
 
   return (
     <Card>
@@ -247,7 +247,7 @@ export function InvestmentManager({ orgId, t }: InvestmentManagerProps) {
           <p className="text-sm text-muted-foreground text-center py-4">{t("rentabilite.noInvestments")}</p>
         ) : (
           <div className="divide-y rounded-lg border">
-            {(investments ?? []).map((inv) => (
+            {(investments ?? []).map((inv: Investment) => (
               <div key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                 <div className="min-w-0">
                   <p className="font-medium truncate">{inv.description || "—"}</p>

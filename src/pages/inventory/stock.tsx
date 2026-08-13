@@ -115,7 +115,7 @@ export default function StockMovementsPage() {
     onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
   })
 
-  const filtered = movements?.filter((m) => {
+  const filtered = movements?.filter((m: StockMovement) => {
     const name = m.inventory?.name ?? ""
     const notes = m.notes ?? ""
     return name.toLowerCase().includes(search.toLowerCase()) || notes.toLowerCase().includes(search.toLowerCase())
@@ -124,7 +124,7 @@ export default function StockMovementsPage() {
   const { page, setPage, totalPages, paginatedData: paginatedMovements } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(m => ({ product: m.inventory?.name ?? '-', type: m.type, reason: m.reason ?? '', quantity: m.quantity, date: m.movement_date, notes: m.notes ?? '' })),
+    filtered.map((m: StockMovement) => ({ product: m.inventory?.name ?? '-', type: m.type, reason: m.reason ?? '', quantity: m.quantity, date: m.movement_date, notes: m.notes ?? '' })),
     'stock-movements',
     [
       { key: 'product', label: t('stock.product') || 'Product' },
@@ -276,7 +276,7 @@ export default function StockMovementsPage() {
               <Select value={form.inventory_id} onValueChange={(v) => setForm((f) => ({ ...f, inventory_id: v }))}>
                 <SelectTrigger><SelectValue placeholder={t("stock.selectProduct") || "Select product"} /></SelectTrigger>
                 <SelectContent>
-                  {inventoryItems?.map((item) => (
+                  {inventoryItems?.map((item: Pick<Inventory, "id" | "name">) => (
                     <SelectItem key={item.id} value={item.id}>{toUpper(item.name)}</SelectItem>
                   ))}
                 </SelectContent>

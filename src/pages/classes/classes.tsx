@@ -59,6 +59,16 @@ const classSchema = z.object({
 
 type ClassFormValues = z.infer<typeof classSchema>
 
+type ClassWithCoach = Class & { staff: { first_name: string; last_name: string } | null }
+
+type ClassEnrollmentRow = {
+  id: string
+  class_id: string
+  member_id: string
+  members: { first_name: string; last_name: string }
+  classes: { organization_id: string }
+}
+
 const colorOptions = [
   "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
 ]
@@ -164,7 +174,7 @@ export default function ClassesPage() {
         .select("*, staff!left(first_name, last_name)")
         .eq("organization_id", orgId)
         .order("start_time")
-      return data as (Class & { staff: { first_name: string; last_name: string } | null })[]
+      return data as ClassWithCoach[]
     },
     enabled: !!orgId,
   })
@@ -214,7 +224,7 @@ export default function ClassesPage() {
         .select("*, members!inner(first_name, last_name), classes!inner(organization_id)")
         .eq("classes.organization_id", orgId)
         .eq("status", "confirmed")
-      return data as ({ id: string; class_id: string; member_id: string; members: { first_name: string; last_name: string }; classes: { organization_id: string } })[]
+      return data as ClassEnrollmentRow[]
     },
     enabled: !!orgId,
   })
@@ -245,7 +255,7 @@ export default function ClassesPage() {
 
   const shiftsByStaffAndDay = useMemo(() => {
     const map = new Map<string, StaffShift[]>()
-    shifts?.forEach(s => {
+    shifts?.forEach((s: StaffShift) => {
       const dayName = dateToDayKey(s.date)
       if (!dayName) return
       const key = `${s.staff_id}-${dayName}`
@@ -257,7 +267,7 @@ export default function ClassesPage() {
 
   const shiftsByDayHour = useMemo(() => {
     const map = new Map<string, StaffShift[]>()
-    shifts?.forEach(s => {
+    shifts?.forEach((s: StaffShift) => {
       const dayName = dateToDayKey(s.date)
       if (!dayName) return
       const dayIdx = PLANNING_DAYS.findIndex(d => d.key === dayName)
@@ -304,7 +314,7 @@ export default function ClassesPage() {
       form.reset()
       toast({ title: editingClass ? t("classes.classUpdated") || "Class updated" : t("classes.classAdded") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("classes.errorToast"), description: err.message, variant: "destructive" })
     },
   })
@@ -330,7 +340,7 @@ export default function ClassesPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       toast({ title: t('classes.classUpdated') })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t('classes.errorToast'), description: err.message, variant: 'destructive' })
     },
   })
@@ -346,7 +356,7 @@ export default function ClassesPage() {
       setDetailDialogOpen(false)
       toast({ title: t("classes.classDeleted") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("classes.errorToast"), description: err.message, variant: "destructive" })
     },
   })
@@ -366,7 +376,7 @@ export default function ClassesPage() {
       setSelectedMemberId("")
       toast({ title: t("classes.memberEnrolled") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("classes.errorToast"), description: err.message, variant: "destructive" })
     },
   })
@@ -380,7 +390,7 @@ export default function ClassesPage() {
       queryClient.invalidateQueries({ queryKey: ["class-enrollments"] })
       toast({ title: t("classes.memberUnenrolled") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("classes.errorToast"), description: err.message, variant: "destructive" })
     },
   })
@@ -426,13 +436,13 @@ export default function ClassesPage() {
   })
 
   const classEnrollments = (classId: string) =>
-    enrollments?.filter((e) => e.class_id === classId) ?? []
+    enrollments?.filter((e: ClassEnrollmentRow) => e.class_id === classId) ?? []
 
   const enrolledMemberIds = (classId: string) =>
-    classEnrollments(classId).map((e) => e.member_id)
+    classEnrollments(classId).map((e: ClassEnrollmentRow) => e.member_id)
 
   const classesByDay = (day: number) =>
-    classes?.filter((c) => c.day_of_week === day && c.recurring) ?? []
+    classes?.filter((c: ClassWithCoach) => c.day_of_week === day && c.recurring) ?? []
 
   function handleCellClick(staffId: string, dayKey: string) {
     const existing = shiftsByStaffAndDay.get(`${staffId}-${dayKey}`) || []
@@ -452,7 +462,7 @@ export default function ClassesPage() {
   const { page, setPage, totalPages, paginatedData: paginatedClasses } = usePagination(classes, 20)
 
   const { exportCsv } = useExportCsv(
-    (classes ?? []).map(c => ({ name: c.name, coach: c.staff ? `${c.staff.first_name} ${c.staff.last_name}` : '-', start_time: c.start_time, end_time: c.end_time, max_capacity: c.max_capacity ?? '-', recurring: c.recurring ? 'Yes' : 'No' })),
+    (classes ?? []).map((c: ClassWithCoach) => ({ name: c.name, coach: c.staff ? `${c.staff.first_name} ${c.staff.last_name}` : '-', start_time: c.start_time, end_time: c.end_time, max_capacity: c.max_capacity ?? '-', recurring: c.recurring ? 'Yes' : 'No' })),
     'classes',
     [
       { key: 'name', label: t('classes.name') },
@@ -532,7 +542,7 @@ export default function ClassesPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="">{t("classes.noCoach")}</SelectItem>
-                            {coaches?.map((c) => (
+                            {coaches?.map((c: Pick<Staff, "id" | "first_name" | "last_name">) => (
                               <SelectItem key={c.id} value={c.id}>
                                 {toUpper(c.first_name)} {toUpper(c.last_name)}
                               </SelectItem>
@@ -700,14 +710,14 @@ export default function ClassesPage() {
                     {Array.from({ length: 7 }).map((_, dayIdx) => {
                       const hourInt = Number(hour.split(":")[0])
                       const cellClasses = classes?.filter(
-                        (c) =>
+                        (c: ClassWithCoach) =>
                           c.day_of_week === dayIdx &&
                           c.recurring &&
                           Number(c.start_time.split(":")[0]) === hourInt
                       )
                       return (
                         <div key={dayIdx} className="p-1 border-r last:border-r-0 min-h-[60px] relative">
-                          {cellClasses?.map((cls) => (
+                          {cellClasses?.map((cls: ClassWithCoach) => (
                             <button
                               key={cls.id}
                               className="w-full text-left p-1.5 rounded text-xs font-medium text-white mb-1 hover:opacity-80 transition-opacity"
@@ -758,7 +768,7 @@ export default function ClassesPage() {
                 {PLANNING_DAYS.map(day => (
                   <div key={day.key} className="bg-muted p-3 font-medium text-center text-sm">{day.label}</div>
                 ))}
-                {planningCoaches?.map(staff => (
+                {planningCoaches?.map((staff: Staff) => (
                   <React.Fragment key={staff.id}>
                     <div
                       className="bg-background p-3 text-sm font-medium flex items-center"
@@ -919,8 +929,8 @@ export default function ClassesPage() {
                 <div>
                   <p className="text-muted-foreground">{t("classes.coach")}</p>
                   <p>
-                    {classes?.find((c) => c.id === selectedClass.id)?.staff
-                      ? toUpper(`${classes.find((c) => c.id === selectedClass.id)!.staff!.first_name} ${classes.find((c) => c.id === selectedClass.id)!.staff!.last_name}`)
+                    {classes?.find((c: ClassWithCoach) => c.id === selectedClass.id)?.staff
+                      ? toUpper(`${classes.find((c: ClassWithCoach) => c.id === selectedClass.id)!.staff!.first_name} ${classes.find((c: ClassWithCoach) => c.id === selectedClass.id)!.staff!.last_name}`)
                       : t("classes.noCoachAssigned")}
                   </p>
                 </div>
@@ -955,7 +965,7 @@ export default function ClassesPage() {
                     <p className="text-sm text-muted-foreground">{t("classes.noEnrolledMembers")}</p>
                   ) : (
                     <div className="space-y-1">
-                      {classEnrollments(selectedClass.id).map((enr) => (
+                      {classEnrollments(selectedClass.id).map((enr: ClassEnrollmentRow) => (
                         <div key={enr.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                           <span className="text-sm">
                             {toUpper(enr.members?.first_name)} {toUpper(enr.members?.last_name)}
@@ -1024,8 +1034,8 @@ export default function ClassesPage() {
               <SelectContent>
                 <ScrollArea className="h-48">
                   {members
-                    ?.filter((m) => !enrolledMemberIds(selectedClass?.id ?? "").includes(m.id))
-                    .map((m) => (
+                    ?.filter((m: Pick<Member, "id" | "first_name" | "last_name">) => !enrolledMemberIds(selectedClass?.id ?? "").includes(m.id))
+                    .map((m: Pick<Member, "id" | "first_name" | "last_name">) => (
                       <SelectItem key={m.id} value={m.id}>
                         {toUpper(m.first_name)} {toUpper(m.last_name)}
                       </SelectItem>
@@ -1069,7 +1079,7 @@ export default function ClassesPage() {
                       <SelectTrigger><SelectValue placeholder="Sélectionner un coach" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {planningCoaches?.map(s => (
+                      {planningCoaches?.map((s: Staff) => (
                         <SelectItem key={s.id} value={s.id}>{toUpper(s.first_name)} {toUpper(s.last_name)}</SelectItem>
                       ))}
                     </SelectContent>

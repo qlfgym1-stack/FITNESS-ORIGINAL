@@ -18,6 +18,7 @@ interface Coach {
   id: string
   first_name: string
   last_name: string
+  username: string | null
   email: string | null
   phone: string | null
   salary: number | null
@@ -124,7 +125,7 @@ export default function CoachModePage() {
 
   const currentUserStaff = useMemo(() => {
     if (!isCoach || !user) return null
-    const found = coaches.find(c => c.email === user.email)
+    const found = coaches.find((c: Coach) => c.email === user.email)
     return found?.id ?? null
   }, [isCoach, user, coaches])
 
@@ -163,11 +164,11 @@ export default function CoachModePage() {
 
   const activeMemberCount = useMemo(() => {
     if (!effectiveSelectedCoach) return 0
-    return assignedMembers.filter(m => m.status === 'active').length
+    return assignedMembers.filter((m: MemberRow) => m.status === 'active').length
   }, [assignedMembers, effectiveSelectedCoach])
 
   const selectedCoachData = useMemo(() => {
-    return coaches.find(c => c.id === effectiveSelectedCoach) ?? null
+    return coaches.find((c: Coach) => c.id === effectiveSelectedCoach) ?? null
   }, [coaches, effectiveSelectedCoach])
 
   const variableAmount = useMemo(() => {
@@ -278,25 +279,25 @@ export default function CoachModePage() {
     setEditSalary(true)
   }
 
-  const filteredCoaches = coaches.filter(c =>
+  const filteredCoaches = coaches.filter((c: Coach) =>
     `${c.first_name} ${c.last_name}`.toLowerCase().includes(search.toLowerCase())
   )
 
   const displayCoaches = isCoach && currentUserStaff
-    ? coaches.filter(c => c.id === currentUserStaff)
+    ? coaches.filter((c: Coach) => c.id === currentUserStaff)
     : filteredCoaches
 
-  const filteredMembers = assignedMembers.filter(m =>
+  const filteredMembers = assignedMembers.filter((m: MemberRow) =>
     `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase())
   )
 
-  const filteredUnassigned = unassignedMembers.filter(m =>
+  const filteredUnassigned = unassignedMembers.filter((m: MemberRow) =>
     `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase())
   )
 
   const currentSnapshot = useMemo(() => {
     const period = toPeriodStart(currentMonth)
-    return salaryHistory.find(h => h.period === period) ?? null
+    return salaryHistory.find((h: SalaryHistory) => h.period === period) ?? null
   }, [salaryHistory, currentMonth])
 
   const handlePrevMonth = () => {
@@ -330,7 +331,7 @@ export default function CoachModePage() {
         ) : (
           <ScrollArea className="flex-1">
             <div className="space-y-2">
-              {displayCoaches.map(c => (
+              {displayCoaches.map((c: Coach) => (
                 <Card
                   key={c.id}
                   className={`cursor-pointer transition-colors hover:bg-accent ${effectiveSelectedCoach === c.id ? 'ring-2 ring-primary' : ''}`}
@@ -477,7 +478,7 @@ export default function CoachModePage() {
               <div>
                 <h2 className="text-xl font-bold">
                   {(() => {
-                    const coach = coaches.find(c => c.id === effectiveSelectedCoach)
+                    const coach = coaches.find((c: Coach) => c.id === effectiveSelectedCoach)
                     return coach ? `${toUpper(coach.first_name)} ${toUpper(coach.last_name)}` : ''
                   })()}
                 </h2>
@@ -536,7 +537,7 @@ export default function CoachModePage() {
                 </div>
               ) : (
                 <div className="rounded-md border">
-                  {filteredMembers.map(m => (
+                  {filteredMembers.map((m: MemberRow) => (
                     <div key={m.id} className="flex items-center justify-between p-3 border-b last:border-0 hover:bg-muted/50">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
@@ -682,7 +683,7 @@ export default function CoachModePage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {salaryHistory.map(h => (
+                            {salaryHistory.map((h: SalaryHistory) => (
                               <tr key={h.id} className="border-b last:border-0 hover:bg-muted/50">
                                 <td className="p-3">
                                   {(() => {
@@ -734,7 +735,7 @@ export default function CoachModePage() {
                 {filteredUnassigned.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">Aucun adhérent disponible</p>
                 ) : (
-                  filteredUnassigned.map(m => (
+                  filteredUnassigned.map((m: MemberRow) => (
                     <div
                       key={m.id}
                       className={`flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-accent ${selectedAddMember === m.id ? 'bg-accent ring-1 ring-primary' : ''}`}

@@ -134,7 +134,7 @@ export default function ExpensesPage() {
       form.reset()
       toast({ title: t("expenses.added") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
@@ -150,13 +150,13 @@ export default function ExpensesPage() {
       setDeleteId(null)
       toast({ title: t("expenses.deleted") })
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast({ title: t("common.error"), description: err.message, variant: "destructive" })
     },
   })
 
   const filteredExpenses = useMemo(() => {
-    return expenses?.filter((e) => {
+    return expenses?.filter((e: Expense) => {
       const matchesSearch = e.description.toLowerCase().includes(search.toLowerCase())
       const matchesCategory = categoryFilter === "all" || e.category === categoryFilter
       return matchesSearch && matchesCategory
@@ -164,7 +164,7 @@ export default function ExpensesPage() {
   }, [expenses, search, categoryFilter])
 
   const totalAmount = useMemo(() => {
-    return (filteredExpenses ?? []).reduce((sum, e) => sum + Number(e.amount), 0)
+    return (filteredExpenses ?? []).reduce((sum: number, e: Expense) => sum + Number(e.amount), 0)
   }, [filteredExpenses])
 
   const { page, setPage, totalPages, paginatedData: paginatedExpenses } = usePagination(filteredExpenses, 20)
@@ -260,7 +260,7 @@ export default function ExpensesPage() {
       { header: "Montant", key: "Montant", width: 15 },
       { header: "Date", key: "Date", width: 15 },
     ]
-    expenses.forEach((e) => {
+    expenses.forEach((e: Expense) => {
       ws.addRow({
         Catégorie: getCategoryLabel(e.category),
         Description: e.description,
@@ -459,7 +459,7 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      products.map((p) => (
+                      products.map((p: Pick<Product, "id" | "name" | "category" | "price" | "cost" | "stock" | "is_active">) => (
                         <TableRow key={p.id}>
                           <TableCell>
                             <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-[#ef4444]/10 text-[#ef4444]">
@@ -495,7 +495,7 @@ export default function ExpensesPage() {
                 {products.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">Aucun produit trouvé</p>
                 ) : (
-                  products.map((p) => (
+                  products.map((p: Pick<Product, "id" | "name" | "category" | "price" | "cost" | "stock" | "is_active">) => (
                     <Card key={p.id} className="p-4">
                       <div className="flex items-start justify-between">
                         <div>

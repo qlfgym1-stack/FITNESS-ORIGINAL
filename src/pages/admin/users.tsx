@@ -107,7 +107,7 @@ export default function AdminUsersPage() {
       if (result.error) throw new Error(String(result.error))
       return result as Record<string, unknown>
     },
-    onSuccess: (result) => {
+    onSuccess: (result: Record<string, unknown>) => {
       const user = result.user as { id: string; email: string; username?: string | null } | undefined
       toast({ title: t('admin.users.created'), description: `${user?.username ?? user?.email ?? ''} (password: ${result.password ?? ''})` })
       setCreateOpen(false)
@@ -129,7 +129,7 @@ export default function AdminUsersPage() {
       if (result.error) throw new Error(String(result.error))
       return result as Record<string, unknown>
     },
-    onSuccess: (result) => {
+    onSuccess: (result: Record<string, unknown>) => {
       toast({
         title: t('admin.users.passwordReset'),
         description: resetPassword ? `${t('admin.users.newPassword')}: ${resetPassword}` : (String(result.recoveryLink ?? result.message ?? '')),
@@ -211,7 +211,7 @@ export default function AdminUsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((u) => (
+                  {users.map((u: AdminUser) => (
                     <TableRow key={u.id}>
                       <TableCell className="font-medium">{u.username || u.email}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{u.phone || '-'}</TableCell>
@@ -220,7 +220,7 @@ export default function AdminUsersPage() {
                           {u.roles.length === 0 ? (
                             <Badge variant="secondary" className="text-xs">{t('admin.users.noRole')}</Badge>
                           ) : (
-                            u.roles.map((r, i) => (
+                            u.roles.map((r: AdminUser['roles'][number], i: number) => (
                               <Badge
                                 key={i}
                                 variant={r.role === 'admin' ? 'default' : 'secondary'}

@@ -28,7 +28,7 @@ import { Pagination } from "@/components/ui/pagination"
 import { useToast } from "@/components/ui/toast"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, RefreshCw, Ticket, Building2, RotateCcw, Pencil } from "lucide-react"
-import type { Product, Member } from "@/types/supabase"
+import type { Product, Member, Corporate } from "@/types/supabase"
 import { IS_MOCK } from "@/lib/config"
 
 interface CartItem {
@@ -55,6 +55,8 @@ interface PendingSubRow {
   total_amount: number
   subscription_types: { name: string; price: number; duration_days: number } | null
 }
+
+type SubscriptionTypeOption = { id: string; name: string; price: number; duration_days: number; is_drop_in?: boolean | null }
 
 interface CartPanelProps {
   cart: CartItem[]
@@ -499,11 +501,11 @@ export default function POSPage() {
 
   const filteredProducts = useMemo(() => {
     if (!products) return []
-    return products.filter(p => {
+    return products.filter((p: Product) => {
       const matchesCategory = p.category?.toLowerCase() === category || (!p.category && category === "snacks")
       const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
       return matchesCategory && matchesSearch
-    }).sort((a, b) => a.name.localeCompare(b.name))
+    }).sort((a: Product, b: Product) => a.name.localeCompare(b.name))
   }, [products, category, search])
 
   const { page, setPage, totalPages, paginatedData: paginatedProducts } = usePagination(filteredProducts, 20)
@@ -514,7 +516,7 @@ export default function POSPage() {
   useEffect(() => { setPage(0) }, [category, search])
 
   const { exportCsv } = useExportCsv(
-    filteredProducts.map(p => ({ name: p.name, category: p.category ?? '', price: p.price, stock: p.stock ?? 0, barcode: p.barcode ?? '' })),
+    filteredProducts.map((p: Product) => ({ name: p.name, category: p.category ?? '', price: p.price, stock: p.stock ?? 0, barcode: p.barcode ?? '' })),
     'products',
     [
       { key: 'name', label: t('pos.productName') || 'Product' },
@@ -528,7 +530,7 @@ export default function POSPage() {
   const panelFilteredProducts = useMemo(() => {
     if (!panelProductSearch || !products) return []
     const q = panelProductSearch.toLowerCase()
-    return products.filter(p =>
+    return products.filter((p: Product) =>
       p.name.toLowerCase().includes(q) ||
       (p.barcode && p.barcode.toLowerCase().includes(q)) ||
       (p.category && p.category.toLowerCase().includes(q))
@@ -537,7 +539,7 @@ export default function POSPage() {
 
   const filteredMembers = useMemo(() => {
     if (!members) return []
-    return members.filter(m =>
+    return members.filter((m: Member) =>
       !m.member_number?.startsWith("QLF-VISITEUR") &&
       (`${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase()) ||
       (m.phone && m.phone.includes(memberSearch)))
@@ -560,9 +562,9 @@ export default function POSPage() {
   }, [cart])
 
   const selectedCorporate = useMemo(() => {
-    const member = members?.find(m => m.id === selectedMemberId)
+    const member = members?.find((m: Member) => m.id === selectedMemberId)
     if (!member?.corporate_id || !corporateAccounts) return null
-    return corporateAccounts.find(c => c.id === member.corporate_id) ?? null
+    return corporateAccounts.find((c: Corporate) => c.id === member.corporate_id) ?? null
   }, [members, selectedMemberId, corporateAccounts])
 
   const corporateDiscount = useMemo(() => {
@@ -579,7 +581,7 @@ export default function POSPage() {
   // Abonnement en attente du membre sélectionné (détecté depuis la base)
   const selectedPendingSub = useMemo<PendingSubRow | null>(() => {
     if (!selectedMemberId || !pendingSubs) return null
-    return pendingSubs.find(s => s.member_id === selectedMemberId) ?? null
+    return pendingSubs.find((s: PendingSubRow) => s.member_id === selectedMemberId) ?? null
   }, [pendingSubs, selectedMemberId])
 
   // True si l'abonnement en attente du membre sélectionné est déjà au panier
@@ -598,14 +600,14 @@ export default function POSPage() {
       total_amount: sub.total_amount,
       subscription_name: sub.subscription_types?.name ?? t("pos.subscription"),
       organization_id: organization.id,
-      first_name: members?.find(m => m.id === sub.member_id)?.first_name ?? "",
-      last_name: members?.find(m => m.id === sub.member_id)?.last_name ?? "",
+      first_name: members?.find((m: Member) => m.id === sub.member_id)?.first_name ?? "",
+      last_name: members?.find((m: Member) => m.id === sub.member_id)?.last_name ?? "",
     })
   }
 
   function openEditSubscription(productId: string) {
     const subId = productId.replace("__subscription__", "")
-    const sub = pendingSubs?.find(s => s.id === subId)
+    const sub = pendingSubs?.find((s: PendingSubRow) => s.id === subId)
     if (!sub) return
     setEditSubId(sub.id)
     setEditSubTypeId(sub.subscription_type_id)
@@ -613,7 +615,7 @@ export default function POSPage() {
   }
 
   const editSubscriptionType = useMemo(() => {
-    return subscriptionTypes?.find(t => t.id === editSubTypeId) ?? null
+    return subscriptionTypes?.find((t: SubscriptionTypeOption) => t.id === editSubTypeId) ?? null
   }, [subscriptionTypes, editSubTypeId])
 
   const editSubscriptionEndDate = useMemo(() => {
@@ -639,7 +641,7 @@ export default function POSPage() {
       if (error) throw error
       return data as { total_amount: number; subscription_name: string; start_date: string; end_date: string }
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { total_amount: number; subscription_name: string; start_date: string; end_date: string }) => {
       // Met à jour l'article virtuel dans le panier
       setCart(prev => prev.map(item =>
         item.product.id === `__subscription__${editSubId}`
@@ -654,12 +656,12 @@ export default function POSPage() {
       queryClient.invalidateQueries({ queryKey: ["pos-pending-subscriptions", organization?.id] })
       toast({ title: t("pos.subscriptionUpdated") })
     },
-    onError: (err) => toast({ variant: "destructive", title: t("errors.generic"), description: err.message }),
+    onError: (err: Error) => toast({ variant: "destructive", title: t("errors.generic"), description: err.message }),
   })
 
   // --- Création d'un abonnement en attente pour le membre sélectionné ---
   const newSubscriptionType = useMemo(() => {
-    return subscriptionTypes?.find(t => t.id === newSubTypeId) ?? null
+    return subscriptionTypes?.find((t: SubscriptionTypeOption) => t.id === newSubTypeId) ?? null
   }, [subscriptionTypes, newSubTypeId])
 
   const newSubscriptionEndDate = useMemo(() => {
@@ -680,8 +682,8 @@ export default function POSPage() {
           total_amount: newSubscriptionType?.price ?? 0,
           subscription_name: newSubscriptionType?.name ?? "",
           organization_id: organization.id,
-          first_name: members?.find(m => m.id === selectedMemberId)?.first_name ?? "",
-          last_name: members?.find(m => m.id === selectedMemberId)?.last_name ?? "",
+          first_name: members?.find((m: Member) => m.id === selectedMemberId)?.first_name ?? "",
+          last_name: members?.find((m: Member) => m.id === selectedMemberId)?.last_name ?? "",
         }
       }
       const { data, error } = await (supabase.rpc as any)("create_pending_subscription", {
@@ -693,13 +695,13 @@ export default function POSPage() {
       if (error) throw error
       return data as PendingSubscriptionInfo
     },
-    onSuccess: (data) => {
+    onSuccess: (data: PendingSubscriptionInfo) => {
       setNewSubOpen(false)
       setPendingSub(data)
       queryClient.invalidateQueries({ queryKey: ["pos-pending-subscriptions", organization?.id] })
       toast({ title: t("pos.subscriptionCreated") })
     },
-    onError: (err) => toast({ variant: "destructive", title: t("errors.generic"), description: err.message }),
+    onError: (err: Error) => toast({ variant: "destructive", title: t("errors.generic"), description: err.message }),
   })
 
   function openNewSubscription(typeId: string) {
@@ -796,14 +798,14 @@ export default function POSPage() {
     if (!value) return
     const trimmed = value.trim().toLowerCase()
     // Try product barcode first
-    const product = products?.find(p => p.barcode && p.barcode.toLowerCase() === trimmed)
+    const product = products?.find((p: Product) => p.barcode && p.barcode.toLowerCase() === trimmed)
     if (product) {
       addToCart(product)
       setQrInput("")
       return
     }
     // Try member phone or id
-    const member = members?.find(m => m.phone && formatPhone(m.phone) === formatPhone(trimmed))
+    const member = members?.find((m: Member) => m.phone && formatPhone(m.phone) === formatPhone(trimmed))
     if (member) {
       setSelectedMemberId(member.id)
       setMemberSearch(`${toUpper(member.first_name)} ${toUpper(member.last_name)}`)
@@ -877,7 +879,7 @@ export default function POSPage() {
       const subItem = cart.find(item => item.product.id.startsWith("__subscription__"))
       if (subItem) {
         const subId = subItem.product.id.replace("__subscription__", "")
-        const pendingRow = pendingSubs?.find(s => s.id === subId)
+        const pendingRow = pendingSubs?.find((s: PendingSubRow) => s.id === subId)
         const memberId = selectedMemberId ?? pendingRow?.member_id ?? pendingSub?.member_id
         const { error: finalizeError } = await (supabase.rpc as any)('finalize_subscription_payment', {
           p_subscription_id: subId,
@@ -970,7 +972,7 @@ export default function POSPage() {
                 </Card>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {subscriptionTypes?.filter(st => !st.is_drop_in).map(st => (
+                  {subscriptionTypes?.filter((st: SubscriptionTypeOption) => !st.is_drop_in).map((st: SubscriptionTypeOption) => (
                   <Card
                     key={st.id}
                     className="cursor-pointer hover:border-primary transition-colors border-dashed bg-primary/5"
@@ -993,7 +995,7 @@ export default function POSPage() {
                     </CardContent>
                   </Card>
                 ))}
-                {subscriptionTypes?.filter(st => !st.is_drop_in).length === 0 && (
+                {subscriptionTypes?.filter((st: SubscriptionTypeOption) => !st.is_drop_in).length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-8 col-span-2">{t("pos.noSubscriptionTypes")}</p>
                 )}
               </div>
@@ -1176,7 +1178,7 @@ export default function POSPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {subscriptionTypes?.map(st => (
+                  {subscriptionTypes?.map((st: SubscriptionTypeOption) => (
                     <SelectItem key={st.id} value={st.id}>
                       {st.name} — {formatCurrency(st.price)}
                     </SelectItem>
@@ -1235,7 +1237,7 @@ export default function POSPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {subscriptionTypes?.filter(st => !st.is_drop_in).map(st => (
+                {subscriptionTypes?.filter((st: SubscriptionTypeOption) => !st.is_drop_in).map((st: SubscriptionTypeOption) => (
                     <SelectItem key={st.id} value={st.id}>
                       {st.name} — {formatCurrency(st.price)}
                     </SelectItem>

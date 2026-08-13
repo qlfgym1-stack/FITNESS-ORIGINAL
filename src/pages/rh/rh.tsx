@@ -104,7 +104,7 @@ export default function RhPage() {
   })
 
   const selectedStaffData = useMemo(() => {
-    return staffList.find(s => s.id === selectedStaff) ?? null
+    return staffList.find((s: StaffRow) => s.id === selectedStaff) ?? null
   }, [staffList, selectedStaff])
 
   const isCoach = selectedStaffData?.role === 'coach'
@@ -189,12 +189,12 @@ export default function RhPage() {
     onError: (err: Error) => toast({ title: 'Erreur', description: err.message, variant: 'destructive' }),
   })
 
-  const filteredStaff = staffList.filter(s =>
+  const filteredStaff = staffList.filter((s: StaffRow) =>
     `${s.first_name} ${s.last_name}`.toLowerCase().includes(search.toLowerCase())
   )
 
   const totalPaid = useMemo(() => {
-    return payments.reduce((sum, p) => sum + p.amount, 0)
+    return payments.reduce((sum: number, p: SalaryPayment) => sum + p.amount, 0)
   }, [payments])
 
   const loadStaffData = (staff: StaffRow) => {
@@ -251,7 +251,7 @@ export default function RhPage() {
         ) : (
           <ScrollArea className="flex-1">
             <div className="space-y-2">
-              {filteredStaff.map(s => (
+              {filteredStaff.map((s: StaffRow) => (
                 <Card
                   key={s.id}
                   className={`cursor-pointer transition-colors hover:bg-accent ${selectedStaff === s.id ? 'ring-2 ring-primary' : ''}`}
@@ -401,7 +401,7 @@ export default function RhPage() {
                   </div>
                 ) : (
                   <div className="rounded-md border">
-                    {payments.map(p => (
+                    {payments.map((p: SalaryPayment) => (
                       <div key={p.id} className="flex items-center justify-between p-3 border-b last:border-0 hover:bg-muted/50">
                         <div>
                           <p className="text-sm font-medium">{formatCurrency(p.amount)}</p>
@@ -431,7 +431,7 @@ export default function RhPage() {
                   </div>
                 ) : (
                   <div className="rounded-md border">
-                    {leaves.map(l => (
+                    {leaves.map((l: StaffLeaveRow) => (
                       <div key={l.id} className="flex items-center justify-between p-3 border-b last:border-0 hover:bg-muted/50">
                         <div>
                           <p className="text-sm font-medium">{typeLabel(l.type)}</p>

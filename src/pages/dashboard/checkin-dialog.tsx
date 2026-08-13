@@ -79,7 +79,7 @@ export default function CheckinDialog({ open, onOpenChange }: CheckinDialogProps
       })
       return data as ScanResult
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ScanResult) => {
       queryClient.invalidateQueries({ queryKey: ["recent-activity"] })
       queryClient.invalidateQueries({ queryKey: ["turnstile-dashboard"] })
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
@@ -104,7 +104,7 @@ export default function CheckinDialog({ open, onOpenChange }: CheckinDialogProps
       })
       return data as ScanResult
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ScanResult) => {
       queryClient.invalidateQueries({ queryKey: ["recent-activity"] })
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
       if (data.result === "granted") {
@@ -123,7 +123,7 @@ export default function CheckinDialog({ open, onOpenChange }: CheckinDialogProps
       const { data } = await (supabase.rpc as any)("manual_check_in", params)
       return data as ScanResult
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ScanResult) => {
       queryClient.invalidateQueries({ queryKey: ["recent-activity"] })
       queryClient.invalidateQueries({ queryKey: ["turnstile-dashboard"] })
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
@@ -194,7 +194,7 @@ export default function CheckinDialog({ open, onOpenChange }: CheckinDialogProps
     }
   }, [open])
 
-  const filteredMembers = (members ?? []).filter((m) =>
+  const filteredMembers = (members ?? []).filter((m: Pick<Member, "id" | "first_name" | "last_name" | "photo_url">) =>
     `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase())
   )
 
@@ -275,7 +275,7 @@ export default function CheckinDialog({ open, onOpenChange }: CheckinDialogProps
               />
               <ScrollArea className="h-[180px]">
                 <div className="space-y-1">
-                  {filteredMembers.map((m) => (
+                  {filteredMembers.map((m: Pick<Member, "id" | "first_name" | "last_name" | "photo_url">) => (
                     <button
                       key={m.id}
                       type="button"

@@ -124,7 +124,7 @@ export default function InventoryPage() {
     enabled: !!orgId,
   })
 
-  const anomalyIds = useMemo(() => new Set(anomalies.map((a) => a.inventory_id)), [anomalies])
+  const anomalyIds = useMemo(() => new Set(anomalies.map((a: { inventory_id: string }) => a.inventory_id)), [anomalies])
 
   const movementsByItem = useMemo(() => {
     const map = new Map<string, StockMovementLine[]>()
@@ -159,7 +159,7 @@ export default function InventoryPage() {
     defaultValues: { name: "", category: "", quantity: 0, stock_initial: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "", image_url: "" },
   })
 
-  const filtered = items.filter((i) =>
+  const filtered = items.filter((i: InventoryItem) =>
     i.name.toLowerCase().includes(search.toLowerCase()) ||
     i.category.toLowerCase().includes(search.toLowerCase()) ||
     (i.suppliers?.name ?? "").toLowerCase().includes(search.toLowerCase())
@@ -168,7 +168,7 @@ export default function InventoryPage() {
   const { page, setPage, totalPages, paginatedData: paginatedItems } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(i => ({ name: i.name, category: i.category, stock_initial: i.stock_initial, quantity: i.quantity, unit: i.unit, min_stock: i.min_stock, price: i.price, supplier: i.suppliers?.name ?? '' })),
+    filtered.map((i: InventoryItem) => ({ name: i.name, category: i.category, stock_initial: i.stock_initial, quantity: i.quantity, unit: i.unit, min_stock: i.min_stock, price: i.price, supplier: i.suppliers?.name ?? '' })),
     'inventory',
     [
       { key: 'name', label: t('inventory.name') },

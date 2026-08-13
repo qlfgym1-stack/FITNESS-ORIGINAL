@@ -226,7 +226,7 @@ export function ChartsSection({
                   cx="50%"
                   cy="50%"
                   outerRadius={100}
-                  label={({ label, margin }) => `${label}: ${margin.toFixed(1)}%`}
+                  label={({ label, margin }: { label: string; margin: number }) => `${label}: ${margin.toFixed(1)}%`}
                 >
                   {profitabilityByProduct.map((_, index) => (
                     <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />

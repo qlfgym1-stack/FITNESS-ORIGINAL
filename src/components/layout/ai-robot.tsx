@@ -52,8 +52,7 @@ export function AiFloatingRobot() {
   const t = useT()
   const { isAuthenticated } = useAuth()
   const { isOnline } = useNetworkStatus()
-  const { loading } = useAiChat()
-  const [open, setOpen] = useState(false)
+  const { loading, panelOpen: open, togglePanel, closePanel } = useAiChat()
   const [pos, setPos] = useState<RobotPos>(loadPos)
   const [blinking, setBlinking] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -80,8 +79,8 @@ export function AiFloatingRobot() {
 
   // Ferme le panneau lors d'un changement de module (le robot reste visible)
   useEffect(() => {
-    setOpen(false)
-  }, [currentModule])
+    closePanel()
+  }, [currentModule, closePanel])
 
   // Détection souris fine (désactivée sur mobile / tactile)
   useEffect(() => {
@@ -301,14 +300,14 @@ export function AiFloatingRobot() {
       const final = clampPos({ x: d.startPosX + e.clientX - d.startX, y: d.startPosY + e.clientY - d.startY })
       latestPos.current = final
       setPos(final)
-      setOpen(false)
+      closePanel()
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(final))
       } catch {
         /* ignore */
       }
     } else if (armedRef.current) {
-      setOpen((v) => !v)
+      togglePanel()
     }
     armedRef.current = false
     setDragging(false)
@@ -318,7 +317,7 @@ export function AiFloatingRobot() {
   const onPointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
     const d = dragRef.current
     if (d.moved) {
-      setOpen(false)
+      closePanel()
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(latestPos.current))
       } catch {
@@ -340,7 +339,7 @@ export function AiFloatingRobot() {
 
   return (
     <>
-      {open && <AiFloatingPanel onClose={() => setOpen(false)} onExpand={() => navigate("/ai-assistant")} />}
+      {open && <AiFloatingPanel onClose={closePanel} onExpand={() => navigate("/ai-assistant")} />}
 
       <button
         ref={buttonRef}

@@ -71,7 +71,7 @@ export default function Subscriptions() {
       if (error) throw error
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['subscription-types'] }); queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] }); closeTypeDialog(); toast({ title: t('subscriptions.typeCreated') }) },
-    onError: (err) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
+    onError: (err: Error) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
   })
 
   const updateTypeMutation = useMutation({
@@ -84,7 +84,7 @@ export default function Subscriptions() {
       if (error) throw error
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['subscription-types'] }); queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] }); closeTypeDialog(); toast({ title: t('subscriptions.typeUpdated') }) },
-    onError: (err) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
+    onError: (err: Error) => toast({ variant: 'destructive', title: t('errors.generic'), description: err.message }),
   })
 
   const toggleActiveMutation = useMutation({
@@ -92,7 +92,7 @@ export default function Subscriptions() {
       const { error } = await supabase.from('subscription_types').update({ is_active }).eq('id', id)
       if (error) throw error
     },
-    onMutate: async ({ id, is_active }) => {
+    onMutate: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       await queryClient.cancelQueries({ queryKey: ['subscription-types', orgId] })
       const previous = queryClient.getQueriesData({ queryKey: ['subscription-types', orgId] })
       queryClient.setQueryData(['subscription-types', orgId], (old: any) =>
@@ -100,7 +100,7 @@ export default function Subscriptions() {
       )
       return { previous }
     },
-    onError: (err, vars, context) => {
+    onError: (err: Error, vars: { id: string; is_active: boolean }, context: { previous: unknown } | undefined) => {
       if (context?.previous) {
         queryClient.setQueryData(['subscription-types', orgId], context.previous)
       }
@@ -146,7 +146,7 @@ export default function Subscriptions() {
   const { page: typePage, setPage: setTypePage, totalPages: typeTotalPages, paginatedData: paginatedTypes } = usePagination(subTypes, 20)
 
   const { exportCsv: exportTypesCsv } = useExportCsv(
-    (subTypes ?? []).map(type => ({ name: type.name, description: type.description ?? '', duration_days: type.duration_days, price: type.price, max_classes: type.max_classes ?? 'Unlimited', active: type.is_active ? 'Yes' : 'No' })),
+    (subTypes ?? []).map((type: SubscriptionType) => ({ name: type.name, description: type.description ?? '', duration_days: type.duration_days, price: type.price, max_classes: type.max_classes ?? 'Unlimited', active: type.is_active ? 'Yes' : 'No' })),
     'subscription-types',
     [
       { key: 'name', label: t('subscriptions.name') },

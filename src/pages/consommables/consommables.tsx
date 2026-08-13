@@ -132,19 +132,19 @@ export default function ConsommablesPage() {
 
   const inventoryByConsumable = useMemo(() => {
     const map: Record<string, string> = {}
-    linkedInventory.forEach((row) => { if (row.consumable_id) map[row.consumable_id] = row.id })
+    linkedInventory.forEach((row: { id: string; consumable_id: string }) => { if (row.consumable_id) map[row.consumable_id] = row.id })
     return map
   }, [linkedInventory])
 
-  const filtered = items.filter((item) => {
+  const filtered = items.filter((item: Consumable) => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || (item.brand ?? "").toLowerCase().includes(search.toLowerCase())
     const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
     return matchesSearch && matchesCategory
   })
 
   const totalItems = items.length
-  const stockValue = items.reduce((sum, i) => sum + ((i.quantity ?? 0) * (i.cost ?? 0)), 0)
-  const lowStock = items.filter((i) => (i.quantity ?? 0) <= (i.min_stock ?? 0)).length
+  const stockValue = items.reduce((sum: number, i: Consumable) => sum + ((i.quantity ?? 0) * (i.cost ?? 0)), 0)
+  const lowStock = items.filter((i: Consumable) => (i.quantity ?? 0) <= (i.min_stock ?? 0)).length
 
   const upsertMutation = useMutation({
     mutationFn: async (values: ConsumableForm) => {
@@ -271,7 +271,7 @@ export default function ConsommablesPage() {
   const { page, setPage, totalPages, paginatedData: paginated } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map(i => ({ name: i.name, category: i.category, brand: i.brand ?? "", unit: i.unit ?? "", quantity: i.quantity ?? 0, min_stock: i.min_stock ?? 0, cost: i.cost ?? 0, notes: i.notes ?? "" })),
+    filtered.map((i: Consumable) => ({ name: i.name, category: i.category, brand: i.brand ?? "", unit: i.unit ?? "", quantity: i.quantity ?? 0, min_stock: i.min_stock ?? 0, cost: i.cost ?? 0, notes: i.notes ?? "" })),
     'consommables',
     [
       { key: 'name', label: 'Nom' },
@@ -620,7 +620,7 @@ export default function ConsommablesPage() {
                     <SelectTrigger><SelectValue placeholder={t("products.selectSupplier") || "Sélectionner un fournisseur"} /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">—</SelectItem>
-                      {suppliers.map((s) => (
+                      {suppliers.map((s: { id: string; name: string }) => (
                         <SelectItem key={s.id} value={s.id}>{toUpper(s.name)}</SelectItem>
                       ))}
                     </SelectContent>

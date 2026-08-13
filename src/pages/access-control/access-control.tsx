@@ -43,6 +43,8 @@ type TurnstileDashboard = {
   manual_validations_total: number
 }
 
+type ManualValidationWithMember = ManualValidation & { member: Pick<Member, "first_name" | "last_name"> | null }
+
 const deviceSchema = z.object({
   name: z.string().min(1, "Le nom est requis"),
   type: z.enum(["turnstile", "door", "barrier"]),
@@ -213,12 +215,12 @@ export default function AccessControlPage() {
     toggleMutation.mutate({ id, is_active: !current })
   }
 
-  const filteredDevices = (accessDevices ?? []).filter((d) =>
+  const filteredDevices = (accessDevices ?? []).filter((d: AccessControl) =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||
     (d.device_id ?? "").toLowerCase().includes(search.toLowerCase())
   )
 
-  const filteredHistory = (manualValidations ?? []).filter((v) =>
+  const filteredHistory = (manualValidations ?? []).filter((v: ManualValidationWithMember) =>
     !historySearch ||
     v.member?.first_name.toLowerCase().includes(historySearch.toLowerCase()) ||
     v.member?.last_name.toLowerCase().includes(historySearch.toLowerCase()) ||
@@ -229,7 +231,7 @@ export default function AccessControlPage() {
   const { page: historyPage, setPage: setHistoryPage, totalPages: historyTotalPages, paginatedData: paginatedHistory } = usePagination(filteredHistory, 20)
 
   const { exportCsv: exportDevicesCsv } = useExportCsv(
-    filteredDevices.map(d => ({ name: d.name, type: d.type, device_id: d.device_id ?? '', is_active: d.is_active ? 'Active' : 'Inactive' })),
+    filteredDevices.map((d: AccessControl) => ({ name: d.name, type: d.type, device_id: d.device_id ?? '', is_active: d.is_active ? 'Active' : 'Inactive' })),
     'access-devices',
     [
       { key: 'name', label: t('accessControl.deviceName') || 'Name' },
@@ -251,7 +253,7 @@ export default function AccessControlPage() {
       { header: "terminal", key: "terminal", width: 20 },
       { header: "validated_at", key: "validated_at", width: 25 },
     ]
-    manualValidations.forEach((v) => {
+    manualValidations.forEach((v: ManualValidationWithMember) => {
       ws.addRow({
         member: v.member ? `${v.member.first_name} ${v.member.last_name}` : "—",
         reason: v.reason,
@@ -344,7 +346,7 @@ export default function AccessControlPage() {
                       {t("common.noData")}
                     </TableCell>
                   </TableRow>
-                ) : (turnstileDevices ?? []).map((d) => (
+                ) : (turnstileDevices ?? []).map((d: TurnstileStatus) => (
                   <TableRow key={d.id}>
                     <TableCell className="font-medium font-mono">{d.terminal}</TableCell>
                     <TableCell>
@@ -379,7 +381,7 @@ export default function AccessControlPage() {
           <div className="md:hidden space-y-3 p-4">
             {(turnstileDevices ?? []).length === 0 ? (
               <p className="text-center py-8 text-muted-foreground">{t("common.noData")}</p>
-            ) : (turnstileDevices ?? []).map((d) => (
+            ) : (turnstileDevices ?? []).map((d: TurnstileStatus) => (
               <Card key={d.id} className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium font-mono">{d.terminal}</span>

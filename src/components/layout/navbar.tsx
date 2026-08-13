@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo } from "react"
-import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe, Wifi, WifiOff, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, CheckCheck } from "lucide-react"
+import { Menu, Search, Bell, Sun, Moon, LogOut, User, Globe, Wifi, WifiOff, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, CheckCheck, MailOpen, UserRound } from "lucide-react"
 import { motion } from "framer-motion"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useNavigate } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { NotificationDetails } from "@/components/notifications/notification-details"
+import { formatDate } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,11 +88,24 @@ function timeAgo(dateStr: string, t: (key: string) => string): string {
   return t("notifications.daysAgo").replace("{n}", String(diffD))
 }
 
+function notifTypeLabel(type: string, t: (key: string) => string): string {
+  switch (type) {
+    case "subscription_expiring": return t("notifications.subscriptionExpiring")
+    case "payment_overdue": return t("notifications.paymentOverdue")
+    case "member_checkin": return t("notifications.memberCheckin")
+    case "staff_leave": return t("notifications.staffLeave")
+    case "system": return t("notifications.system")
+    default: return type
+  }
+}
+
 function NotificationsDropdown() {
   const t = useT()
   const { user } = useAuth()
   const supabase = useSupabase()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const [viewTarget, setViewTarget] = useState<Notification | null>(null)
   const [open, setOpen] = useState(false)
 
   const { data: notifications = [] } = useQuery({
@@ -109,18 +126,29 @@ function NotificationsDropdown() {
   })
 
   const unreadCount = useMemo(
-    () => notifications.filter((n) => !n.is_read).length,
+    () => notifications.filter((n: Notification) => !n.is_read).length,
     [notifications],
   )
 
   const markAllRead = useMutation({
     mutationFn: async () => {
-      const unread = notifications.filter((n) => !n.is_read && n.user_id === user?.id)
+      const unread = notifications.filter((n: Notification) => !n.is_read && n.user_id === user?.id)
       if (unread.length === 0) return
       await supabase
         .from("notifications")
         .update({ is_read: true })
-        .in("id", unread.map((n) => n.id))
+        .in("id", unread.map((n: Notification) => n.id))
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] })
+    },
+  })
+
+  const markAsRead = useMutation({
+    mutationFn: async (id: string) => {
+      if (user?.id) {
+        await supabase.from("notifications").update({ is_read: true }).eq("id", id).eq("user_id", user.id)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] })
@@ -128,7 +156,8 @@ function NotificationsDropdown() {
   })
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
@@ -161,12 +190,16 @@ function NotificationsDropdown() {
               {t("notifications.noNotifications")}
             </div>
           ) : (
-            notifications.slice(0, 5).map((notif) => {
+            notifications.slice(0, 5).map((notif: Notification) => {
               const Icon = NOTIF_TYPE_ICONS[notif.type] || Bell
               return (
                 <div
                   key={notif.id}
-                  className={`flex items-start gap-3 border-b px-4 py-3 last:border-0 ${!notif.is_read ? "bg-primary/5" : ""}`}
+                  onClick={() => { setOpen(false); setViewTarget(notif) }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(false); setViewTarget(notif) } }}
+                  className={`flex cursor-pointer items-start gap-3 border-b px-4 py-3 last:border-0 transition-colors hover:bg-accent ${!notif.is_read ? "bg-primary/5" : ""}`}
                 >
                   <div className="mt-0.5 rounded-full bg-muted p-1.5">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -188,6 +221,61 @@ function NotificationsDropdown() {
         </div>
       </PopoverContent>
     </Popover>
+    <Dialog open={!!viewTarget} onOpenChange={(o) => { if (!o) setViewTarget(null) }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{viewTarget?.title}</DialogTitle>
+          <DialogDescription>
+            {viewTarget ? formatDate(viewTarget.created_at) : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {viewTarget && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="rounded-full bg-muted p-2">
+                {(() => { const Icon = NOTIF_TYPE_ICONS[viewTarget.type] || Bell; return <Icon className="h-4 w-4 text-muted-foreground" /> })()}
+              </div>
+              <Badge variant="outline">{notifTypeLabel(viewTarget.type, t)}</Badge>
+              {!viewTarget.is_read && (
+                <Badge variant="default">{t("notifications.unreadOnly")}</Badge>
+              )}
+            </div>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">{viewTarget.message}</p>
+            {viewTarget.body && (
+              <p className="text-sm whitespace-pre-wrap text-muted-foreground">{viewTarget.body}</p>
+            )}
+            {viewTarget.data && (
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t("notifications.details") || "Détails"}</p>
+                <NotificationDetails data={viewTarget.data} />
+              </div>
+            )}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setViewTarget(null)}>
+            {t("common.close")}
+          </Button>
+          {(() => {
+            const d = viewTarget?.data
+            if (!d || typeof d !== "object") return null
+            const memberId = (d as Record<string, unknown>).member_id
+            if (memberId == null) return null
+            return (
+              <Button onClick={() => { setViewTarget(null); navigate(`/members?id=${encodeURIComponent(String(memberId))}`) }}>
+                <UserRound className="mr-2 h-4 w-4" /> {t("notifications.openMember") || "Ouvrir le membre"}
+              </Button>
+            )
+          })()}
+          {viewTarget && !viewTarget.is_read && viewTarget.user_id === user?.id && (
+            <Button onClick={() => { markAsRead.mutate(viewTarget.id); setViewTarget(null) }}>
+              <MailOpen className="mr-2 h-4 w-4" /> {t("notifications.markAsRead")}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
 

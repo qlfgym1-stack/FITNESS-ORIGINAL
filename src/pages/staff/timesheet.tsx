@@ -79,13 +79,13 @@ export default function TimesheetPage() {
 
   const timesheetMap = useMemo(() => {
     const map = new Map<string, StaffTimesheet>()
-    timesheets?.forEach(ts => map.set(ts.staff_id, ts))
+    timesheets?.forEach((ts: StaffTimesheet) => map.set(ts.staff_id, ts))
     return map
   }, [timesheets])
 
   const weeklySummary = useMemo(() => {
     const summary = new Map<string, number>()
-    weeklyData?.forEach(ts => {
+    weeklyData?.forEach((ts: StaffTimesheet) => {
       const current = summary.get(ts.staff_id) ?? 0
       summary.set(ts.staff_id, current + (ts.total_hours ?? 0))
     })
@@ -172,7 +172,7 @@ export default function TimesheetPage() {
               {isLoading ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : (
-                staffList?.map(staff => {
+                staffList?.map((staff: Staff) => {
                   const ts = timesheetMap.get(staff.id)
                   return (
                     <TableRow key={staff.id}>
@@ -228,7 +228,7 @@ export default function TimesheetPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {staffList?.map(staff => (
+              {staffList?.map((staff: Staff) => (
                 <TableRow key={staff.id}>
                   <TableCell className="font-medium">{getStaffName(staff)}</TableCell>
                   <TableCell>{weeklySummary.get(staff.id) ? `${weeklySummary.get(staff.id)}h` : "0h"}</TableCell>

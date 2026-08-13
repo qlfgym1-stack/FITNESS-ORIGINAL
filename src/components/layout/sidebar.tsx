@@ -35,6 +35,7 @@ import {
   ScrollText,
   FileText,
   SprayCan,
+  UserSearch,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -149,6 +150,7 @@ const navGroups: NavGroup[] = [
       { key: "profile", icon: UserCog, path: "/profile" },
       { key: "users", icon: Users, path: "/admin/users" },
       { key: "corporate", icon: Briefcase, path: "/corporate" },
+      { key: "memberInsights", icon: UserSearch, path: "/member-insights" },
       { key: "display", icon: Monitor, path: "/display" },
       { key: "audit", icon: ScrollText, path: "/admin/audit", adminOnly: true },
     ],
@@ -162,7 +164,7 @@ const navGroups: NavGroup[] = [
 ]
 
 const VISIBLE_GROUPS: Record<string, string[]> = {
-  admin: ['dashboard', 'checkin', 'members', 'pos', 'stock', 'access', 'hr', 'finance', 'profitability', 'whatsapp', 'admin', 'ai'],
+  admin: ['dashboard', 'checkin', 'members', 'pos', 'stock', 'access', 'hr', 'finance', 'profitability', 'whatsapp', 'admin', 'ai', 'memberInsights'],
   staff: ['dashboard', 'checkin', 'members', 'pos'],
   coach: ['dashboard', 'checkin', 'members', 'pos', 'sport'],
   reception: ['checkin', 'members', 'pos'],

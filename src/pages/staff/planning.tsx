@@ -26,7 +26,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toUpper, cn } from "../../lib/utils"
-import type { StaffShift } from "@/types/supabase"
+import type { Staff, StaffShift } from "@/types/supabase"
 import { Loader2, Plus, ChevronLeft, ChevronRight } from "lucide-react"
 
 const TABS = [
@@ -130,7 +130,7 @@ export default function PlanningPage() {
 
   const shiftsByStaffAndDay = useMemo(() => {
     const map = new Map<string, StaffShift[]>()
-    shifts?.forEach(s => {
+    shifts?.forEach((s: StaffShift) => {
       const dayName = dateToDayKey(s.date)
       if (!dayName) return
       const key = `${s.staff_id}-${dayName}`
@@ -249,7 +249,7 @@ export default function PlanningPage() {
             {DAYS.map(day => (
               <div key={day.key} className="bg-muted p-3 font-medium text-center text-sm">{day.label}</div>
             ))}
-            {staffList?.map(staff => (
+            {staffList?.map((staff: Staff) => (
               <React.Fragment key={staff.id}>
                 <div
                   className="bg-background p-3 text-sm font-medium flex items-center"
@@ -308,7 +308,7 @@ export default function PlanningPage() {
                       <SelectTrigger><SelectValue placeholder="Sélectionner un coach" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {staffList?.map(s => (
+                      {staffList?.map((s: Staff) => (
                         <SelectItem key={s.id} value={s.id}>{toUpper(s.first_name)} {toUpper(s.last_name)}</SelectItem>
                       ))}
                     </SelectContent>

@@ -331,9 +331,9 @@ export function useProfitabilityData(
   )
 
   const computed = useMemo(() => {
-    const subscriptionRevenue = payments.reduce((s, p) => s + safeNum(p.amount), 0)
+    const subscriptionRevenue = payments.reduce((s: number, p: RawPayment) => s + safeNum(p.amount), 0)
 
-    const posRevenue = posTransactions.reduce((s, t) => {
+    const posRevenue = posTransactions.reduce((s: number, t: RawPosTransaction) => {
       const items = Array.isArray(t.items) ? t.items : []
       const hasSubscription = items.some(
         (it: unknown) =>
@@ -350,7 +350,7 @@ export function useProfitabilityData(
     const otherRevenue = 0
     const totalRevenue = subscriptionRevenue + posRevenue + otherRevenue
 
-    const posCostFromProducts = posTransactions.reduce((s, t) => {
+    const posCostFromProducts = posTransactions.reduce((s: number, t: RawPosTransaction) => {
       const items = Array.isArray(t.items) ? t.items : []
       return items.reduce((is2: number, item: unknown) => {
         if (typeof item !== "object" || item === null) return is2
@@ -359,7 +359,7 @@ export function useProfitabilityData(
         const productId = typeof obj.productId === "string" ? obj.productId : null
         const qty = safeNum(obj.quantity ?? obj.qty)
         if (productId) {
-          const product = products.find((p) => p.id === productId)
+          const product = products.find((p: RawProduct) => p.id === productId)
           if (product && product.cost != null) {
             return is2 + safeNum(product.cost) * qty
           }
@@ -372,9 +372,9 @@ export function useProfitabilityData(
     const grossProfit = totalRevenue - costOfSales
     const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
 
-    const nonSalaryExpenses = expenses.filter(e => e.category !== 'salaries')
-    const expenseTotal = nonSalaryExpenses.reduce((s, e) => s + safeNum(e.amount), 0)
-    const salaryTotal = salaryPayments.reduce((s, sp) => s + safeNum(sp.amount), 0)
+    const nonSalaryExpenses = expenses.filter((e: RawExpense) => e.category !== 'salaries')
+    const expenseTotal = nonSalaryExpenses.reduce((s: number, e: RawExpense) => s + safeNum(e.amount), 0)
+    const salaryTotal = salaryPayments.reduce((s: number, sp: RawSalaryPayment) => s + safeNum(sp.amount), 0)
     const totalExpenses = expenseTotal + salaryTotal
 
     const netProfit = totalRevenue - totalExpenses
@@ -388,7 +388,7 @@ export function useProfitabilityData(
       const cat = inv.category || "autres"
       investmentsByCategoryMap[cat] = (investmentsByCategoryMap[cat] || 0) + safeNum(inv.amount)
     }
-    const equipmentTotal = equipment.reduce((s, e) => s + safeNum(e.purchase_price), 0)
+    const equipmentTotal = equipment.reduce((s: number, e: RawEquipment) => s + safeNum(e.purchase_price), 0)
     investmentsByCategoryMap["materiel"] = (investmentsByCategoryMap["materiel"] || 0) + equipmentTotal
 
     const totalInvestment = Object.values(investmentsByCategoryMap).reduce((s, v) => s + v, 0)
@@ -445,8 +445,8 @@ export function useProfitabilityData(
       }
     })
 
-    const profitabilityByProduct: ProfitabilityItem[] = products.map((prod) => {
-      const productPosCount = posTransactions.reduce((count, t) => {
+    const profitabilityByProduct: ProfitabilityItem[] = products.map((prod: RawProduct) => {
+      const productPosCount = posTransactions.reduce((count: number, t: RawPosTransaction) => {
         const items = Array.isArray(t.items) ? t.items : []
         return (
           count +
@@ -477,7 +477,7 @@ export function useProfitabilityData(
       for (const prod of products) {
         const cat = prod.category || "Autres"
         if (!catMap[cat]) catMap[cat] = { revenue: 0, cost: 0 }
-        const qty = posTransactions.reduce((count, t) => {
+        const qty = posTransactions.reduce((count: number, t: RawPosTransaction) => {
           const items = Array.isArray(t.items) ? t.items : []
           return (
             count +
@@ -511,8 +511,8 @@ export function useProfitabilityData(
         supMap[supId].count++
       }
       return suppliers
-        .filter((s) => supMap[s.id])
-        .map((s) => {
+        .filter((s: RawSupplier) => supMap[s.id])
+        .map((s: RawSupplier) => {
           const d = supMap[s.id]
           return {
             label: s.name,
@@ -700,7 +700,7 @@ export function useProfitabilityData(
     const avgExpenses = last3Expenses.length > 0 ? last3Expenses.reduce((s, v) => s + v.value, 0) / last3Expenses.length : 0
     const avgProfit = last3Profit.length > 0 ? last3Profit.reduce((s, v) => s + v.value, 0) / last3Profit.length : 0
 
-    const activeSubscriptions = subscriptions.filter((s) => s.status === "active").length
+    const activeSubscriptions = subscriptions.filter((s: RawSubscription) => s.status === "active").length
     const avgActiveSubs = activeSubscriptions
 
     const forecasts = {
@@ -714,7 +714,7 @@ export function useProfitabilityData(
     }
 
     const matchedObjective = objectives.find(
-      (o) => o.period_type === filters.period && o.period_label === filters.dateFrom
+      (o: RawObjective) => o.period_type === filters.period && o.period_label === filters.dateFrom
     )
 
     const objectivesList = [

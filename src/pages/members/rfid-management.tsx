@@ -82,7 +82,7 @@ export function RfidManagementDialog({ memberId, memberName, open, onOpenChange 
       setReplaceNotes('')
       toast({ title: 'Badge remplacé avec succès' })
     },
-    onError: (err) => toast({ variant: 'destructive', title: 'Erreur', description: err.message }),
+    onError: (err: Error) => toast({ variant: 'destructive', title: 'Erreur', description: err.message }),
   })
 
   const deactivateMutation = useMutation({
@@ -97,7 +97,7 @@ export function RfidManagementDialog({ memberId, memberName, open, onOpenChange 
       if (!data.success) throw new Error(data.error)
     },
     onSuccess: () => { refetch(); toast({ title: 'Badge désactivé' }) },
-    onError: (err) => toast({ variant: 'destructive', title: 'Erreur', description: err.message }),
+    onError: (err: Error) => toast({ variant: 'destructive', title: 'Erreur', description: err.message }),
   })
 
   const activateMutation = useMutation({
@@ -111,7 +111,7 @@ export function RfidManagementDialog({ memberId, memberName, open, onOpenChange 
       if (!data.success) throw new Error(data.error)
     },
     onSuccess: () => { refetch(); toast({ title: 'Badge réactivé' }) },
-    onError: (err) => toast({ variant: 'destructive', title: 'Erreur', description: err.message }),
+    onError: (err: Error) => toast({ variant: 'destructive', title: 'Erreur', description: err.message }),
   })
 
   async function handleCheckRfid() {
