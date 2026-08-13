@@ -22,6 +22,8 @@ import { z } from 'zod'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Plus, Download, Upload, Pencil, Trash2, Loader2, Shield, CreditCard, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, X, History } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
+import { WhatsAppButton } from '@/components/ui/whatsapp-button'
+import { DEFAULT_TEMPLATES } from '@/lib/whatsapp'
 import { useExportCsv } from '@/hooks/useExportCsv'
 import { formatDate, getInitials, getStatusColor, toUpper, formatCurrency, formatPhone, isValidDzPhone, displayPhone, memberFullName, splitFullName } from '@/lib/utils'
 import type { Member, SubscriptionType, RfidCard } from '@/types/supabase'
@@ -278,13 +280,13 @@ export default function Members() {
       if (!orgId) return {}
       const { data } = await supabase
         .from('member_subscriptions')
-        .select('id, member_id, subscription_type_id, subscription_types!inner(name), status, total_amount')
+        .select('id, member_id, subscription_type_id, subscription_types!inner(name), status, total_amount, end_date')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
-      const map: Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number }> = {}
+      const map: Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number; end_date: string | null }> = {}
       for (const ms of (data || []) as any[]) {
         if (!map[ms.member_id]) {
-          map[ms.member_id] = { id: ms.id, subscription_type_id: ms.subscription_type_id, name: ms.subscription_types?.name || '—', status: ms.status, total_amount: ms.total_amount }
+          map[ms.member_id] = { id: ms.id, subscription_type_id: ms.subscription_type_id, name: ms.subscription_types?.name || '—', status: ms.status, total_amount: ms.total_amount, end_date: ms.end_date || null }
         }
       }
       return map
@@ -962,6 +964,17 @@ export default function Members() {
                       <Button variant="ghost" size="icon" onClick={() => openRenew(member)} title={t('members.renew') || 'Renouveler'}>
                         <RefreshCw className="h-4 w-4 text-warning" />
                       </Button>
+                      {member.phone && (
+                        <WhatsAppButton
+                          phone={member.phone}
+                          template={DEFAULT_TEMPLATES.renewal}
+                          data={{
+                            NOM: memberFullName(member),
+                            DATE: (memberSubMap as Record<string, { end_date: string | null }>)[member.id]?.end_date ?? '',
+                            NOM_SALLE: organization?.name || '',
+                          }}
+                        />
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => setRfidDialogMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })}>
                         <Shield className="h-4 w-4" />
                       </Button>
@@ -1014,6 +1027,17 @@ export default function Members() {
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openRenew(member)} title={t('members.renew') || 'Renouveler'}>
                     <RefreshCw className="h-4 w-4 text-warning" />
                   </Button>
+                  {member.phone && (
+                    <WhatsAppButton
+                      phone={member.phone}
+                      template={DEFAULT_TEMPLATES.renewal}
+                      data={{
+                        NOM: memberFullName(member),
+                        DATE: (memberSubMap as Record<string, { end_date: string | null }>)[member.id]?.end_date ?? '',
+                        NOM_SALLE: organization?.name || '',
+                      }}
+                    />
+                  )}
                   <Button variant="ghost" size="icon" className="h-8 w-8" title={t('members.history.title') || 'Historique'} onClick={() => setHistoryMember({ id: member.id, name: `${member.first_name} ${member.last_name}` })}><History className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(member)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setDeletingMember(member); setDeleteOpen(true) }}><Trash2 className="h-4 w-4 text-destructive" /></Button>

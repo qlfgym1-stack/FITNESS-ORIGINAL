@@ -19,10 +19,13 @@ import {
   Download, Upload, CheckCircle2, XCircle, Loader2,
   CreditCard, QrCode, Camera, History, Settings, X,
   Phone, LogOut, Activity, Keyboard, Zap, Search,
-  Timer, Users,
+  Timer, Users, ChevronLeft, ChevronRight,
 } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 import { PageHeader } from "@/components/layout"
-import { getInitials, toUpper } from "@/lib/utils"
+import { getInitials, toUpper, formatCurrency } from "@/lib/utils"
+import { buildDayStats } from "./lib/dayActivity"
+import { MemberDayDetail } from "./components/member-day-detail"
 
 const PAGE_TERMINAL = "pointage"
 
@@ -104,6 +107,12 @@ function daysBetween(dateStr: string) {
   return Math.ceil(d / 86400000)
 }
 
+function addDays(dateStr: string, days: number) {
+  const d = new Date(dateStr + "T00:00:00Z")
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().split("T")[0]
+}
+
 export default function PointagePage() {
   const t = useT()
   const supabase = useSupabase()
@@ -111,10 +120,22 @@ export default function PointagePage() {
   const { toast } = useToast()
   const orgId = organization?.id
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+
+  const openMember = useCallback((memberId: string) => {
+    if (!memberId) return
+    navigate(`/members?id=${memberId}`)
+  }, [navigate])
 
   const today = new Date()
   const todayStr = today.toISOString().split("T")[0]
-  const dateLabel = today.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
+
+  const [selectedDate, setSelectedDate] = useState(todayStr)
+  const nextDayStr = useMemo(() => addDays(selectedDate, 1), [selectedDate])
+  const yesterdayStr = useMemo(() => addDays(todayStr, -1), [todayStr])
+  const selectedDateLabel = useMemo(() => {
+    return new Date(selectedDate + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
+  }, [selectedDate])
 
   const [now, setNow] = useState(new Date())
   useEffect(() => {
@@ -122,7 +143,7 @@ export default function PointagePage() {
     return () => clearInterval(interval)
   }, [])
 
-  useRealtime({ table: "attendance", queryKey: ["pointage-today", orgId ?? "", todayStr], filter: orgId ? `organization_id=eq.${orgId}` : undefined })
+  useRealtime({ table: "attendance", queryKey: ["pointage-day", orgId ?? "", selectedDate], filter: orgId && selectedDate === todayStr ? `organization_id=eq.${orgId}` : undefined })
 
   useEffect(() => {
     if (!orgId) return
@@ -134,7 +155,8 @@ export default function PointagePage() {
   const [rfidCheckoutInput, setRfidCheckoutInput] = useState("")
   const [isScanning, setIsScanning] = useState(false)
   const [isCheckoutScanning, setIsCheckoutScanning] = useState(false)
-  const [scanResult, setScanResult] = useState<{ result: "granted" | "denied"; reason?: string; action?: string; memberName?: string } | null>(null)
+  const [scanResult, setScanResult] = useState<{ result: "granted" | "denied"; reason?: string; action?: string; memberName?: string; member_id?: string } | null>(null)
+  const [dayDetail, setDayDetail] = useState<{ memberId: string; memberName: string } | null>(null)
   const [phone, setPhone] = useState("")
   const [checkedInMemberId, setCheckedInMemberId] = useState<string | null>(null)
   const [qrCameraActive, setQrCameraActive] = useState(false)
@@ -148,14 +170,15 @@ export default function PointagePage() {
   const scanResultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { data: todayAttendance } = useQuery({
-    queryKey: ["pointage-today", orgId, todayStr],
+    queryKey: ["pointage-day", orgId, selectedDate],
     queryFn: async () => {
       if (!orgId) return []
       const { data } = await supabase
         .from("attendance")
         .select("id, member_id, check_in, check_out, member:members!inner(first_name, last_name, photo_url)")
         .eq("organization_id", orgId)
-        .gte("check_in", todayStr)
+        .gte("check_in", selectedDate)
+        .lt("check_in", nextDayStr)
         .order("check_in", { ascending: false })
         .returns<AttendanceRow[]>()
       return data ?? []
@@ -183,6 +206,39 @@ export default function PointagePage() {
   const entryCount = checkedInToday.filter((a: AttendanceRow) => a.check_in).length
   const checkedOutCount = checkedInToday.filter((a: AttendanceRow) => a.check_out).length
   const insideCount = checkedInToday.filter((a: AttendanceRow) => a.check_in && !a.check_out).length
+
+  const dayStats = useMemo(() => buildDayStats(checkedInToday as any, selectedDate), [checkedInToday, selectedDate])
+
+  const { data: dayRevenue } = useQuery({
+    queryKey: ["pointage-day-revenue", orgId, selectedDate],
+    queryFn: async () => {
+      if (!orgId) return { pos: 0, posCount: 0, payments: 0 }
+      const [posRes, payRes] = await Promise.all([
+        supabase
+          .from("pos_transactions")
+          .select("total")
+          .eq("organization_id", orgId)
+          .is("cancelled_at", null)
+          .gte("created_at", selectedDate)
+          .lt("created_at", nextDayStr)
+          .returns<{ total: number }[]>(),
+        supabase
+          .from("payments")
+          .select("amount")
+          .eq("organization_id", orgId)
+          .eq("status", "completed")
+          .gte("payment_date", selectedDate)
+          .lt("payment_date", nextDayStr)
+          .returns<{ amount: number }[]>(),
+      ])
+      return {
+        pos: (posRes.data ?? []).reduce((s: number, r: { total: number }) => s + Number(r.total ?? 0), 0),
+        posCount: (posRes.data ?? []).length,
+        payments: (payRes.data ?? []).reduce((s: number, r: { amount: number }) => s + Number(r.amount ?? 0), 0),
+      }
+    },
+    enabled: !!orgId,
+  })
 
   const peakAffluence = useMemo(() => {
     if (checkedInToday.length === 0) return null
@@ -287,11 +343,11 @@ export default function PointagePage() {
       }
     })
 
-    const memberVisits: Record<string, { name: string; count: number; totalMins: number }> = {}
+    const memberVisits: Record<string, { id: string; name: string; count: number; totalMins: number }> = {}
     rows.forEach((r: MonthAttendanceRow) => {
       if (!r.member) return
       const key = r.member_id
-      if (!memberVisits[key]) memberVisits[key] = { name: `${r.member.first_name} ${r.member.last_name}`, count: 0, totalMins: 0 }
+      if (!memberVisits[key]) memberVisits[key] = { id: key, name: `${r.member.first_name} ${r.member.last_name}`, count: 0, totalMins: 0 }
       memberVisits[key].count++
       if (r.check_in && r.check_out) {
         memberVisits[key].totalMins += (new Date(r.check_out).getTime() - new Date(r.check_in).getTime()) / 60000
@@ -301,6 +357,7 @@ export default function PointagePage() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
       .map(m => ({
+        id: m.id,
         name: m.name,
         visits: m.count,
         avgMins: m.count > 0 ? Math.round(m.totalMins / m.count) : 0,
@@ -449,6 +506,7 @@ export default function PointagePage() {
         reason: data.reason,
         action: data.action,
         memberName: data.member_name,
+        member_id: data.member_id,
       })
       setIsScanning(false)
       setRfidInput("")
@@ -492,7 +550,7 @@ export default function PointagePage() {
       if (scanResultTimeoutRef.current) clearTimeout(scanResultTimeoutRef.current)
       scanResultTimeoutRef.current = setTimeout(() => setScanResult(null), 4000)
       focusRfid()
-      queryClient.invalidateQueries({ queryKey: ["pointage-today"] })
+        queryClient.invalidateQueries({ queryKey: ["pointage-day"] })
     },
     onError: (err: Error) => {
       setIsScanning(false)
@@ -515,7 +573,7 @@ export default function PointagePage() {
     },
     onSuccess: (_data: { memberName: string | null }) => {
       toast({ title: "Check-out effectué" })
-      queryClient.invalidateQueries({ queryKey: ["pointage-today"] })
+        queryClient.invalidateQueries({ queryKey: ["pointage-day"] })
     },
     onError: (err: Error) => {
       toast({ title: "Erreur", description: err.message, variant: "destructive" })
@@ -545,7 +603,7 @@ export default function PointagePage() {
         addScanLog(memberInfo, data.reason ?? "Accès refusé", "denied", data.reason, { member_id: data._memberId })
         toast({ title: "Accès refusé", description: `${memberInfo?.name ? memberInfo.name + " — " : ""}${data.reason}`, variant: "destructive" })
       }
-      queryClient.invalidateQueries({ queryKey: ["pointage-today"] })
+        queryClient.invalidateQueries({ queryKey: ["pointage-day"] })
     },
     onError: (err: Error) => {
       toast({ title: "Erreur", description: err.message, variant: "destructive" })
@@ -624,6 +682,7 @@ export default function PointagePage() {
         reason: data.reason,
         action: data.action,
         memberName: data.member_name,
+        member_id: data.member_id,
       })
       let memberInfo: ScanLogMember | null = null
       if (data.member_id) {
@@ -638,7 +697,7 @@ export default function PointagePage() {
       }
       if (scanResultTimeoutRef.current) clearTimeout(scanResultTimeoutRef.current)
       scanResultTimeoutRef.current = setTimeout(() => setScanResult(null), 4000)
-      queryClient.invalidateQueries({ queryKey: ["pointage-today"] })
+        queryClient.invalidateQueries({ queryKey: ["pointage-day"] })
     },
     onError: (err: Error) => {
       setIsCheckoutScanning(false)
@@ -726,7 +785,7 @@ export default function PointagePage() {
             </div>
             <div className="flex items-center gap-2 text-sm bg-muted rounded-lg px-3 py-1.5">
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium capitalize">{dateLabel}</span>
+              <span className="font-medium capitalize">{selectedDateLabel}</span>
             </div>
             <Button variant="outline" size="sm" onClick={() => exportCsv()}>
               <Download className="mr-2 h-4 w-4" />
@@ -807,7 +866,14 @@ export default function PointagePage() {
                       <AvatarFallback className="text-[9px]">{getInitials(a.member?.first_name ?? "", a.member?.last_name ?? "")}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{toUpper(`${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`)}</p>
+                      <button
+                        type="button"
+                        onClick={() => openMember(a.member_id)}
+                        title="Ouvrir la fiche adhérent"
+                        className="text-xs font-medium truncate text-left w-full cursor-pointer hover:text-primary hover:underline transition-colors"
+                      >
+                        {toUpper(`${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`)}
+                      </button>
                       <p className="text-[10px] text-muted-foreground">Depuis {formatTime(a.check_in)}</p>
                     </div>
                   </div>
@@ -831,7 +897,18 @@ export default function PointagePage() {
                     {scanResult.result === "granted" ? "Accès autorisé" : "Accès refusé"}
                   </p>
                   {scanResult.memberName && (
-                    <p className="text-xs opacity-80 truncate">{scanResult.memberName}</p>
+                    scanResult.member_id ? (
+                      <button
+                        type="button"
+                        onClick={() => openMember(scanResult.member_id!)}
+                        title="Ouvrir la fiche adhérent"
+                        className="text-xs opacity-80 truncate text-left cursor-pointer hover:opacity-100 hover:underline"
+                      >
+                        {scanResult.memberName}
+                      </button>
+                    ) : (
+                      <p className="text-xs opacity-80 truncate">{scanResult.memberName}</p>
+                    )
                   )}
                   {scanResult.reason && (
                     <p className="text-xs opacity-70">{scanResult.reason}</p>
@@ -880,7 +957,14 @@ export default function PointagePage() {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="font-medium text-sm">{toUpper(`${m.first_name} ${m.last_name}`)}</p>
+                            <button
+                              type="button"
+                              onClick={() => openMember(m.id)}
+                              title="Ouvrir la fiche adhérent"
+                              className="font-medium text-sm text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                            >
+                              {toUpper(`${m.first_name} ${m.last_name}`)}
+                            </button>
                             <Badge variant={hasActiveSub ? "default" : "secondary"} className="text-[9px] px-1 py-0 h-3.5">
                               {hasActiveSub ? "Actif" : "Inactif"}
                             </Badge>
@@ -970,7 +1054,18 @@ export default function PointagePage() {
                             }
                           </div>
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                            <p className={`font-bold text-white leading-tight ${isHero ? "text-lg" : "text-sm"}`}>{log.member.name}</p>
+                            {log.member_id ? (
+                              <button
+                                type="button"
+                                onClick={() => openMember(log.member_id!)}
+                                title="Ouvrir la fiche adhérent"
+                                className={`font-bold text-white leading-tight text-left hover:underline cursor-pointer ${isHero ? "text-lg" : "text-sm"}`}
+                              >
+                                {log.member.name}
+                              </button>
+                            ) : (
+                              <p className={`font-bold text-white leading-tight ${isHero ? "text-lg" : "text-sm"}`}>{log.member.name}</p>
+                            )}
                             <div className="flex items-center gap-2 mt-0.5">
                               <p className="text-white/70 text-[10px]">{log.time}</p>
                               {log.member.subscription_name && (
@@ -1079,18 +1174,55 @@ export default function PointagePage() {
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              Pointages du Jour
-            </CardTitle>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">{filteredToday.length} membre{filteredToday.length !== 1 ? "s" : ""}</span>
-              <span className="text-sm text-muted-foreground capitalize">{dateLabel}</span>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="h-5 w-5 text-primary" />
+                Pointages du Jour
+              </CardTitle>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">{filteredToday.length} membre{filteredToday.length !== 1 ? "s" : ""}</span>
+                <span className="text-sm text-muted-foreground capitalize">{selectedDateLabel}</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setSelectedDate(addDays(selectedDate, -1))} title="Jour précédent">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={e => { if (e.target.value) setSelectedDate(e.target.value) }}
+                className="h-8 w-[180px]"
+              />
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setSelectedDate(addDays(selectedDate, 1))} title="Jour suivant">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant={selectedDate === todayStr ? "default" : "outline"} size="sm" className="h-8" onClick={() => setSelectedDate(todayStr)}>
+                Aujourd&apos;hui
+              </Button>
+              <Button variant={selectedDate === yesterdayStr ? "default" : "outline"} size="sm" className="h-8" onClick={() => setSelectedDate(yesterdayStr)}>
+                Hier
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="text-center p-3 rounded-lg bg-muted/50">
+              <p className="text-lg font-bold">{dayStats.uniqueMembers}</p>
+              <p className="text-xs text-muted-foreground">Visites uniques</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/50">
+              <p className="text-lg font-bold">{formatCurrency(dayRevenue?.pos ?? 0)}</p>
+              <p className="text-xs text-muted-foreground">CA POS ({dayRevenue?.posCount ?? 0})</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/50">
+              <p className="text-lg font-bold">{formatCurrency(dayRevenue?.payments ?? 0)}</p>
+              <p className="text-xs text-muted-foreground">Encaissements</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="text-center p-4 rounded-lg bg-success/10 border border-success/20">
               <p className="text-3xl font-bold text-success">{entryCount}</p>
@@ -1102,7 +1234,7 @@ export default function PointagePage() {
             </div>
             <div className="text-center p-4 rounded-lg bg-primary/10 border border-primary/20">
               <p className="text-3xl font-bold text-primary">{insideCount}</p>
-              <p className="text-xs text-muted-foreground mt-1">En salle</p>
+              <p className="text-xs text-muted-foreground mt-1">{selectedDate === todayStr ? "En salle" : "Sessions en cours"}</p>
             </div>
           </div>
 
@@ -1148,15 +1280,26 @@ export default function PointagePage() {
               {paginatedAttendance.map(a => {
                 const isInside = a.check_in && !a.check_out
                 return (
-                  <div key={a.id} className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${
-                    isInside ? "bg-primary/5 border-primary/20" : "bg-card hover:bg-accent/30"
-                  }`}>
+                  <div
+                    key={a.id}
+                    onClick={() => setDayDetail({ memberId: a.member_id, memberName: `${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}` })}
+                    className={`flex items-center gap-4 p-3 rounded-lg border transition-colors cursor-pointer hover:ring-1 hover:ring-primary/40 ${
+                      isInside ? "bg-primary/5 border-primary/20" : "bg-card hover:bg-accent/30"
+                    }`}
+                  >
                     <Avatar className="h-9 w-9">
                       {a.member?.photo_url ? <AvatarImage src={a.member.photo_url} /> : null}
                       <AvatarFallback>{getInitials(a.member?.first_name ?? "", a.member?.last_name ?? "")}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{toUpper(`${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`)}</p>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openMember(a.member_id) }}
+                        title="Ouvrir la fiche adhérent"
+                        className="font-medium text-sm text-left w-full cursor-pointer hover:text-primary hover:underline transition-colors"
+                      >
+                        {toUpper(`${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`)}
+                      </button>
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-success font-medium flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
@@ -1186,6 +1329,7 @@ export default function PointagePage() {
                       {a.check_out && computeStay(a) && (
                         <Badge variant="secondary" className="text-[10px] font-mono">{computeStay(a)}</Badge>
                       )}
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
                 )
@@ -1262,7 +1406,14 @@ export default function PointagePage() {
                       <div key={m.name} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
                         <span className="text-xs font-bold text-muted-foreground w-4 text-center">#{i + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate">{toUpper(m.name)}</p>
+                          <button
+                            type="button"
+                            onClick={() => openMember(m.id)}
+                            title="Ouvrir la fiche adhérent"
+                            className="text-xs font-medium truncate text-left w-full cursor-pointer hover:text-primary hover:underline transition-colors"
+                          >
+                            {toUpper(m.name)}
+                          </button>
                           <p className="text-[10px] text-muted-foreground">{m.visits} visites · ~{m.avgMins}min/séance</p>
                         </div>
                       </div>
@@ -1323,6 +1474,14 @@ export default function PointagePage() {
           </CardContent>
         </Card>
       </div>
+
+      <MemberDayDetail
+        memberId={dayDetail?.memberId ?? null}
+        memberName={dayDetail?.memberName ?? ""}
+        date={selectedDate}
+        open={!!dayDetail}
+        onOpenChange={(o) => { if (!o) setDayDetail(null) }}
+      />
     </div>
   )
 }

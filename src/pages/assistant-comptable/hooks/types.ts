@@ -15,6 +15,7 @@ export interface RevenueSource {
 export interface RevenueTransaction {
   id: string
   memberName: string
+  memberId?: string
   amount: number
   date: string
   method: string

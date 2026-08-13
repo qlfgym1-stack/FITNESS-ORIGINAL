@@ -231,6 +231,7 @@ export function useAccountingData(
       txs.push({
         id: p.id,
         memberName: m ? `${m.first_name} ${m.last_name}` : "—",
+        memberId: m?.id ?? "",
         amount: safeNum(p.amount),
         date: p.payment_date,
         method: p.payment_method ?? "cash",
@@ -248,6 +249,7 @@ export function useAccountingData(
       txs.push({
         id: t.id,
         memberName: m ? `${m.first_name} ${m.last_name}` : "Client",
+        memberId: m?.id ?? "",
         amount: safeNum(t.total),
         date: t.created_at,
         method: t.payment_method ?? "cash",

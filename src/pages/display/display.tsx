@@ -7,6 +7,7 @@ import { useQuery } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
 import { useExportCsv } from "@/hooks/useExportCsv"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import { getInitials } from "@/lib/utils"
 import { Users, Calendar, Clock, Activity, TrendingUp, UserCheck, LogIn, Loader2, Download } from "lucide-react"
 
@@ -15,6 +16,7 @@ export default function DisplayPage() {
   const supabase = useSupabase()
   const { organization } = useAuth()
   const orgId = organization?.id
+  const openMember = useOpenMember()
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -24,13 +26,14 @@ export default function DisplayPage() {
       if (!orgId) return []
       const { data } = await supabase
         .from("attendance")
-        .select("id, check_in, members!inner(first_name, last_name)")
+        .select("id, check_in, members!inner(id, first_name, last_name)")
         .eq("organization_id", orgId)
         .gte("check_in", today)
         .order("check_in", { ascending: false })
         .limit(8)
       return (data ?? []).map((r: any) => ({
         id: r.id,
+        memberId: r.members?.id ?? "",
         name: `${r.members?.first_name ?? ""} ${r.members?.last_name ?? ""}`,
         time: r.check_in ? new Date(r.check_in).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "",
         type: "check-in" as const,
@@ -137,13 +140,20 @@ export default function DisplayPage() {
               <div className="space-y-3">
                 {todayCheckins.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">{t("common.noData")}</p>
-                ) : todayCheckins.map((r: { id: string; name: string; time: string; type: "check-in" }) => (
+                ) : todayCheckins.map((r: { id: string; memberId: string; name: string; time: string; type: "check-in" }) => (
                   <div key={r.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback>{getInitials(r.name.split(" ")[0] ?? "", r.name.split(" ")[1] ?? "")}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{r.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => openMember(r.memberId)}
+                        title="Ouvrir la fiche adhérent"
+                        className="font-medium text-sm truncate text-left w-full cursor-pointer hover:text-primary hover:underline transition-colors"
+                      >
+                        {r.name}
+                      </button>
                       <p className="text-xs text-muted-foreground">
                         {r.type === "check-in" ? t("display.checkedIn") : t("display.attending")}
                       </p>

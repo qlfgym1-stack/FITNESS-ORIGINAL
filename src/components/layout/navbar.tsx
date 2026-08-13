@@ -168,7 +168,7 @@ function NotificationsDropdown() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-80 p-0">
+      <PopoverContent align="end" sideOffset={8} className="w-96 max-w-[calc(100vw-2rem)] p-0">
         <div className="flex items-center justify-between border-b px-4 py-2.5">
           <span className="text-sm font-semibold">{t("notifications.title")}</span>
           {unreadCount > 0 && (
@@ -183,14 +183,14 @@ function NotificationsDropdown() {
             </Button>
           )}
         </div>
-        <div className="max-h-80 overflow-y-auto">
+        <div className="max-h-96 overflow-y-auto">
           {notifications.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               <Bell className="mx-auto mb-2 h-8 w-8 opacity-20" />
               {t("notifications.noNotifications")}
             </div>
           ) : (
-            notifications.slice(0, 5).map((notif: Notification) => {
+            notifications.slice(0, 8).map((notif: Notification) => {
               const Icon = NOTIF_TYPE_ICONS[notif.type] || Bell
               return (
                 <div

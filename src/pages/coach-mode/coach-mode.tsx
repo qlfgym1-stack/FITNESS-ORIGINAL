@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { Link } from "react-router-dom"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import { useQuery, useMutation, useQueryClient } from '@/hooks/useQuery'
 import { useSupabase } from '@/hooks/useSupabase'
 import { useAuth } from '@/stores/auth'
@@ -63,6 +64,7 @@ function toPeriodStart(date: Date): string {
 
 export default function CoachModePage() {
   const t = useT()
+  const openMember = useOpenMember()
   const supabase = useSupabase()
   const queryClient = useQueryClient()
   const { organization, user, roles } = useAuth()
@@ -545,7 +547,14 @@ export default function CoachModePage() {
                           <AvatarFallback className="text-xs">{getInitials(m.first_name, m.last_name)}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="text-sm font-medium">{toUpper(m.first_name)} {toUpper(m.last_name)}</p>
+                          <button
+                            type="button"
+                            onClick={() => openMember(m.id)}
+                            title="Ouvrir la fiche adhérent"
+                            className="text-sm font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                          >
+                            {toUpper(m.first_name)} {toUpper(m.last_name)}
+                          </button>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             {m.phone && <span>{formatPhone(m.phone)}</span>}
                             <Badge variant={m.status === 'active' ? 'outline' : 'secondary'} className="text-[10px] px-1.5 py-0 h-4">

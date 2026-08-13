@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table"
 import { formatCurrency } from "@/lib/utils"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import type { RevenueSource, RevenueTransaction } from "../hooks/types"
 
 interface RevenueSectionProps {
@@ -34,6 +35,7 @@ export function RevenueSection({
   revenueTransactions,
   t,
 }: RevenueSectionProps) {
+  const openMember = useOpenMember()
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print-break-inside">
       <Card className="print-break-inside">
@@ -90,7 +92,18 @@ export function RevenueSection({
               ) : (
                 revenueTransactions.map((tx) => (
                   <TableRow key={tx.id}>
-                    <TableCell>{tx.memberName}</TableCell>
+                    <TableCell>
+                      {tx.memberId ? (
+                        <button
+                          type="button"
+                          onClick={() => openMember(tx.memberId)}
+                          title="Ouvrir la fiche adhérent"
+                          className="text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                        >
+                          {tx.memberName}
+                        </button>
+                      ) : tx.memberName}
+                    </TableCell>
                     <TableCell className="text-right">{formatCurrency(tx.amount)}</TableCell>
                     <TableCell>{tx.date}</TableCell>
                     <TableCell>{tx.method}</TableCell>

@@ -32,6 +32,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import React from "react"
 import {
   Plus, CalendarDays, List, Users, Clock, Loader2, Trash2, UserPlus, UserMinus, Pencil, Download, ChevronLeft, ChevronRight,
@@ -112,6 +113,7 @@ type ShiftForm = z.infer<typeof shiftSchema>
 
 export default function ClassesPage() {
   const t = useT()
+  const openMember = useOpenMember()
   const DAYS = [
     t("classes.dayMonday"),
     t("classes.dayTuesday"),
@@ -968,7 +970,14 @@ export default function ClassesPage() {
                       {classEnrollments(selectedClass.id).map((enr: ClassEnrollmentRow) => (
                         <div key={enr.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                           <span className="text-sm">
-                            {toUpper(enr.members?.first_name)} {toUpper(enr.members?.last_name)}
+                            <button
+                              type="button"
+                              onClick={() => openMember(enr.member_id)}
+                              title="Ouvrir la fiche adhérent"
+                              className="text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                            >
+                              {toUpper(enr.members?.first_name)} {toUpper(enr.members?.last_name)}
+                            </button>
                           </span>
                           <Button
                             variant="ghost"

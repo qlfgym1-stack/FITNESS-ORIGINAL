@@ -2,6 +2,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Trophy } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import type { MemberKpi } from "../lib/kpi"
 
 interface TopMembersProps {
@@ -17,6 +18,7 @@ const statusBadge: Record<string, { label: string; className: string }> = {
 }
 
 export function TopMembers({ kpis, t }: TopMembersProps) {
+  const openMember = useOpenMember()
   const top = [...kpis]
     .sort((a: MemberKpi, b: MemberKpi) => b.lifetimeValue - a.lifetimeValue)
     .slice(0, 6)
@@ -40,7 +42,14 @@ export function TopMembers({ kpis, t }: TopMembersProps) {
               return (
                 <li key={k.memberId} className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{k.fullName}</p>
+                    <button
+                      type="button"
+                      onClick={() => openMember(k.memberId)}
+                      title="Ouvrir la fiche adhérent"
+                      className="text-sm font-medium truncate text-left w-full cursor-pointer hover:text-primary hover:underline transition-colors"
+                    >
+                      {k.fullName}
+                    </button>
                     <p className="text-xs text-muted-foreground">
                       {k.attendanceCount} {t("memberInsights.topMembers.visits")} · {k.renewalsCount} {t("memberInsights.topMembers.renewals")}
                     </p>

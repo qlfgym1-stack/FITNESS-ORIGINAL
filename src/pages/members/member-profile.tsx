@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, User, Mail, Phone, MapPin, Cake, Siren, NotebookPen, UserRound, Banknote, CalendarCheck2, ShoppingCart, History, Shield } from 'lucide-react'
+import { Loader2, User, Mail, Phone, MapPin, Cake, Siren, NotebookPen, UserRound, Banknote, CalendarCheck2, ShoppingCart, History, Shield, UserCheck, CreditCard } from 'lucide-react'
 import { formatDate, formatCurrency, formatDateTime, getInitials, getStatusColor, toUpper, memberFullName, displayPhone } from '@/lib/utils'
 import type { Member } from '@/types/supabase'
 
@@ -35,6 +35,10 @@ interface ProfileStats {
   paymentsTotal: number
   attendanceCount: number
   posTotal: number
+  coach: { id: string; first_name: string; last_name: string } | null
+  rfidUid: string | null
+  recentAttendance: { id: string; check_in: string | null; check_out: string | null }[]
+  recentPos: { id: string; total: number; created_at: string }[]
 }
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: React.ReactNode }) {
@@ -49,6 +53,17 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
   )
 }
 
+function stayLabel(a: { check_in: string | null; check_out: string | null }) {
+  if (!a.check_in) return '—'
+  const end = a.check_out ? new Date(a.check_out).getTime() : Date.now()
+  const mins = Math.floor((end - new Date(a.check_in).getTime()) / 60000)
+  if (mins < 0) return '—'
+  if (mins < 60) return `${mins} min`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m > 0 ? `${h}h ${m}min` : `${h}h`
+}
+
 export function MemberProfileDialog({ member, open, onOpenChange, onShowHistory, onEdit, onShowRfid }: MemberProfileDialogProps) {
   const t = useT()
   const supabase = useSupabase()
@@ -58,7 +73,7 @@ export function MemberProfileDialog({ member, open, onOpenChange, onShowHistory,
   const { data: stats, isLoading } = useQuery({
     queryKey: ['member-profile', member?.id],
     queryFn: async (): Promise<ProfileStats> => {
-      if (!member) return { currentSub: null, paymentsCount: 0, paymentsTotal: 0, attendanceCount: 0, posTotal: 0 }
+      if (!member) return { currentSub: null, paymentsCount: 0, paymentsTotal: 0, attendanceCount: 0, posTotal: 0, coach: null, rfidUid: null, recentAttendance: [], recentPos: [] }
       if (IS_MOCK) {
         return {
           currentSub: { name: '1 Mois', status: 'active', start_date: new Date().toISOString(), end_date: new Date(Date.now() + 86400000 * 30).toISOString(), total_amount: 2400, amount_paid: 2400 },
@@ -66,9 +81,16 @@ export function MemberProfileDialog({ member, open, onOpenChange, onShowHistory,
           paymentsTotal: 7200,
           attendanceCount: 12,
           posTotal: 0,
+          coach: null,
+          rfidUid: 'RFID-0001',
+          recentAttendance: [
+            { id: 'a1', check_in: new Date(Date.now() - 86400000).toISOString(), check_out: new Date(Date.now() - 86400000 + 7200000).toISOString() },
+            { id: 'a2', check_in: new Date(Date.now() - 2 * 86400000).toISOString(), check_out: new Date(Date.now() - 2 * 86400000 + 5400000).toISOString() },
+          ],
+          recentPos: [{ id: 'p1', total: 600, created_at: new Date(Date.now() - 86400000).toISOString() }],
         }
       }
-      const [subs, payments, attendance, pos] = await Promise.all([
+      const [subs, payments, attendance, pos, rfid] = await Promise.all([
         supabase
           .from('member_subscriptions')
           .select('id, subscription_type_id, subscription_types!inner(name), start_date, end_date, total_amount, amount_paid, status')
@@ -82,17 +104,41 @@ export function MemberProfileDialog({ member, open, onOpenChange, onShowHistory,
           .eq('status', 'completed'),
         supabase
           .from('attendance')
-          .select('id')
-          .eq('member_id', member.id),
+          .select('id, check_in, check_out')
+          .eq('member_id', member.id)
+          .order('check_in', { ascending: false })
+          .limit(5),
         supabase
           .from('pos_transactions')
-          .select('total')
-          .eq('member_id', member.id),
+          .select('total, created_at')
+          .eq('member_id', member.id)
+          .is('cancelled_at', null)
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('rfid_cards')
+          .select('rfid_uid')
+          .eq('member_id', member.id)
+          .eq('status', 'ACTIF')
+          .maybeSingle(),
       ])
 
       const subRow = (subs.data ?? [])[0] as any
       const pays = (payments.data ?? []) as any[]
       const posRows = (pos.data ?? []) as any[]
+      const recentAttendance = ((attendance.data ?? []) as any[]).map((a: any) => ({ id: a.id, check_in: a.check_in ?? null, check_out: a.check_out ?? null }))
+      const recentPos = posRows.map((p: any) => ({ id: p.id ?? p.total, total: Number(p.total || 0), created_at: p.created_at ?? '' }))
+
+      let coach: { id: string; first_name: string; last_name: string } | null = null
+      if (member.coach_id && orgId) {
+        try {
+          const { data: roster } = await (supabase.rpc as any)('get_staff_roster', { p_org_id: orgId })
+          coach = (roster ?? []).find((s: { id: string }) => s.id === member.coach_id) ?? null
+        } catch {
+          coach = null
+        }
+      }
+
       return {
         currentSub: subRow
           ? {
@@ -108,6 +154,10 @@ export function MemberProfileDialog({ member, open, onOpenChange, onShowHistory,
         paymentsTotal: pays.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0),
         attendanceCount: (attendance.data ?? []).length,
         posTotal: posRows.reduce((acc: number, p: any) => acc + Number(p.total || 0), 0),
+        coach,
+        rfidUid: (rfid.data as { rfid_uid?: string } | null)?.rfid_uid ?? null,
+        recentAttendance,
+        recentPos,
       }
     },
     enabled: !!orgId && !!member && open,
@@ -168,6 +218,8 @@ export function MemberProfileDialog({ member, open, onOpenChange, onShowHistory,
                 <InfoRow icon={MapPin} label={t('members.address') || 'Adresse'} value={member.address} />
                 <InfoRow icon={CalendarCheck2} label={t('members.lastVisit') || 'Dernière visite'} value={member.last_visit ? formatDate(member.last_visit) : null} />
                 <InfoRow icon={User} label={t('members.profile.memberSince') || 'Membre depuis'} value={member.created_at ? formatDate(member.created_at) : null} />
+                <InfoRow icon={UserCheck} label={t('members.profile.coach') || 'Coach'} value={stats?.coach ? `${stats.coach.first_name} ${stats.coach.last_name}` : null} />
+                <InfoRow icon={CreditCard} label={t('members.profile.rfidUid') || 'Badge RFID'} value={stats?.rfidUid ? stats.rfidUid : null} />
                 <InfoRow icon={Siren} label={t('members.emergencyContact') || 'Contact d’urgence'} value={member.emergency_contact ? `${member.emergency_contact}${member.emergency_phone ? ` · ${displayPhone(member.emergency_phone)}` : ''}` : null} />
               </div>
 
@@ -228,6 +280,45 @@ export function MemberProfileDialog({ member, open, onOpenChange, onShowHistory,
                   <ShoppingCart className="h-4 w-4 mx-auto mb-1 text-primary" />
                   <p className="text-lg font-bold">{formatCurrency(stats?.posTotal ?? 0)}</p>
                   <p className="text-[11px] text-muted-foreground">{t('members.profile.posTotal') || 'Achats POS'}</p>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Card className="p-3">
+                  <p className="text-sm font-semibold mb-2 flex items-center gap-2">
+                    <CalendarCheck2 className="h-4 w-4 text-primary" />
+                    {t('members.profile.recentAttendance') || 'Dernières présences'}
+                  </p>
+                  {!stats?.recentAttendance || stats.recentAttendance.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">{t('members.profile.noData') || 'Aucune donnée'}</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {stats.recentAttendance.map((a: { id: string; check_in: string | null; check_out: string | null }) => (
+                        <li key={a.id} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{a.check_in ? formatDate(a.check_in) : '—'}</span>
+                          <span className="font-mono font-medium">{stayLabel(a)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
+                <Card className="p-3">
+                  <p className="text-sm font-semibold mb-2 flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4 text-primary" />
+                    {t('members.profile.recentPos') || 'Derniers achats'}
+                  </p>
+                  {!stats?.recentPos || stats.recentPos.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">{t('members.profile.noData') || 'Aucune donnée'}</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {stats.recentPos.map((p: { id: string; total: number; created_at: string }) => (
+                        <li key={p.id} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{p.created_at ? formatDate(p.created_at) : '—'}</span>
+                          <span className="font-medium">{formatCurrency(p.total)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </Card>
               </div>
 

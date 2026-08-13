@@ -23,6 +23,7 @@ import { Pagination } from "@/components/ui/pagination"
 import { Loader2, Wallet, Search, Download, Pencil, Trash2, History } from "lucide-react"
 import { IS_MOCK } from "@/lib/config"
 import { useToast } from "@/components/ui/toast"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import type { PaymentChange, Member } from "@/types/supabase"
 
 interface EncaissementRow {
@@ -64,6 +65,7 @@ function dedupeRows(subs: EncaissementRow[], posRows: EncaissementRow[]): Encais
 export default function Encaissement() {
   const supabase = useSupabase()
   const t = useT()
+  const openMember = useOpenMember()
   const { organization, roles } = useAuth()
   const orgId = organization?.id
   const queryClient = useQueryClient()
@@ -486,7 +488,18 @@ export default function Encaissement() {
                             {row.type === "subscription" ? (t("encaissement.subscription") || "Abonnement") : (t("encaissement.pos") || "Vente POS")}
                           </Badge>
                         </td>
-                        <td className="p-3 whitespace-nowrap">{row.memberName}</td>
+                        <td className="p-3 whitespace-nowrap">
+                          {row.memberId ? (
+                            <button
+                              type="button"
+                              onClick={() => openMember(row.memberId)}
+                              title="Ouvrir la fiche adhérent"
+                              className="text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                            >
+                              {row.memberName}
+                            </button>
+                          ) : row.memberName}
+                        </td>
                         <td className="p-3 text-right whitespace-nowrap font-medium tabular-nums">{formatCurrency(row.amount)}</td>
                         <td className="p-3 text-center whitespace-nowrap">{methodBadge(row.method)}</td>
                         <td className="p-3 text-center whitespace-nowrap">{statusBadge(row.status)}</td>

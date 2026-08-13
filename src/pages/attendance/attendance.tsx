@@ -30,6 +30,7 @@ import { Pagination } from "@/components/ui/pagination"
 import { formatDate, formatDateTime, cn, toUpper } from "@/lib/utils"
 import type { Member, Attendance } from "@/types/supabase"
 import { format, startOfDay, endOfDay, differenceInMinutes } from "date-fns"
+import { useOpenMember } from "@/hooks/useOpenMember"
 
 
 interface MemberWithAttendance extends Pick<Member, "id" | "first_name" | "last_name" | "photo_url"> {
@@ -40,6 +41,7 @@ type HistoryEntry = Attendance & { members: { first_name: string; last_name: str
 
 export default function AttendancePage() {
   const t = useT()
+  const openMember = useOpenMember()
   const supabase = useSupabase()
   const queryClient = useQueryClient()
   const { organization } = useAuth()
@@ -337,7 +339,14 @@ export default function AttendancePage() {
                             {toUpper(member.first_name.charAt(0))}{toUpper(member.last_name.charAt(0))}
                           </div>
                           <div>
-                            <p className="font-medium">{toUpper(member.first_name)} {toUpper(member.last_name)}</p>
+                            <button
+                              type="button"
+                              onClick={() => openMember(member.id)}
+                              title="Ouvrir la fiche adhérent"
+                              className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                            >
+                              {toUpper(member.first_name)} {toUpper(member.last_name)}
+                            </button>
                             {member.attendance?.check_in && (
                               <p className="text-xs text-muted-foreground">
                                 {t("attendance.checkInLabel")}{format(new Date(member.attendance.check_in), "HH:mm")}
@@ -436,7 +445,14 @@ export default function AttendancePage() {
                         return (
                           <TableRow key={entry.id}>
                             <TableCell className="font-medium">
-                              {toUpper(entry.members?.first_name)} {toUpper(entry.members?.last_name)}
+                              <button
+                                type="button"
+                                onClick={() => openMember(entry.member_id)}
+                                title="Ouvrir la fiche adhérent"
+                                className="text-left font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
+                              >
+                                {toUpper(entry.members?.first_name)} {toUpper(entry.members?.last_name)}
+                              </button>
                             </TableCell>
                             <TableCell>
                               {checkIn ? format(checkIn, "HH:mm") : "-"}
@@ -488,7 +504,14 @@ export default function AttendancePage() {
                       <Card key={entry.id} className="p-4">
                         <div className="flex items-start justify-between">
                           <div>
-                            <p className="font-medium">{toUpper(entry.members?.first_name)} {toUpper(entry.members?.last_name)}</p>
+                            <button
+                              type="button"
+                              onClick={() => openMember(entry.member_id)}
+                              title="Ouvrir la fiche adhérent"
+                              className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                            >
+                              {toUpper(entry.members?.first_name)} {toUpper(entry.members?.last_name)}
+                            </button>
                             <p className="text-sm text-muted-foreground">
                               {checkIn ? format(checkIn, "HH:mm") : "-"}
                               {checkOut ? ` → ${format(checkOut, "HH:mm")}` : ""}

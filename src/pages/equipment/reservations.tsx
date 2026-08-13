@@ -4,6 +4,7 @@ import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
 import { useNavigate, useLocation } from "react-router-dom"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import { formatDateTime, toUpper } from "@/lib/utils"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -59,6 +60,7 @@ export default function ReservationsPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const t = useT()
+  const openMember = useOpenMember()
   const navigate = useNavigate()
   const location = useLocation()
   const { organization } = useAuth()
@@ -260,7 +262,18 @@ export default function ReservationsPage() {
                   return (
                     <TableRow key={res.id}>
                       <TableCell className="font-medium">{toUpper(equipment?.name) || "-"}</TableCell>
-                      <TableCell>{member ? `${toUpper(member.first_name)} ${toUpper(member.last_name)}` : "-"}</TableCell>
+                      <TableCell>
+                        {member ? (
+                          <button
+                            type="button"
+                            onClick={() => openMember(res.member_id)}
+                            title="Ouvrir la fiche adhérent"
+                            className="text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                          >
+                            {toUpper(member.first_name)} {toUpper(member.last_name)}
+                          </button>
+                        ) : "-"}
+                      </TableCell>
                       <TableCell>{formatDateTime(res.start_time)}</TableCell>
                       <TableCell>{formatDateTime(res.end_time)}</TableCell>
                       <TableCell>
@@ -302,7 +315,18 @@ export default function ReservationsPage() {
                       <span className="font-medium">{toUpper(equipment?.name) || "-"}</span>
                       <Badge variant={STATUS_VARIANTS[res.status]} className="ml-auto capitalize">{toUpper(res.status)}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{member ? `${toUpper(member.first_name)} ${toUpper(member.last_name)}` : "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {member ? (
+                        <button
+                          type="button"
+                          onClick={() => openMember(res.member_id)}
+                          title="Ouvrir la fiche adhérent"
+                          className="text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                        >
+                          {toUpper(member.first_name)} {toUpper(member.last_name)}
+                        </button>
+                      ) : "-"}
+                    </p>
                     <p className="text-sm text-muted-foreground">{formatDateTime(res.start_time)} → {formatDateTime(res.end_time)}</p>
                     {res.status === "confirmed" && (
                       <div className="flex gap-1 mt-2 justify-end">

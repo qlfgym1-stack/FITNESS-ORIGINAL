@@ -84,6 +84,9 @@
 - **Bug F-7** — `members.tsx` lit `?q=` via `useSearchParams` → recherche navbar fonctionnelle (init `search`/`debouncedSearch` depuis l'URL)
 - **Bug F-6** — `navbar.tsx` importe `useQuery`/`useMutation`/`useQueryClient` depuis `@/hooks/useQuery`
 - **Déploiement Vercel** — ErrorBoundary auto-reload sur chunk dynamique périmé (stale PWA) + `cleanupOutdatedCaches` ; déploiement prod https://qlfgym.vercel.app ✅
+- **Recherche adhérent + WhatsApp** — page notifications : barre de recherche par nom/téléphone (flux général, renouvellements, expirés), bouton WhatsApp dans chaque carte de notification ; page membres : bouton WhatsApp (template renouvellement pré-rempli) à côté de chaque membre
+- **Cloche navbar** — popover notifications agrandi (`w-96`, `max-h-96`, 8 notifications affichées)
+- **B1 PNGs** — `QLG_3D-removebg-preview.png` redimensionné 707×353/181.6KB → 384×192/67.9KB (`-opt.png`, origine supprimée), sign-in branché ; dist 4523→4410 KiB
 - **Déploiement Vercel 13/08/2026** — branche `deploy/member-insights` déployée en prod (member-insights, noImplicitAny C1, dialogue notif, store IA partagé) → https://qlfgym.vercel.app ✅
 - **Paie — Bonus exceptionnel** : champ BONUS « prime exceptionnelle » par employé dans `rh.tsx` (colonne `staff.bonus` existante via 00051) — éditable admin, sauvegardé avec salaire (autosave), badge bonus dans la liste staff, ligne « Total salaire » = fixe + bonus
 - **Assistant IA — Bonus intégré** : `useAssistantData.ts` somme les `staff.bonus` actifs et les ajoute aux dépenses salariales (`totalExpenses`) → impacte le bénéfice net, KPI et synthèse
@@ -238,7 +241,7 @@
 | F-7 | Frontend | Navbar champ Search non fonctionnel | ✅ Corrigé (membres lit `?q=`) |
 | F-8 | Frontend | Settings "Save" ne fait que `toast()` — aucune écriture DB | ✅ Corrigé |
 | G2 | Git | Aucune branche secondaire — tout sur master, pas de workflow PR | **À corriger** |
-| B1 | Git/Deps | 2 PNGs non optimisées (LOGO 1.82MB + QLG_3D 186KB) = 40% du dist | **À corriger** |
+| B1 | Git/Deps | 2 PNGs non optimisées (LOGO 1.82MB + QLG_3D 186KB) = 40% du dist | ✅ Corrigé (LOGO webp 37KB + QLG_3D redimensionné 67.9KB, origine supprimée) |
 | C1 | Build | `noImplicitAny: false` — masque erreurs de typage TypeScript | **À corriger** |
 
 ### Score Global : 3.6/10

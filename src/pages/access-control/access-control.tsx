@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch"
 import { Pagination } from "@/components/ui/pagination"
 import { useToast } from "@/components/ui/toast"
 import { formatDateTime } from "@/lib/utils"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import {
   Shield, Plus, Search, Edit, Trash2, Wifi, WifiOff, AlertTriangle, UserCheck, Download, X,
 } from "lucide-react"
@@ -56,6 +57,7 @@ type DeviceFormData = z.infer<typeof deviceSchema>
 
 export default function AccessControlPage() {
   const t = useT()
+  const openMember = useOpenMember()
   const supabase = useSupabase()
   const queryClient = useQueryClient()
   const { organization } = useAuth()
@@ -523,7 +525,16 @@ export default function AccessControlPage() {
                 ) : paginatedHistory.map((v) => (
                   <TableRow key={v.id}>
                     <TableCell className="font-medium">
-                      {v.member ? `${v.member.first_name} ${v.member.last_name}` : "—"}
+                      {v.member ? (
+                        <button
+                          type="button"
+                          onClick={() => openMember(v.member_id)}
+                          title="Ouvrir la fiche adhérent"
+                          className="text-left font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
+                        >
+                          {v.member.first_name} {v.member.last_name}
+                        </button>
+                      ) : "—"}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{v.reason}</Badge>
@@ -542,7 +553,18 @@ export default function AccessControlPage() {
             ) : paginatedHistory.map((v) => (
               <Card key={v.id} className="p-4">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-sm">{v.member ? `${v.member.first_name} ${v.member.last_name}` : "—"}</span>
+                  <span className="font-medium text-sm">
+                    {v.member ? (
+                      <button
+                        type="button"
+                        onClick={() => openMember(v.member_id)}
+                        title="Ouvrir la fiche adhérent"
+                        className="text-left font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
+                      >
+                        {v.member.first_name} {v.member.last_name}
+                      </button>
+                    ) : "—"}
+                  </span>
                   <Badge variant="outline" className="text-xs">{v.reason}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">{v.reason_detail ?? "—"}</p>

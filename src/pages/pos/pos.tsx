@@ -27,6 +27,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Pagination } from "@/components/ui/pagination"
 import { useToast } from "@/components/ui/toast"
 import { useLocation, useNavigate } from "react-router-dom"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import { Loader2, Plus, Minus, Trash2, Search, ShoppingCart, Check, ImageIcon, CreditCard, User, Percent, Scan, X, Download, RefreshCw, Ticket, Building2, RotateCcw, Pencil } from "lucide-react"
 import type { Product, Member, Corporate } from "@/types/supabase"
 import { IS_MOCK } from "@/lib/config"
@@ -291,6 +292,7 @@ export default function POSPage() {
   const { toast } = useToast()
   const t = useT()
   const { organization, user } = useAuth()
+  const openMember = useOpenMember()
   const location = useLocation()
   const navigate = useNavigate()
   const locationPendingSub = location.state?.pendingSubscription as
@@ -1228,7 +1230,16 @@ export default function POSPage() {
           <div className="space-y-4 py-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="h-4 w-4" />
-              {selectedMemberDetails ? `${toUpper(selectedMemberDetails.first_name)} ${toUpper(selectedMemberDetails.last_name)}` : selectedMemberId}
+              {selectedMemberDetails ? (
+                <button
+                  type="button"
+                  onClick={() => openMember(selectedMemberDetails.id)}
+                  title="Ouvrir la fiche adhérent"
+                  className="cursor-pointer hover:text-primary hover:underline transition-colors"
+                >
+                  {toUpper(selectedMemberDetails.first_name)} {toUpper(selectedMemberDetails.last_name)}
+                </button>
+              ) : selectedMemberId}
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium">{t("pos.subscriptionType")}</label>

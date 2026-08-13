@@ -37,6 +37,7 @@ import { Pagination } from "@/components/ui/pagination"
 import { formatDate, formatCurrency, toUpper } from "@/lib/utils"
 import { getNextInvoiceNumber } from "@/lib/invoice"
 import { InvoiceDialog } from "@/components/ui/invoice-dialog"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import type { Payment, Member, SubscriptionType } from "@/types/supabase"
 import { IS_MOCK } from '@/lib/config'
 import { format } from "date-fns"
@@ -73,6 +74,7 @@ interface ImportRow {
 
 export default function PaymentsPage() {
   const t = useT()
+  const openMember = useOpenMember()
   const getMethodLabel = useCallback((method: string) => {
     const map: Record<string, string> = {
       cash: t("payments.cash"),
@@ -574,7 +576,14 @@ export default function PaymentsPage() {
                   paginatedPayments.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell className="font-medium">
-                        {toUpper(payment.members?.first_name)} {toUpper(payment.members?.last_name)}
+                        <button
+                          type="button"
+                          onClick={() => openMember(payment.member_id)}
+                          title="Ouvrir la fiche adhérent"
+                          className="text-left font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
+                        >
+                          {toUpper(payment.members?.first_name)} {toUpper(payment.members?.last_name)}
+                        </button>
                         {payment.members?.member_number && <span className="ml-2 text-xs text-muted-foreground">({payment.members.member_number})</span>}
                       </TableCell>
                       <TableCell>{formatCurrency(payment.amount)}</TableCell>
@@ -614,7 +623,14 @@ export default function PaymentsPage() {
                 <Card key={payment.id} className="p-4">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-medium">{toUpper(payment.members?.first_name)} {toUpper(payment.members?.last_name)}</p>
+                      <button
+                        type="button"
+                        onClick={() => openMember(payment.member_id)}
+                        title="Ouvrir la fiche adhérent"
+                        className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                      >
+                        {toUpper(payment.members?.first_name)} {toUpper(payment.members?.last_name)}
+                      </button>
                       <p className="text-sm text-muted-foreground">{formatDate(payment.payment_date)}</p>
                     </div>
                     <Badge variant={statusBadge[payment.status] || "outline"}>

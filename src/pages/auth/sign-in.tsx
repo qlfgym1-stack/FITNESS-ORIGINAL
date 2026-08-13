@@ -97,7 +97,7 @@ export default function SignIn() {
             transition={{ duration: 0.5 }}
             className="mb-4 mt-16"
           >
-            <img src="/QLG_3D-removebg-preview.png" alt="QLF GYM" className="h-32 w-auto drop-shadow-lg" />
+            <img src="/QLG_3D-removebg-preview-opt.png" alt="QLF GYM" className="h-32 w-auto drop-shadow-lg" />
           </motion.div>
 
           {/* Welcome */}
@@ -179,7 +179,7 @@ export default function SignIn() {
         >
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center justify-center gap-2 mb-6">
-            <img src="/QLG_3D-removebg-preview.png" alt="QLF GYM" className="h-12 w-auto drop-shadow-lg" />
+            <img src="/QLG_3D-removebg-preview-opt.png" alt="QLF GYM" className="h-12 w-auto drop-shadow-lg" />
           </div>
 
           {/* Form card */}

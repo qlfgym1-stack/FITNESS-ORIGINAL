@@ -2,6 +2,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Users, Crown, BellRing, AlertTriangle } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import type { SubscriptionInsight } from "../hooks/types"
 
 interface SubscriptionSectionProps {
@@ -10,6 +11,7 @@ interface SubscriptionSectionProps {
 }
 
 export function SubscriptionSection({ data, t }: SubscriptionSectionProps) {
+  const openMember = useOpenMember()
   const { bestType, expiring30, expiring60, activeCount, avgRevenuePerMember, churnRisk } = data
 
   return (
@@ -55,7 +57,14 @@ export function SubscriptionSection({ data, t }: SubscriptionSectionProps) {
             <ul className="text-xs space-y-1">
               {expiring30.slice(0, 5).map((e) => (
                 <li key={e.memberId} className="flex justify-between gap-2">
-                  <span className="truncate">{e.memberName} · {e.subscriptionName}</span>
+                  <button
+                    type="button"
+                    onClick={() => openMember(e.memberId)}
+                    title="Ouvrir la fiche adhérent"
+                    className="truncate text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                  >
+                    {e.memberName} · {e.subscriptionName}
+                  </button>
                   <span className="shrink-0 text-warning">
                     {e.daysLeft === 0 ? t("aiAssistant.today") : `${e.daysLeft}${t("aiAssistant.daysUnit")}`}
                   </span>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { useOpenMember } from "@/hooks/useOpenMember"
 import { PageHeader } from "@/components/layout"
 import { NotificationDetails } from "@/components/notifications/notification-details"
 import { Button } from "@/components/ui/button"
@@ -99,10 +100,13 @@ export default function NotificationsPage() {
   const supabase = useSupabase()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const openMember = useOpenMember()
   const [filter, setFilter] = useState<FilterType>("all")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [topTab, setTopTab] = useState<TopTab>("notifications")
   const [viewTarget, setViewTarget] = useState<Notification | null>(null)
+  const [search, setSearch] = useState("")
+  const [subSearch, setSubSearch] = useState("")
 
   const typeLabel = (type: string): string => {
     switch (type) {
@@ -289,6 +293,49 @@ export default function NotificationsPage() {
     },
     enabled: !!orgId && !IS_MOCK,
   })
+
+  const memberById = useMemo(() => {
+    const map = new Map<string, CampaignMember>()
+    for (const m of members) map.set(m.id, m)
+    return map
+  }, [members])
+
+  const searchFiltered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return filtered
+    return filtered.filter((n: Notification) => {
+      const d = n.data
+      const mid = d && typeof d === "object" ? (d as Record<string, unknown>).member_id : null
+      const member = mid ? memberById.get(String(mid)) : undefined
+      const name = member ? `${member.first_name} ${member.last_name}` : ""
+      const phone = member?.phone ?? ""
+      return (
+        `${n.title} ${n.message} ${name} ${phone}`.toLowerCase().includes(q) ||
+        phone.replace(/\D/g, "").includes(q.replace(/\D/g, ""))
+      )
+    })
+  }, [filtered, search, memberById])
+
+  const filterSubs = (list: SubWithRelations[]) => {
+    const q = subSearch.trim().toLowerCase()
+    if (!q) return list
+    return list.filter((s) => {
+      const name = s.members ? `${s.members.first_name} ${s.members.last_name}`.toLowerCase() : ""
+      const digits = (s.members?.phone ?? "").replace(/\D/g, "")
+      return name.includes(q) || digits.includes(q.replace(/\D/g, ""))
+    })
+  }
+
+  const searchedRenewals = useMemo(() => filterSubs(renewals), [renewals, subSearch])
+  const searchedExpired = useMemo(() => filterSubs(expired), [expired, subSearch])
+
+  const subEndByMember = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of [...renewals, ...expired]) {
+      if (s.member_id && !map.has(s.member_id)) map.set(s.member_id, s.end_date)
+    }
+    return map
+  }, [renewals, expired])
 
   const birthdays = useMemo(() => {
     const today = new Date()
@@ -570,7 +617,14 @@ export default function NotificationsPage() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-medium">{name}</p>
+                <button
+                  type="button"
+                  onClick={() => openMember(sub.member_id)}
+                  title="Ouvrir la fiche adhérent"
+                  className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                >
+                  {name}
+                </button>
                 {!isExpired && (
                   <Badge variant={daysLeft === 0 ? "destructive" : "default"}>{daysLeft} j</Badge>
                 )}
@@ -648,13 +702,22 @@ export default function NotificationsPage() {
               <option value="staff_leave">{t("notifications.staffLeave")}</option>
               <option value="system">{t("notifications.system")}</option>
             </select>
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+              />
+            </div>
           </div>
 
           {isLoading ? (
             <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
           ) : (
             <div className="space-y-2">
-              {filtered.map((n: Notification) => {
+              {searchFiltered.map((n: Notification) => {
                 const Icon = typeIcons[n.type] || Bell
                 return (
                   <Card
@@ -691,6 +754,36 @@ export default function NotificationsPage() {
                           <p className="text-xs text-muted-foreground mt-1">{formatDate(n.created_at)}</p>
                         </div>
                         <div className="flex gap-1">
+                          {isAdmin && (() => {
+                            const d = n.data
+                            if (!d || typeof d !== "object") return null
+                            const rec = d as Record<string, unknown>
+                            const mid = rec.member_id
+                            if (!mid) return null
+                            const member = memberById.get(String(mid))
+                            if (!member?.phone) return null
+                            const name = `${member.first_name} ${member.last_name}`
+                            const date = subEndByMember.get(String(mid)) ?? (typeof rec.days_left === "number" ? rec.days_left.toString() : "")
+                            return (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="WhatsApp"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openWhatsApp({
+                                    member_id: String(mid),
+                                    name,
+                                    phone: member.phone ?? "",
+                                    date,
+                                    kind: "renewal",
+                                  })
+                                }}
+                              >
+                                <MessageCircle className="h-4 w-4 text-[#25d366]" />
+                              </Button>
+                            )
+                          })()}
                           {!n.is_read && n.user_id === user?.id && (
                             <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); markAsRead.mutate(n.id) }}>
                               <MailOpen className="h-4 w-4" />
@@ -702,7 +795,7 @@ export default function NotificationsPage() {
                   </Card>
                 )
               })}
-              {filtered.length === 0 && (
+              {searchFiltered.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground">
                   <Bell className="h-12 w-12 mx-auto mb-3 opacity-20" />
                   <p>{t("notifications.empty")}</p>
@@ -747,15 +840,24 @@ export default function NotificationsPage() {
               <CalendarClock className="h-5 w-5" />
               <h3 className="text-lg font-semibold">{t("notifications.expiringSoon") || "Abonnements expirant bientôt"}</h3>
             </div>
+            <div className="relative max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={subSearch}
+                onChange={(e) => setSubSearch(e.target.value)}
+                className="pl-9"
+                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+              />
+            </div>
             {renewalsLoading ? (
               <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
-            ) : renewals.length === 0 ? (
+            ) : searchedRenewals.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <CalendarClock className="h-12 w-12 mx-auto mb-3 opacity-20" />
                 <p>{t("notifications.noRenewals") || "Aucun abonnement à renouveler"}</p>
               </div>
             ) : (
-              <div className="space-y-2">{renewals.map((s: SubWithRelations) => renderRow(s, false))}</div>
+              <div className="space-y-2">{searchedRenewals.map((s: SubWithRelations) => renderRow(s, false))}</div>
             )}
           </div>
         </TabsContent>
@@ -766,15 +868,24 @@ export default function NotificationsPage() {
               <CalendarX className="h-5 w-5" />
               <h3 className="text-lg font-semibold">{t("notifications.expiredSubs") || "Abonnements expirés"}</h3>
             </div>
+            <div className="relative max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={subSearch}
+                onChange={(e) => setSubSearch(e.target.value)}
+                className="pl-9"
+                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+              />
+            </div>
             {expiredLoading ? (
               <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
-            ) : expired.length === 0 ? (
+            ) : searchedExpired.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <CalendarX className="h-12 w-12 mx-auto mb-3 opacity-20" />
                 <p>{t("notifications.noExpired") || "Aucun abonnement expiré"}</p>
               </div>
             ) : (
-              <div className="space-y-2">{expired.map((s) => renderRow(s, true))}</div>
+              <div className="space-y-2">{searchedExpired.map((s) => renderRow(s, true))}</div>
             )}
           </div>
         </TabsContent>
@@ -803,7 +914,14 @@ export default function NotificationsPage() {
                             <Cake className="h-4 w-4 text-rose-500" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium">{name}</p>
+                            <button
+                              type="button"
+                              onClick={() => openMember(m.id)}
+                              title="Ouvrir la fiche adhérent"
+                              className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                            >
+                              {name}
+                            </button>
                             <p className="text-sm text-muted-foreground">{m.phone ? displayPhone(m.phone) : "-"}</p>
                             <p className="text-xs text-rose-500">
                               {t("notifications.bornOn") || "Né le"} : {formatDate(m.birth_date ?? "")}
@@ -934,7 +1052,14 @@ export default function NotificationsPage() {
                                 />
                               </td>
                               <td className="px-4 py-3">
-                                <p className="font-medium">{name}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => openMember(m.id)}
+                                  title="Ouvrir la fiche adhérent"
+                                  className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+                                >
+                                  {name}
+                                </button>
                               </td>
                               <td className="px-4 py-3 text-muted-foreground">{m.phone ? displayPhone(m.phone) : "-"}</td>
                               <td className="px-4 py-3">
@@ -1019,7 +1144,18 @@ export default function NotificationsPage() {
                       <tbody>
                         {history.map((h: WhatsappOutbox) => (
                           <tr key={h.id} className="border-b">
-                            <td className="px-4 py-3 font-medium">{h.member_name || "-"}</td>
+                            <td className="px-4 py-3 font-medium">
+                              {h.member_id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openMember(h.member_id)}
+                                  title="Ouvrir la fiche adhérent"
+                                  className="text-left font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
+                                >
+                                  {h.member_name || "-"}
+                                </button>
+                              ) : (h.member_name || "-")}
+                            </td>
                             <td className="px-4 py-3 text-muted-foreground">{h.phone ? displayPhone(h.phone) : "-"}</td>
                             <td className="px-4 py-3">{templateLabel(h.template_key as WaTemplateKey) || h.template_key}</td>
                             <td className="px-4 py-3 text-muted-foreground max-w-md">
