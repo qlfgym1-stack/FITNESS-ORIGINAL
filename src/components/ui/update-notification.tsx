@@ -8,8 +8,35 @@ import { useT } from '@/i18n';
 import { useVersion } from '@/stores/version';
 import { useToast } from '@/components/ui/toast';
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+let capturedInstallPrompt: BeforeInstallPromptEvent | null = null;
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    capturedInstallPrompt = e as BeforeInstallPromptEvent;
+  });
+}
+
+function useStandalone(): boolean {
+  const [isStandalone, setIsStandalone] = useState(
+    () => window.matchMedia('(display-mode: standalone)').matches,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia('(display-mode: standalone)');
+    const onChange = () => setIsStandalone(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isStandalone;
+}
+
 function UpdateBanner() {
   const t = useT();
+  const isStandalone = useStandalone();
   const { isUpdateAvailable, isUpdateRequired, dismissUpdate, onlineVersion, checkVersion, isChecking, localVersion } = useVersion();
   const [showBanner, setShowBanner] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -17,6 +44,11 @@ function UpdateBanner() {
   const [installStage, setInstallStage] = useState<'idle' | 'downloading' | 'installing' | 'activating' | 'done'>('idle');
 
   useEffect(() => {
+    if (!isStandalone) {
+      setShowBanner(false);
+      setShowModal(false);
+      return;
+    }
     if (isUpdateAvailable) {
       const timer = setTimeout(() => {
         setShowBanner(true);
@@ -27,7 +59,7 @@ function UpdateBanner() {
       setShowBanner(false);
       setShowModal(false);
     }
-  }, [isUpdateAvailable, isUpdateRequired]);
+  }, [isUpdateAvailable, isUpdateRequired, isStandalone]);
 
   const handleUpdate = async () => {
     setShowModal(true);
@@ -242,7 +274,7 @@ function UpdateBanner() {
 function InstallPrompt() {
   const t = useT();
   const { toast } = useToast();
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(capturedInstallPrompt);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
@@ -256,19 +288,23 @@ function InstallPrompt() {
 
     const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      const promptEvent = e as BeforeInstallPromptEvent;
+      capturedInstallPrompt = promptEvent;
+      setDeferredPrompt(promptEvent);
     };
     window.addEventListener('beforeinstallprompt', handler);
 
     window.addEventListener('appinstalled', () => {
       setIsInstalled(true);
+      capturedInstallPrompt = null;
       setDeferredPrompt(null);
       setShowPrompt(false);
       toast({ title: t('install.installed') });
     });
 
     const timer = setTimeout(() => {
-      if (!isInstalled && deferredPrompt) {
+      if (!isInstalled && (deferredPrompt || capturedInstallPrompt)) {
+        setDeferredPrompt((current) => current ?? capturedInstallPrompt);
         setShowPrompt(true);
       }
     }, 10000);
@@ -279,21 +315,24 @@ function InstallPrompt() {
     };
   }, [deferredPrompt, isInstalled, t, toast]);
 
-  if (isInstalled || !deferredPrompt || !showPrompt) return null;
+  if (isInstalled || (!deferredPrompt && !capturedInstallPrompt) || !showPrompt) return null;
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    const promptEvent = deferredPrompt ?? capturedInstallPrompt;
+    if (!promptEvent) return;
+    promptEvent.prompt();
+    const { outcome } = await promptEvent.userChoice;
     if (outcome === 'accepted') {
       toast({ title: t('install.installed') });
     }
+    capturedInstallPrompt = null;
     setDeferredPrompt(null);
     setShowPrompt(false);
   };
 
   const handleDismiss = () => {
     setShowPrompt(false);
+    capturedInstallPrompt = null;
     setDeferredPrompt(null);
   };
 
@@ -304,7 +343,7 @@ function InstallPrompt() {
       exit={{ y: 100, opacity: 0 }}
       className="fixed bottom-4 left-4 right-4 md:bottom-20 md:left-auto md:right-4 md:w-96 z-50"
     >
-      <Card className="border-primary/20 bg-primary/5 shadow-xl">
+      <Card className="border-primary/30 bg-background shadow-2xl">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">

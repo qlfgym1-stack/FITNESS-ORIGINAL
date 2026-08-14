@@ -23,13 +23,18 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon-32.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
+      includeAssets: ['favicon.ico', 'favicon-32.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'FitManager PRO',
-        short_name: 'FitManager PRO',
+        name: 'QLF GYM',
+        short_name: 'QLF GYM',
         description: 'Application de gestion complète pour salles de sport',
         theme_color: '#10b981',
         background_color: '#0a0a0a',
+        lang: 'fr',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
