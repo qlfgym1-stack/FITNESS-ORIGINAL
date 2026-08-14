@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef, memo } from "react"
+import { useState, useMemo, useEffect, useCallback, memo } from "react"
 import { useOpenMember } from "@/hooks/useOpenMember"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { useAuth } from "@/stores/auth"
+import { useVersion } from "@/stores/version"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { formatDate, displayPhone } from "@/lib/utils"
@@ -119,37 +120,29 @@ function memberStatusLabel(t: (key: string) => string, s: CampaignMember["status
   }
 }
 
+function memberMatches(name: string, phone: string, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const nameLower = name.toLowerCase()
+  const phoneDigits = phone.replace(/\D/g, "")
+  const qDigits = q.replace(/\D/g, "")
+  if (nameLower.includes(q) || (qDigits.length > 0 && phoneDigits.includes(qDigits))) return true
+  const words = q.split(/\s+/).filter(Boolean)
+  return words.every((w) => {
+    if (nameLower.includes(w)) return true
+    const wDigits = w.replace(/\D/g, "")
+    return wDigits.length > 0 && phoneDigits.includes(wDigits)
+  })
+}
+
 function useSearch(initial = "") {
   const [query, setQuery] = useState(initial)
-  const [applied, setApplied] = useState(initial)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const queryRef = useRef(initial)
-
-  const apply = useCallback((value: string) => {
-    if (timer.current) {
-      clearTimeout(timer.current)
-      timer.current = null
-    }
-    setApplied(value)
+  // Filtering is live on every keystroke (rows are memoized, so it's cheap).
+  // flush() is wired to the 🔍 button / Enter for explicit confirmation.
+  const flush = useCallback(() => {
+    // no-op: results are already filtered live
   }, [])
-
-  const change = useCallback((value: string) => {
-    queryRef.current = value
-    setQuery(value)
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => {
-      timer.current = null
-      setApplied(value)
-    }, 200)
-  }, [])
-
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current)
-  }, [])
-
-  const flush = useCallback(() => apply(queryRef.current), [apply])
-
-  return { query, setQuery: change, applied, flush }
+  return { query, setQuery, applied: query, flush }
 }
 
 function SearchField({
@@ -417,6 +410,7 @@ export default function NotificationsPage() {
   const t = useT()
   const { toast } = useToast()
   const { roles, organization } = useAuth()
+  const { localVersion } = useVersion()
   const supabase = useSupabase()
   const queryClient = useQueryClient()
   const openMember = useOpenMember()
@@ -549,12 +543,9 @@ export default function NotificationsPage() {
   })
 
   const filterSubs = (list: SubWithRelations[], query: string) => {
-    const q = query.trim().toLowerCase()
-    if (!q) return list
     return list.filter((s) => {
-      const name = s.members ? `${s.members.first_name} ${s.members.last_name}`.toLowerCase() : ""
-      const digits = (s.members?.phone ?? "").replace(/\D/g, "")
-      return name.includes(q) || digits.includes(q.replace(/\D/g, ""))
+      const name = s.members ? `${s.members.first_name} ${s.members.last_name}` : ""
+      return memberMatches(name, s.members?.phone ?? "", query)
     })
   }
 
@@ -571,13 +562,9 @@ export default function NotificationsPage() {
   }, [members])
 
   const searchedBirthdays = useMemo(() => {
-    const q = birthdaySearch.applied.trim().toLowerCase()
-    if (!q) return birthdays
-    return birthdays.filter((m: CampaignMember) => {
-      const name = `${m.first_name} ${m.last_name}`.toLowerCase()
-      const digits = (m.phone ?? "").replace(/\D/g, "")
-      return name.includes(q) || digits.includes(q.replace(/\D/g, ""))
-    })
+    return birthdays.filter((m: CampaignMember) =>
+      memberMatches(`${m.first_name} ${m.last_name}`, m.phone ?? "", birthdaySearch.applied),
+    )
   }, [birthdays, birthdaySearch.applied])
 
   const { data: history = [] } = useQuery({
@@ -719,14 +706,10 @@ export default function NotificationsPage() {
   const [deleteTarget, setDeleteTarget] = useState<WhatsappOutbox | null>(null)
 
   const campaignList = useMemo(() => {
-    const q = campaignSearch.applied.trim().toLowerCase()
     return members.filter((m: CampaignMember) => {
       if (!m.phone) return false
       if (campaignStatus !== "all" && m.status !== campaignStatus) return false
-      if (!q) return true
-      const name = `${m.first_name} ${m.last_name}`.toLowerCase()
-      const digits = m.phone.replace(/\D/g, "")
-      return name.includes(q) || digits.includes(q.replace(/\D/g, ""))
+      return memberMatches(`${m.first_name} ${m.last_name}`, m.phone, campaignSearch.applied)
     })
   }, [members, campaignSearch.applied, campaignStatus])
 
@@ -812,6 +795,11 @@ export default function NotificationsPage() {
     <div>
       <div className="h-1.5 w-full rounded-full bg-[#25D366] mb-4 dark:bg-primary" />
       <PageHeader title={t("notifications.description")} />
+      <div className="mb-3 flex items-center gap-2">
+        <Badge variant="outline" className="text-xs text-muted-foreground">
+          v{localVersion.version} · {localVersion.commitSha.slice(0, 7)}
+        </Badge>
+      </div>
 
       <Tabs value={topTab} onValueChange={(v) => setTopTab(v as TopTab)}>
         <TabsList>
@@ -853,19 +841,26 @@ export default function NotificationsPage() {
               </Card>
             )}
             <h3 className="text-lg font-semibold">{t("notifications.expiringSoon") || "Abonnements expirant bientôt"}</h3>
-            <SearchField
-              value={renewalsSearch.query}
-              onChange={renewalsSearch.setQuery}
-              onSearch={renewalsSearch.flush}
-              placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
-              className="max-w-xs"
-            />
+            <div className="flex items-center gap-3 flex-wrap">
+              <SearchField
+                value={renewalsSearch.query}
+                onChange={renewalsSearch.setQuery}
+                onSearch={renewalsSearch.flush}
+                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+                className="max-w-xs"
+              />
+              {renewals.length > 0 && (
+                <Badge variant="outline" className="shrink-0 text-xs">{searchedRenewals.length} / {renewals.length}</Badge>
+              )}
+            </div>
             {renewalsLoading ? (
               <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
             ) : searchedRenewals.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <CalendarClock className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p>{t("notifications.noRenewals") || "Aucun abonnement à renouveler"}</p>
+                <p>{renewalsSearch.query
+                  ? t("notifications.noResult") || "Aucun membre ne correspond à la recherche"
+                  : t("notifications.noRenewals") || "Aucun abonnement à renouveler"}</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -880,19 +875,26 @@ export default function NotificationsPage() {
         <TabsContent value="expired">
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">{t("notifications.expiredSubs") || "Abonnements expirés"}</h3>
-            <SearchField
-              value={expiredSearch.query}
-              onChange={expiredSearch.setQuery}
-              onSearch={expiredSearch.flush}
-              placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
-              className="max-w-xs"
-            />
+            <div className="flex items-center gap-3 flex-wrap">
+              <SearchField
+                value={expiredSearch.query}
+                onChange={expiredSearch.setQuery}
+                onSearch={expiredSearch.flush}
+                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+                className="max-w-xs"
+              />
+              {expired.length > 0 && (
+                <Badge variant="outline" className="shrink-0 text-xs">{searchedExpired.length} / {expired.length}</Badge>
+              )}
+            </div>
             {expiredLoading ? (
               <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
             ) : searchedExpired.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <CalendarX className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p>{t("notifications.noExpired") || "Aucun abonnement expiré"}</p>
+                <p>{expiredSearch.query
+                  ? t("notifications.noResult") || "Aucun membre ne correspond à la recherche"
+                  : t("notifications.noExpired") || "Aucun abonnement expiré"}</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -910,13 +912,18 @@ export default function NotificationsPage() {
               <h3 className="text-lg font-semibold">{t("notifications.birthdayTitle") || "Anniversaires aujourd'hui"}</h3>
               {birthdays.length > 0 && <Badge variant="default">{birthdays.length}</Badge>}
             </div>
-            <SearchField
-              value={birthdaySearch.query}
-              onChange={birthdaySearch.setQuery}
-              onSearch={birthdaySearch.flush}
-              placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
-              className="max-w-xs"
-            />
+            <div className="flex items-center gap-3 flex-wrap">
+              <SearchField
+                value={birthdaySearch.query}
+                onChange={birthdaySearch.setQuery}
+                onSearch={birthdaySearch.flush}
+                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+                className="max-w-xs"
+              />
+              {birthdays.length > 0 && (
+                <Badge variant="outline" className="shrink-0 text-xs">{searchedBirthdays.length} / {birthdays.length}</Badge>
+              )}
+            </div>
             {birthdays.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Cake className="h-12 w-12 mx-auto mb-3 opacity-20" />
@@ -985,6 +992,9 @@ export default function NotificationsPage() {
                   placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
                   className="flex-1 min-w-[220px] max-w-xs"
                 />
+                <Badge variant="outline" className="shrink-0 text-xs">
+                  {campaignList.length} / {members.filter((m: CampaignMember) => m.phone).length}
+                </Badge>
                 {(["all", "active", "inactive", "suspended"] as const).map((s) => (
                   <Button
                     key={s}
@@ -1022,7 +1032,9 @@ export default function NotificationsPage() {
                         <tr>
                           <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
                             <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                            <p>{t("notifications.noMemberPhone") || "Aucun membre avec numéro de téléphone"}</p>
+                            <p>{campaignSearch.query
+                              ? t("notifications.noResult") || "Aucun membre ne correspond à la recherche"
+                              : t("notifications.noMemberPhone") || "Aucun membre avec numéro de téléphone"}</p>
                           </td>
                         </tr>
                       ) : (
