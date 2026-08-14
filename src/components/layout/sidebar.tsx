@@ -274,10 +274,10 @@ function SidebarNav({ onNavClick, collapsed }: { onNavClick?: () => void; collap
       >
         <picture className="h-7 w-auto shrink-0">
           <source srcSet="/LOGO QLForiginal.webp" type="image/webp" />
-          <img src="/LOGO QLForiginal-opt.png" alt="FitManagerPro" className="h-7 w-auto" />
+          <img src="/LOGO QLForiginal-opt.png" alt="QLF GYM" className="h-7 w-auto" />
         </picture>
         <span className="text-lg font-bold tracking-tight">
-          <span className="text-gradient">FitManagerPro</span>
+          <span className="text-gradient">QLF GYM</span>
         </span>
       </motion.div>
       <ScrollArea className="flex-1 px-3 py-2">
