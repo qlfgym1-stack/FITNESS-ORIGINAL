@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -142,10 +143,10 @@ function UpdateBanner() {
     <AnimatePresence>
       {showBanner && !isMandatory && (
         <motion.div
-          initial={{ y: -100, opacity: 0 }}
+          initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -100, opacity: 0 }}
-          className="fixed top-0 left-0 right-0 z-50 px-4 py-2 md:max-w-md md:mx-auto md:rounded-b-xl md:shadow-lg border-b border-primary/20 bg-primary/95 backdrop-blur-sm"
+          exit={{ y: 100, opacity: 0 }}
+          className="fixed bottom-4 left-4 right-4 z-50 px-4 py-2 md:left-auto md:w-96 md:rounded-xl md:shadow-lg border-t border-primary/20 bg-primary/95 backdrop-blur-sm"
         >
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1">
@@ -273,24 +274,32 @@ function UpdateBanner() {
 
 function InstallPrompt() {
   const t = useT();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(capturedInstallPrompt);
-  const [showPrompt, setShowPrompt] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(!!capturedInstallPrompt);
+  const [isIOS, setIsIOS] = useState(false);
+  const [fallback, setFallback] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isStandalone || isIOS) {
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isStandalone) {
       setIsInstalled(true);
       return;
     }
+    setIsIOS(ios);
 
     const handler = (e: Event) => {
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       capturedInstallPrompt = promptEvent;
       setDeferredPrompt(promptEvent);
+      setFallback(false);
+      setShowPrompt(true);
+      // Debug : vérifier que l'événement arrive bien (DevTools)
+      console.log('[PWA] beforeinstallprompt capturé — installation disponible');
     };
     window.addEventListener('beforeinstallprompt', handler);
 
@@ -302,20 +311,27 @@ function InstallPrompt() {
       toast({ title: t('install.installed') });
     });
 
-    const timer = setTimeout(() => {
-      if (!isInstalled && (deferredPrompt || capturedInstallPrompt)) {
-        setDeferredPrompt((current) => current ?? capturedInstallPrompt);
-        setShowPrompt(true);
-      }
-    }, 10000);
+    // Popup rapide (4s) si l'événement est disponible
+    const promptTimer = setTimeout(() => {
+      if (!document.hidden) setShowPrompt(true);
+    }, 4000);
+
+    // Fallback : si aucun événement après 8s → instructions manuelles
+    const fallbackTimer = setTimeout(() => {
+      if (!capturedInstallPrompt) setFallback(true);
+      setShowPrompt(true);
+    }, 8000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
-      clearTimeout(timer);
+      clearTimeout(promptTimer);
+      clearTimeout(fallbackTimer);
     };
-  }, [deferredPrompt, isInstalled, t, toast]);
+  }, [t, toast]);
 
-  if (isInstalled || (!deferredPrompt && !capturedInstallPrompt) || !showPrompt) return null;
+  if (isInstalled || !showPrompt) return null;
+
+  const canInstall = !!(deferredPrompt || capturedInstallPrompt);
 
   const handleInstall = async () => {
     const promptEvent = deferredPrompt ?? capturedInstallPrompt;
@@ -332,8 +348,6 @@ function InstallPrompt() {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    capturedInstallPrompt = null;
-    setDeferredPrompt(null);
   };
 
   return (
@@ -351,7 +365,9 @@ function InstallPrompt() {
             </div>
             <div className="flex-1">
               <p className="font-medium">{t('install.readyToInstall')}</p>
-              <p className="text-sm text-muted-foreground">{t('install.readyDescription')}</p>
+              <p className="text-sm text-muted-foreground">
+                {isIOS || fallback ? t('install.manualInstallDescription') : t('install.readyDescription')}
+              </p>
             </div>
             <Button variant="ghost" size="icon" onClick={handleDismiss}>
               <X className="h-4 w-4" />
@@ -361,9 +377,15 @@ function InstallPrompt() {
             <Button variant="outline" className="flex-1" onClick={handleDismiss}>
               {t('common.later')}
             </Button>
-            <Button className="flex-1" onClick={handleInstall}>
-              <Download className="mr-2 h-4 w-4" /> {t('install.installNow')}
-            </Button>
+            {canInstall ? (
+              <Button className="flex-1" onClick={handleInstall}>
+                <Download className="mr-2 h-4 w-4" /> {t('install.installNow')}
+              </Button>
+            ) : (
+              <Button className="flex-1" onClick={() => navigate('/install')}>
+                <Download className="mr-2 h-4 w-4" /> {t('install.manualInstall')}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
