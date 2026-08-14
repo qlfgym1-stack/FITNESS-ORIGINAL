@@ -21,7 +21,8 @@ import { useTheme } from "@/stores/theme"
 import { useAuth } from "@/stores/auth"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useMutation } from "@/hooks/useQuery"
-import { Save, Building2, Globe, Palette, Bell, Loader2 } from "lucide-react"
+import { Save, Building2, Globe, Palette, Bell, Loader2, Info, Github, Calendar, Hash } from "lucide-react"
+import { useVersion } from "@/stores/version"
 
 const settingsSchema = z.object({
   gym_name: z.string().min(1, "Gym name is required"),
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const { locale, setLocale } = useLocale()
   const { organization } = useAuth()
   const supabase = useSupabase()
+  const { localVersion } = useVersion()
 
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
@@ -267,6 +269,46 @@ export default function SettingsPage() {
                 </div>
               </FormItem>
             )} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5" /> {t("settings.about")}
+            </CardTitle>
+            <CardDescription>{t("settings.aboutDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Hash className="h-8 w-8" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">FitManager PRO</h3>
+                <p className="text-sm text-muted-foreground">{t("settings.version")} {localVersion.version}</p>
+                <p className="text-sm text-muted-foreground">{t("settings.build")} {localVersion.build}</p>
+              </div>
+            </div>
+            <Separator />
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Hash className="h-4 w-4 shrink-0" />
+                <span>{t("settings.buildId")}: {localVersion.buildId}</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="h-4 w-4 shrink-0" />
+                <span>{t("settings.buildDate")}: {new Date(localVersion.buildDate).toLocaleDateString()}</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Github className="h-4 w-4 shrink-0" />
+                <span>{t("settings.commit")}: {localVersion.commitSha.slice(0, 7)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Info className="h-4 w-4 shrink-0" />
+                <span>{t("settings.minSupported")}: {localVersion.minSupportedVersion}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

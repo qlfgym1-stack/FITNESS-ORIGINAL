@@ -7,8 +7,10 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 import { ThemeProvider } from '@/stores/theme'
 import { I18nProvider } from '@/i18n'
 import { OfflineQueueProvider } from '@/stores/offline-queue'
+import { VersionProvider } from '@/stores/version'
 import { OfflineBanner } from '@/components/ui/offline-banner'
 import { Toaster } from '@/components/ui/toast'
+import { PWAUpdateSystem } from '@/components/ui/update-notification'
 import App from './App'
 import './index.css'
 
@@ -40,11 +42,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       >
         <ThemeProvider>
           <I18nProvider>
-            <OfflineQueueProvider>
-              <OfflineBanner />
-              <App />
-              <Toaster />
-            </OfflineQueueProvider>
+            <VersionProvider>
+              <OfflineQueueProvider>
+                <OfflineBanner />
+                <App />
+                <PWAUpdateSystem />
+                <Toaster />
+              </OfflineQueueProvider>
+            </VersionProvider>
           </I18nProvider>
         </ThemeProvider>
       </PersistQueryClientProvider>

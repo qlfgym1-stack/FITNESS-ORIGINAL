@@ -79,7 +79,7 @@ export default function AdminUsersPage() {
     return res.json() as Promise<Record<string, unknown>>
   }
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['admin-users', page, search],
     queryFn: async () => {
       const result = await callApi('list', { page, perPage, search: search || undefined })
@@ -90,6 +90,23 @@ export default function AdminUsersPage() {
 
   const users = data?.users ?? []
   const total = data?.total ?? 0
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title={t('admin.users.title')} />
+        <Card>
+          <CardContent className="py-8 text-center">
+            <p className="text-destructive font-medium">{t('admin.users.error')}</p>
+            <p className="text-sm text-muted-foreground mt-2">{error?.message}</p>
+            <Button variant="outline" className="mt-4" onClick={() => queryClient.invalidateQueries({ queryKey: ['admin-users'] })}>
+              {t('common.retry')}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
   const totalPages = Math.ceil(total / perPage)
 
   const createMutation = useMutation({

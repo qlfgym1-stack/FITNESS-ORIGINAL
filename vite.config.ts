@@ -1,15 +1,45 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
-import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+import fs from 'fs';
 
 /// <reference types="vitest" />
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const versionFile = resolve(__dirname, 'version.json');
+const versionData = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+
+const cacheName = `fitmanager-cache-${versionData.version}-${versionData.build}`;
+
 export default defineConfig({
+  define: {
+    __VERSION_INFO__: JSON.stringify(versionData),
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon-32.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+      manifest: {
+        name: 'FitManager PRO',
+        short_name: 'FitManager PRO',
+        description: 'Application de gestion complète pour salles de sport',
+        theme_color: '#10b981',
+        background_color: '#0a0a0a',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
+        icons: [
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
@@ -26,27 +56,22 @@ export default defineConfig({
           },
         ],
       },
-      manifest: {
-        name: 'FitManagerPro - Gestion de Salle de Sport',
-        short_name: 'FitManagerPro',
-        description: 'Application de gestion complète pour salles de sport en Algérie',
-        theme_color: '#10b981',
-        background_color: '#0a0a0a',
-        display: 'standalone',
-        orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
-        icons: [
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
     }),
+    {
+      name: 'version-info',
+      apply: 'build',
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: 'version.json',
+          source: JSON.stringify(versionData, null, 2),
+        });
+      },
+    },
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': resolve(__dirname, './src'),
     },
   },
   test: {

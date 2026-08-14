@@ -1,13 +1,16 @@
 {
   "name": "fitmanager-pro",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "node scripts/update-version.cjs && vite",
+    "build": "node scripts/update-version.cjs --release && tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "version:patch": "node scripts/update-version.cjs --patch",
+    "version:minor": "node scripts/update-version.cjs --minor",
+    "version:major": "node scripts/update-version.cjs --major"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

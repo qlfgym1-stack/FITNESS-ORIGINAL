@@ -1,8 +1,6 @@
-import { useState, useMemo, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState, useMemo, useEffect, useCallback, useRef, memo } from "react"
 import { useOpenMember } from "@/hooks/useOpenMember"
 import { PageHeader } from "@/components/layout"
-import { NotificationDetails } from "@/components/notifications/notification-details"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -24,26 +22,13 @@ import { IS_MOCK } from "@/lib/config"
 import {
   WaTemplateKey, WA_TEMPLATE_KEYS, DEFAULT_TEMPLATES, sendWhatsApp,
 } from "@/lib/whatsapp"
-import type { Notification, WhatsappOutbox } from "@/types/supabase"
+import type { WhatsappOutbox } from "@/types/supabase"
 import {
-  Bell, CheckCheck, Trash2, AlertTriangle, CreditCard, UserCheck, CalendarOff, Settings, Info,
-  MessageCircle, Settings2, Send, RefreshCw, CalendarClock, CalendarX, Loader2, Cake, Search, History, Megaphone, Users, CheckCircle, UserRound,
+  Trash2,
+  MessageCircle, Settings2, Send, CalendarClock, CalendarX, Loader2, Cake, Search, History, Users, CheckCircle, X,
 } from "lucide-react"
 
-const typeIcons: Record<string, React.ElementType> = {
-  subscription_expiring: AlertTriangle,
-  payment_overdue: CreditCard,
-  member_checkin: UserCheck,
-  staff_leave: CalendarOff,
-  system: Settings,
-  info: Info,
-  warning: AlertTriangle,
-  success: CheckCheck,
-  error: Trash2,
-}
-
-type FilterType = "all" | "unread"
-type TopTab = "notifications" | "renewals" | "expired" | "birthdays" | "campaign" | "history"
+type TopTab = "renewals" | "expired" | "birthdays" | "campaign" | "history"
 type CampaignStatus = "all" | "active" | "inactive" | "suspended" | "blocked"
 
 interface SubWithRelations {
@@ -93,89 +78,357 @@ function formatWaDate(dateStr: string): string {
   return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(dateStr))
 }
 
+function templateLabel(t: (key: string) => string, key: WaTemplateKey): string {
+  switch (key) {
+    case "renewal": return t("notifications.waRenewal") || "Renouvellement"
+    case "expired": return t("notifications.waExpired") || "Expiré"
+    case "birthday": return t("notifications.waBirthday") || "Anniversaire"
+    case "welcome": return t("notifications.waWelcome") || "Bienvenue"
+    case "receipt": return t("notifications.waReceipt") || "Reçu de paiement"
+    case "attendance": return t("notifications.waAttendance") || "Visite"
+  }
+}
+
+function templateIcon(key: WaTemplateKey): string {
+  switch (key) {
+    case "renewal": return "⏰"
+    case "expired": return "❌"
+    case "birthday": return "🎂"
+    case "welcome": return "👋"
+    case "receipt": return "🧾"
+    case "attendance": return "✅"
+  }
+}
+
+function outboxStatusLabel(t: (key: string) => string, s: WhatsappOutbox["status"]): string {
+  switch (s) {
+    case "sent_via_link": return t("notifications.waStatusLink") || "Via lien"
+    case "ready": return t("notifications.waStatusReady") || "Prêt"
+    case "queued": return t("notifications.waStatusQueued") || "En file"
+    case "sent": return t("notifications.waStatusSent") || "Envoyé"
+    case "failed": return t("notifications.waStatusFailed") || "Échec"
+  }
+}
+
+function memberStatusLabel(t: (key: string) => string, s: CampaignMember["status"]): string {
+  switch (s) {
+    case "active": return t("notifications.statusActive") || "Actifs"
+    case "inactive": return t("notifications.statusInactive") || "Inactifs"
+    case "suspended": return t("notifications.statusSuspended") || "Suspendus"
+    case "blocked": return t("notifications.statusSuspended") || "Bloqué"
+  }
+}
+
+function useSearch(initial = "") {
+  const [query, setQuery] = useState(initial)
+  const [applied, setApplied] = useState(initial)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const queryRef = useRef(initial)
+
+  const apply = useCallback((value: string) => {
+    if (timer.current) {
+      clearTimeout(timer.current)
+      timer.current = null
+    }
+    setApplied(value)
+  }, [])
+
+  const change = useCallback((value: string) => {
+    queryRef.current = value
+    setQuery(value)
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      timer.current = null
+      setApplied(value)
+    }, 200)
+  }, [])
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
+
+  const flush = useCallback(() => apply(queryRef.current), [apply])
+
+  return { query, setQuery: change, applied, flush }
+}
+
+function SearchField({
+  value,
+  onChange,
+  onSearch,
+  placeholder,
+  className,
+}: {
+  value: string
+  onChange: (v: string) => void
+  onSearch: () => void
+  placeholder: string
+  className?: string
+}) {
+  return (
+    <div className={className ? `relative ${className}` : "relative"}>
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onSearch()
+        }}
+        className="pl-9 pr-20"
+        placeholder={placeholder}
+      />
+      {value && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-10 top-1/2 -translate-y-1/2 h-8 w-8"
+          aria-label="Effacer la recherche"
+          onClick={() => onChange("")}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+        aria-label="Rechercher"
+        title="Rechercher"
+        onClick={onSearch}
+      >
+        <Search className="h-4 w-4" />
+      </Button>
+    </div>
+  )
+}
+
+const SubRowCard = memo(function SubRowCard({
+  sub,
+  isExpired,
+  onWhatsApp,
+}: {
+  sub: SubWithRelations
+  isExpired: boolean
+  onWhatsApp: (target: WaTarget) => void
+}) {
+  const t = useT()
+  const { roles } = useAuth()
+  const openMember = useOpenMember()
+  const isAdmin = roles?.some((r) => r.role === "admin")
+  const member = sub.members
+  const name = member ? `${member.first_name} ${member.last_name}` : "-"
+  const phone = member?.phone ?? null
+  const subName = sub.subscription_types?.name ?? "-"
+  const daysLeft = Math.max(0, daysUntil(sub.end_date))
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-4">
+          <div className={`mt-1 rounded-full p-2 ${isExpired ? "bg-destructive/10" : "bg-warning/10"}`}>
+            {isExpired
+              ? <CalendarX className="h-4 w-4 text-destructive" />
+              : <CalendarClock className="h-4 w-4 text-warning" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => openMember(sub.member_id)}
+                title="Ouvrir la fiche adhérent"
+                className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+              >
+                {name}
+              </button>
+              {!isExpired && (
+                <Badge variant={daysLeft === 0 ? "destructive" : "default"}>{daysLeft} j</Badge>
+              )}
+              {isExpired && <Badge variant="destructive">{t("notifications.expiredBadge") || "Expiré"}</Badge>}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">{subName}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("notifications.expires") || "Expire le"} : {formatDate(sub.end_date)} · {phone ? displayPhone(phone) : "-"}
+            </p>
+          </div>
+          {isAdmin && phone && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onWhatsApp({ member_id: sub.member_id, name, phone, date: sub.end_date, kind: isExpired ? "expired" : "renewal" })}
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+})
+
+const BirthdayCard = memo(function BirthdayCard({
+  m,
+  onWhatsApp,
+}: {
+  m: CampaignMember
+  onWhatsApp: (target: WaTarget) => void
+}) {
+  const t = useT()
+  const { roles } = useAuth()
+  const openMember = useOpenMember()
+  const isAdmin = roles?.some((r) => r.role === "admin")
+  const name = `${m.first_name} ${m.last_name}`
+  return (
+    <Card className="border-rose-500/30">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="rounded-full p-2 bg-rose-500/10">
+            <Cake className="h-4 w-4 text-rose-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <button
+              type="button"
+              onClick={() => openMember(m.id)}
+              title="Ouvrir la fiche adhérent"
+              className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+            >
+              {name}
+            </button>
+            <p className="text-sm text-muted-foreground">{m.phone ? displayPhone(m.phone) : "-"}</p>
+            <p className="text-xs text-rose-500">
+              {t("notifications.bornOn") || "Né le"} : {formatDate(m.birth_date ?? "")}
+            </p>
+          </div>
+          {isAdmin && m.phone && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onWhatsApp({ member_id: m.id, name, phone: m.phone ?? "", date: m.birth_date ?? "", kind: "birthday" })}
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+})
+
+const CampaignRow = memo(function CampaignRow({
+  m,
+  isSelected,
+  isAdmin,
+  campaignTemplate,
+  onToggle,
+  onWhatsApp,
+  onOpenMember,
+}: {
+  m: CampaignMember
+  isSelected: boolean
+  isAdmin: boolean
+  campaignTemplate: WaTemplateKey
+  onToggle: (id: string) => void
+  onWhatsApp: (target: WaTarget) => void
+  onOpenMember: (id: string | null | undefined) => void
+}) {
+  const t = useT()
+  const name = `${m.first_name} ${m.last_name}`
+  return (
+    <tr className="border-b">
+      <td className="px-4 py-3">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggle(m.id)}
+          className="h-4 w-4 accent-[#25d366]"
+          aria-label={name}
+        />
+      </td>
+      <td className="px-4 py-3">
+        <button
+          type="button"
+          onClick={() => onOpenMember(m.id)}
+          title="Ouvrir la fiche adhérent"
+          className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+        >
+          {name}
+        </button>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">{m.phone ? displayPhone(m.phone) : "-"}</td>
+      <td className="px-4 py-3">
+        <Badge variant={m.status === "active" ? "default" : "outline"}>{memberStatusLabel(t, m.status)}</Badge>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onWhatsApp({ member_id: m.id, name, phone: m.phone ?? "", date: "", kind: campaignTemplate })}
+        >
+          <MessageCircle className="h-4 w-4" />
+        </Button>
+      </td>
+    </tr>
+  )
+})
+
+const HistoryRow = memo(function HistoryRow({
+  h,
+  onDelete,
+  onOpenMember,
+}: {
+  h: WhatsappOutbox
+  onDelete: (h: WhatsappOutbox) => void
+  onOpenMember: (id: string | null | undefined) => void
+}) {
+  const t = useT()
+  return (
+    <tr className="border-b">
+      <td className="px-4 py-3 font-medium">
+        {h.member_id ? (
+          <button
+            type="button"
+            onClick={() => onOpenMember(h.member_id)}
+            title="Ouvrir la fiche adhérent"
+            className="text-left font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
+          >
+            {h.member_name || "-"}
+          </button>
+        ) : (h.member_name || "-")}
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">{h.phone ? displayPhone(h.phone) : "-"}</td>
+      <td className="px-4 py-3">{templateLabel(t, h.template_key as WaTemplateKey) || h.template_key}</td>
+      <td className="px-4 py-3 text-muted-foreground max-w-md">
+        <p className="line-clamp-2 whitespace-pre-wrap">{h.message}</p>
+      </td>
+      <td className="px-4 py-3">
+        <Badge variant={h.status === "failed" ? "destructive" : h.status === "sent" || h.status === "sent_via_link" ? "default" : "outline"}>
+          {outboxStatusLabel(t, h.status)}
+        </Badge>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDate(h.created_at)}</td>
+      <td className="px-4 py-3">
+        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete(h)}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </td>
+    </tr>
+  )
+})
+
 export default function NotificationsPage() {
   const t = useT()
   const { toast } = useToast()
-  const { user, roles, organization } = useAuth()
+  const { roles, organization } = useAuth()
   const supabase = useSupabase()
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const openMember = useOpenMember()
-  const [filter, setFilter] = useState<FilterType>("all")
-  const [typeFilter, setTypeFilter] = useState<string>("all")
-  const [topTab, setTopTab] = useState<TopTab>("notifications")
-  const [viewTarget, setViewTarget] = useState<Notification | null>(null)
-  const [search, setSearch] = useState("")
-  const [subSearch, setSubSearch] = useState("")
-  const [historySearch, setHistorySearch] = useState("")
-
-  const typeLabel = (type: string): string => {
-    switch (type) {
-      case "subscription_expiring": return t("notifications.subscriptionExpiring")
-      case "payment_overdue": return t("notifications.paymentOverdue")
-      case "member_checkin": return t("notifications.memberCheckin")
-      case "staff_leave": return t("notifications.staffLeave")
-      case "system": return t("notifications.system")
-      default: return type
-    }
-  }
+  const [topTab, setTopTab] = useState<TopTab>("renewals")
+  const renewalsSearch = useSearch()
+  const expiredSearch = useSearch()
+  const birthdaySearch = useSearch()
+  const historySearch = useSearch()
+  const campaignSearch = useSearch()
 
   const orgId = organization?.id
   const isAdmin = roles?.some((r) => r.role === "admin")
-
-  const { data: notifications = [], isLoading } = useQuery({
-    queryKey: ["notifications", "all", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return []
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .or(`user_id.eq.${user.id},user_id.is.null`)
-        .order("created_at", { ascending: false })
-        .limit(100)
-      if (error) throw error
-      return (data ?? []) as Notification[]
-    },
-    enabled: !!user?.id,
-    refetchInterval: 30000,
-  })
-
-  const markAsRead = useMutation({
-    mutationFn: async (id: string) => {
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", id)
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-  })
-
-  const markAllRead = useMutation({
-    mutationFn: async () => {
-      const unread = notifications.filter((n: Notification) => !n.is_read && n.user_id === user?.id)
-      if (unread.length === 0) return
-      await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .in("id", unread.map((n: Notification) => n.id))
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] })
-      toast({ title: t("notifications.allRead") })
-    },
-  })
-
-  const unreadCount = useMemo(
-    () => notifications.filter((n: Notification) => !n.is_read).length,
-    [notifications],
-  )
-
-  const filtered = useMemo(() => {
-    let result = notifications
-    if (filter === "unread") result = result.filter((n: Notification) => !n.is_read)
-    if (typeFilter !== "all") result = result.filter((n: Notification) => n.type === typeFilter)
-    return result
-  }, [notifications, filter, typeFilter])
 
   const { data: delaysSetting } = useQuery({
     queryKey: ["settings", "alert_delays", orgId],
@@ -295,30 +548,8 @@ export default function NotificationsPage() {
     enabled: !!orgId && !IS_MOCK,
   })
 
-  const memberById = useMemo(() => {
-    const map = new Map<string, CampaignMember>()
-    for (const m of members) map.set(m.id, m)
-    return map
-  }, [members])
-
-  const searchFiltered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return filtered
-    return filtered.filter((n: Notification) => {
-      const d = n.data
-      const mid = d && typeof d === "object" ? (d as Record<string, unknown>).member_id : null
-      const member = mid ? memberById.get(String(mid)) : undefined
-      const name = member ? `${member.first_name} ${member.last_name}` : ""
-      const phone = member?.phone ?? ""
-      return (
-        `${n.title} ${n.message} ${name} ${phone}`.toLowerCase().includes(q) ||
-        phone.replace(/\D/g, "").includes(q.replace(/\D/g, ""))
-      )
-    })
-  }, [filtered, search, memberById])
-
-  const filterSubs = (list: SubWithRelations[]) => {
-    const q = subSearch.trim().toLowerCase()
+  const filterSubs = (list: SubWithRelations[], query: string) => {
+    const q = query.trim().toLowerCase()
     if (!q) return list
     return list.filter((s) => {
       const name = s.members ? `${s.members.first_name} ${s.members.last_name}`.toLowerCase() : ""
@@ -327,16 +558,8 @@ export default function NotificationsPage() {
     })
   }
 
-  const searchedRenewals = useMemo(() => filterSubs(renewals), [renewals, subSearch])
-  const searchedExpired = useMemo(() => filterSubs(expired), [expired, subSearch])
-
-  const subEndByMember = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const s of [...renewals, ...expired]) {
-      if (s.member_id && !map.has(s.member_id)) map.set(s.member_id, s.end_date)
-    }
-    return map
-  }, [renewals, expired])
+  const searchedRenewals = useMemo(() => filterSubs(renewals, renewalsSearch.applied), [renewals, renewalsSearch.applied])
+  const searchedExpired = useMemo(() => filterSubs(expired, expiredSearch.applied), [expired, expiredSearch.applied])
 
   const birthdays = useMemo(() => {
     const today = new Date()
@@ -346,6 +569,16 @@ export default function NotificationsPage() {
       return m.birth_date.substring(5, 10) === todayStr
     })
   }, [members])
+
+  const searchedBirthdays = useMemo(() => {
+    const q = birthdaySearch.applied.trim().toLowerCase()
+    if (!q) return birthdays
+    return birthdays.filter((m: CampaignMember) => {
+      const name = `${m.first_name} ${m.last_name}`.toLowerCase()
+      const digits = (m.phone ?? "").replace(/\D/g, "")
+      return name.includes(q) || digits.includes(q.replace(/\D/g, ""))
+    })
+  }, [birthdays, birthdaySearch.applied])
 
   const { data: history = [] } = useQuery({
     queryKey: ["whatsapp-history", orgId],
@@ -438,10 +671,10 @@ export default function NotificationsPage() {
   const [waTarget, setWaTarget] = useState<WaTarget | null>(null)
   const [waKey, setWaKey] = useState<WaTemplateKey>("renewal")
 
-  function openWhatsApp(target: WaTarget) {
+  const openWhatsApp = useCallback((target: WaTarget) => {
     setWaKey(target.kind)
     setWaTarget(target)
-  }
+  }, [])
 
   function renderWaMessage(name: string, date: string, key: WaTemplateKey): string {
     const tpl = templates[key] || DEFAULT_TEMPLATES[key]
@@ -480,14 +713,13 @@ export default function NotificationsPage() {
   })
 
   const [campaignTemplate, setCampaignTemplate] = useState<WaTemplateKey>("renewal")
-  const [campaignSearch, setCampaignSearch] = useState("")
   const [campaignStatus, setCampaignStatus] = useState<CampaignStatus>("all")
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
   const [sentCount, setSentCount] = useState(0)
   const [deleteTarget, setDeleteTarget] = useState<WhatsappOutbox | null>(null)
 
   const campaignList = useMemo(() => {
-    const q = campaignSearch.trim().toLowerCase()
+    const q = campaignSearch.applied.trim().toLowerCase()
     return members.filter((m: CampaignMember) => {
       if (!m.phone) return false
       if (campaignStatus !== "all" && m.status !== campaignStatus) return false
@@ -496,16 +728,20 @@ export default function NotificationsPage() {
       const digits = m.phone.replace(/\D/g, "")
       return name.includes(q) || digits.includes(q.replace(/\D/g, ""))
     })
-  }, [members, campaignSearch, campaignStatus])
+  }, [members, campaignSearch.applied, campaignStatus])
 
-  const toggleMember = (id: string) => {
+  const toggleMember = useCallback((id: string) => {
     setSelectedMembers((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
-  }
+  }, [])
+
+  const requestDelete = useCallback((h: WhatsappOutbox) => {
+    setDeleteTarget(h)
+  }, [])
 
   const toggleSelectAll = () => {
     setSelectedMembers((prev) => {
@@ -560,266 +796,31 @@ export default function NotificationsPage() {
     },
   })
 
-  const templateLabel = (key: WaTemplateKey): string => {
-    switch (key) {
-      case "renewal": return t("notifications.waRenewal") || "Renouvellement"
-      case "expired": return t("notifications.waExpired") || "Expiré"
-      case "birthday": return t("notifications.waBirthday") || "Anniversaire"
-      case "welcome": return t("notifications.waWelcome") || "Bienvenue"
-      case "receipt": return t("notifications.waReceipt") || "Reçu de paiement"
-      case "attendance": return t("notifications.waAttendance") || "Visite"
-    }
-  }
-
-  const templateIcon = (key: WaTemplateKey): string => {
-    switch (key) {
-      case "renewal": return "⏰"
-      case "expired": return "❌"
-      case "birthday": return "🎂"
-      case "welcome": return "👋"
-      case "receipt": return "🧾"
-      case "attendance": return "✅"
-    }
-  }
-
-  const outboxStatusLabel = (s: WhatsappOutbox["status"]): string => {
-    switch (s) {
-      case "sent_via_link": return t("notifications.waStatusLink") || "Via lien"
-      case "ready": return t("notifications.waStatusReady") || "Prêt"
-      case "queued": return t("notifications.waStatusQueued") || "En file"
-      case "sent": return t("notifications.waStatusSent") || "Envoyé"
-      case "failed": return t("notifications.waStatusFailed") || "Échec"
-    }
-  }
-
-  const memberStatusLabel = (s: CampaignMember["status"]): string => {
-    switch (s) {
-      case "active": return t("notifications.statusActive") || "Actifs"
-      case "inactive": return t("notifications.statusInactive") || "Inactifs"
-      case "suspended": return t("notifications.statusSuspended") || "Suspendus"
-      case "blocked": return t("notifications.statusSuspended") || "Bloqué"
-    }
-  }
-
   const filteredHistory = useMemo(() => {
-    const q = historySearch.trim().toLowerCase()
+    const q = historySearch.applied.trim().toLowerCase()
     if (!q) return history
     return history.filter((h: WhatsappOutbox) => {
       const name = (h.member_name ?? "").toLowerCase()
       const digits = (h.phone ?? "").replace(/\D/g, "")
-      const tpl = (templateLabel(h.template_key as WaTemplateKey) || h.template_key).toLowerCase()
+      const tpl = (templateLabel(t, h.template_key as WaTemplateKey) || h.template_key).toLowerCase()
       const msg = (h.message ?? "").toLowerCase()
       return name.includes(q) || digits.includes(q.replace(/\D/g, "")) || tpl.includes(q) || msg.includes(q)
     })
-  }, [history, historySearch])
-
-  function renderRow(sub: SubWithRelations, isExpired: boolean) {
-    const member = sub.members
-    const name = member ? `${member.first_name} ${member.last_name}` : "-"
-    const phone = member?.phone ?? null
-    const subName = sub.subscription_types?.name ?? "-"
-    const daysLeft = Math.max(0, daysUntil(sub.end_date))
-    return (
-      <Card key={sub.id}>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <div className={`mt-1 rounded-full p-2 ${isExpired ? "bg-destructive/10" : "bg-warning/10"}`}>
-              {isExpired
-                ? <CalendarX className={`h-4 w-4 ${isExpired ? "text-destructive" : "text-warning"}`} />
-                : <CalendarClock className="h-4 w-4 text-warning" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => openMember(sub.member_id)}
-                  title="Ouvrir la fiche adhérent"
-                  className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
-                >
-                  {name}
-                </button>
-                {!isExpired && (
-                  <Badge variant={daysLeft === 0 ? "destructive" : "default"}>{daysLeft} j</Badge>
-                )}
-                {isExpired && <Badge variant="destructive">{t("notifications.expiredBadge") || "Expiré"}</Badge>}
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">{subName}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {t("notifications.expires") || "Expire le"} : {formatDate(sub.end_date)} · {phone ? displayPhone(phone) : "-"}
-              </p>
-            </div>
-            {isAdmin && phone && (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => openWhatsApp({ member_id: sub.member_id, name, phone, date: sub.end_date, kind: isExpired ? "expired" : "renewal" })}
-              >
-                <MessageCircle className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  }, [history, historySearch.applied, t])
 
   return (
     <div>
       <div className="h-1.5 w-full rounded-full bg-[#25D366] mb-4 dark:bg-primary" />
-      <PageHeader
-        title={t("notifications.title")}
-        description={t("notifications.description")}
-        actions={
-          unreadCount > 0 ? (
-            <Button variant="outline" onClick={() => markAllRead.mutate()}>
-              <CheckCheck className="mr-2 h-4 w-4" /> {t("notifications.markAllRead")}
-            </Button>
-          ) : undefined
-        }
-      />
+      <PageHeader title={t("notifications.description")} />
 
       <Tabs value={topTab} onValueChange={(v) => setTopTab(v as TopTab)}>
         <TabsList>
-          <TabsTrigger value="notifications">{t("notifications.title")}</TabsTrigger>
           <TabsTrigger value="renewals">{t("notifications.renewals") || "Renouvellements"}</TabsTrigger>
           <TabsTrigger value="expired">{t("notifications.expired") || "Expirés"}</TabsTrigger>
           <TabsTrigger value="birthdays">{t("notifications.birthdays") || "Anniversaires"}</TabsTrigger>
-          <TabsTrigger value="campaign">{t("notifications.campaign") || "Campagne"}</TabsTrigger>
+          <TabsTrigger value="campaign">{t("notifications.campaign") || "Campagne WhatsApp"}</TabsTrigger>
           <TabsTrigger value="history">{t("notifications.history") || "Historique"}</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="notifications">
-          <div className="flex items-center gap-4 mb-4 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              <span className="text-lg font-semibold">{t("notifications.title")}</span>
-              {unreadCount > 0 && (
-                <Badge variant="default">{unreadCount} {t("notifications.unread")}</Badge>
-              )}
-            </div>
-            <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterType)}>
-              <TabsList>
-                <TabsTrigger value="all">{t("notifications.all")}</TabsTrigger>
-                <TabsTrigger value="unread">{t("notifications.unreadOnly")}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="h-8 rounded-md border bg-background px-2 text-sm"
-            >
-              <option value="all">{t("notifications.allTypes")}</option>
-              <option value="subscription_expiring">{t("notifications.subscriptionExpiring")}</option>
-              <option value="payment_overdue">{t("notifications.paymentOverdue")}</option>
-              <option value="member_checkin">{t("notifications.memberCheckin")}</option>
-              <option value="staff_leave">{t("notifications.staffLeave")}</option>
-              <option value="system">{t("notifications.system")}</option>
-            </select>
-            <div className="relative flex-1 min-w-[200px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
-              />
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
-          ) : (
-            <div className="space-y-2">
-              {searchFiltered.map((n: Notification) => {
-                const Icon = typeIcons[n.type] || Bell
-                return (
-                  <Card
-                    key={n.id}
-                    onClick={() => {
-                      if (!n.is_read && n.user_id === user?.id) markAsRead.mutate(n.id)
-                      setViewTarget(n)
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!n.is_read && n.user_id === user?.id) markAsRead.mutate(n.id); setViewTarget(n) } }}
-                    className={`cursor-pointer transition-colors hover:border-primary/40 ${!n.is_read ? "border-primary/50 bg-primary/5" : ""}`}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <div className={`mt-1 rounded-full p-2 ${
-                          n.type === "payment_overdue" ? "bg-warning/10" :
-                          n.type === "subscription_expiring" ? "bg-warning/10" :
-                          n.type === "member_checkin" ? "bg-success/10" :
-                          n.type === "staff_leave" ? "bg-muted" : "bg-muted"
-                        }`}>
-                          <Icon className={`h-4 w-4 ${
-                            n.type === "payment_overdue" ? "text-warning" :
-                            n.type === "subscription_expiring" ? "text-warning" :
-                            n.type === "member_checkin" ? "text-success" :
-                            n.type === "staff_leave" ? "text-muted-foreground" : "text-muted-foreground"
-                          }`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className={`font-medium ${!n.is_read ? "text-foreground" : "text-muted-foreground"}`}>
-                              {n.title}
-                            </p>
-                            {!n.is_read && <div className="h-2 w-2 rounded-full bg-primary" />}
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{n.message}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{formatDate(n.created_at)}</p>
-                        </div>
-                        <div className="flex gap-1">
-                          {isAdmin && (() => {
-                            const d = n.data
-                            if (!d || typeof d !== "object") return null
-                            const rec = d as Record<string, unknown>
-                            const mid = rec.member_id
-                            if (!mid) return null
-                            const member = memberById.get(String(mid))
-                            if (!member?.phone) return null
-                            const name = `${member.first_name} ${member.last_name}`
-                            const date = subEndByMember.get(String(mid)) ?? (typeof rec.days_left === "number" ? rec.days_left.toString() : "")
-                            return (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="WhatsApp"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  openWhatsApp({
-                                    member_id: String(mid),
-                                    name,
-                                    phone: member.phone ?? "",
-                                    date,
-                                    kind: "renewal",
-                                  })
-                                }}
-                              >
-                                <MessageCircle className="h-4 w-4 text-[#25d366]" />
-                              </Button>
-                            )
-                          })()}
-                          {!n.is_read && n.user_id === user?.id && (
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); markAsRead.mutate(n.id) }}>
-                              <MessageCircle className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-              {searchFiltered.length === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Bell className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>{t("notifications.empty")}</p>
-                </div>
-              )}
-            </div>
-          )}
-        </TabsContent>
 
         <TabsContent value="renewals">
           <div className="space-y-4">
@@ -827,7 +828,6 @@ export default function NotificationsPage() {
               <Card>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4" />
                     <span className="font-medium">{t("notifications.delaysTitle") || "Délais d'alerte"}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -852,19 +852,14 @@ export default function NotificationsPage() {
                 </CardContent>
               </Card>
             )}
-            <div className="flex items-center gap-2">
-              <CalendarClock className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">{t("notifications.expiringSoon") || "Abonnements expirant bientôt"}</h3>
-            </div>
-            <div className="relative max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={subSearch}
-                onChange={(e) => setSubSearch(e.target.value)}
-                className="pl-9"
-                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
-              />
-            </div>
+            <h3 className="text-lg font-semibold">{t("notifications.expiringSoon") || "Abonnements expirant bientôt"}</h3>
+            <SearchField
+              value={renewalsSearch.query}
+              onChange={renewalsSearch.setQuery}
+              onSearch={renewalsSearch.flush}
+              placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+              className="max-w-xs"
+            />
             {renewalsLoading ? (
               <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
             ) : searchedRenewals.length === 0 ? (
@@ -873,26 +868,25 @@ export default function NotificationsPage() {
                 <p>{t("notifications.noRenewals") || "Aucun abonnement à renouveler"}</p>
               </div>
             ) : (
-              <div className="space-y-2">{searchedRenewals.map((s: SubWithRelations) => renderRow(s, false))}</div>
+              <div className="space-y-2">
+                {searchedRenewals.map((s: SubWithRelations) => (
+                  <SubRowCard key={s.id} sub={s} isExpired={false} onWhatsApp={openWhatsApp} />
+                ))}
+              </div>
             )}
           </div>
         </TabsContent>
 
         <TabsContent value="expired">
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <CalendarX className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">{t("notifications.expiredSubs") || "Abonnements expirés"}</h3>
-            </div>
-            <div className="relative max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={subSearch}
-                onChange={(e) => setSubSearch(e.target.value)}
-                className="pl-9"
-                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
-              />
-            </div>
+            <h3 className="text-lg font-semibold">{t("notifications.expiredSubs") || "Abonnements expirés"}</h3>
+            <SearchField
+              value={expiredSearch.query}
+              onChange={expiredSearch.setQuery}
+              onSearch={expiredSearch.flush}
+              placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+              className="max-w-xs"
+            />
             {expiredLoading ? (
               <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
             ) : searchedExpired.length === 0 ? (
@@ -901,7 +895,11 @@ export default function NotificationsPage() {
                 <p>{t("notifications.noExpired") || "Aucun abonnement expiré"}</p>
               </div>
             ) : (
-              <div className="space-y-2">{searchedExpired.map((s) => renderRow(s, true))}</div>
+              <div className="space-y-2">
+                {searchedExpired.map((s: SubWithRelations) => (
+                  <SubRowCard key={s.id} sub={s} isExpired onWhatsApp={openWhatsApp} />
+                ))}
+              </div>
             )}
           </div>
         </TabsContent>
@@ -909,54 +907,31 @@ export default function NotificationsPage() {
         <TabsContent value="birthdays">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Cake className="h-5 w-5" />
               <h3 className="text-lg font-semibold">{t("notifications.birthdayTitle") || "Anniversaires aujourd'hui"}</h3>
               {birthdays.length > 0 && <Badge variant="default">{birthdays.length}</Badge>}
             </div>
+            <SearchField
+              value={birthdaySearch.query}
+              onChange={birthdaySearch.setQuery}
+              onSearch={birthdaySearch.flush}
+              placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+              className="max-w-xs"
+            />
             {birthdays.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Cake className="h-12 w-12 mx-auto mb-3 opacity-20" />
                 <p>{t("notifications.noBirthdays") || "Aucun anniversaire aujourd'hui"}</p>
               </div>
+            ) : searchedBirthdays.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Cake className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <p>{t("notifications.noResult") || "Aucun membre ne correspond à la recherche"}</p>
+              </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {birthdays.map((m: CampaignMember) => {
-                  const name = `${m.first_name} ${m.last_name}`
-                  return (
-                    <Card key={m.id} className="border-rose-500/30">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="rounded-full p-2 bg-rose-500/10">
-                            <Cake className="h-4 w-4 text-rose-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <button
-                              type="button"
-                              onClick={() => openMember(m.id)}
-                              title="Ouvrir la fiche adhérent"
-                              className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
-                            >
-                              {name}
-                            </button>
-                            <p className="text-sm text-muted-foreground">{m.phone ? displayPhone(m.phone) : "-"}</p>
-                            <p className="text-xs text-rose-500">
-                              {t("notifications.bornOn") || "Né le"} : {formatDate(m.birth_date ?? "")}
-                            </p>
-                          </div>
-                          {isAdmin && m.phone && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => openWhatsApp({ member_id: m.id, name, phone: m.phone ?? "", date: m.birth_date ?? "", kind: "birthday" })}
-                            >
-                              <MessageCircle className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+                {searchedBirthdays.map((m: CampaignMember) => (
+                  <BirthdayCard key={m.id} m={m} onWhatsApp={openWhatsApp} />
+                ))}
               </div>
             )}
           </div>
@@ -966,7 +941,6 @@ export default function NotificationsPage() {
           <TabsContent value="campaign">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Megaphone className="h-5 w-5" />
                 <div>
                   <h3 className="text-lg font-semibold">{t("notifications.campaign") || "Campagne WhatsApp"}</h3>
                   <p className="text-sm text-muted-foreground">{t("notifications.campaignDesc") || "Envoyez des messages personnalisés à vos adhérents"}</p>
@@ -985,7 +959,7 @@ export default function NotificationsPage() {
                     }`}
                   >
                     <span className="text-2xl">{templateIcon(key)}</span>
-                    <h4 className="text-sm font-semibold mt-2">{templateLabel(key)}</h4>
+                    <h4 className="text-sm font-semibold mt-2">{templateLabel(t, key)}</h4>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{templates[key]}</p>
                   </button>
                 ))}
@@ -1004,15 +978,13 @@ export default function NotificationsPage() {
               </Card>
 
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[220px] max-w-xs">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={campaignSearch}
-                    onChange={(e) => setCampaignSearch(e.target.value)}
-                    className="pl-9"
-                    placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
-                  />
-                </div>
+                <SearchField
+                  value={campaignSearch.query}
+                  onChange={campaignSearch.setQuery}
+                  onSearch={campaignSearch.flush}
+                  placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+                  className="flex-1 min-w-[220px] max-w-xs"
+                />
                 {(["all", "active", "inactive", "suspended"] as const).map((s) => (
                   <Button
                     key={s}
@@ -1020,7 +992,7 @@ export default function NotificationsPage() {
                     size="sm"
                     onClick={() => setCampaignStatus(s)}
                   >
-                    {s === "all" ? t("notifications.all") : memberStatusLabel(s)}
+                    {s === "all" ? t("notifications.all") : memberStatusLabel(t, s)}
                   </Button>
                 ))}
               </div>
@@ -1054,45 +1026,18 @@ export default function NotificationsPage() {
                           </td>
                         </tr>
                       ) : (
-                        campaignList.map((m: CampaignMember) => {
-                          const name = `${m.first_name} ${m.last_name}`
-                          return (
-                            <tr key={m.id} className="border-b">
-                              <td className="px-4 py-3">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedMembers.has(m.id)}
-                                  onChange={() => toggleMember(m.id)}
-                                  className="h-4 w-4 accent-[#25d366]"
-                                  aria-label={name}
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <button
-                                  type="button"
-                                  onClick={() => openMember(m.id)}
-                                  title="Ouvrir la fiche adhérent"
-                                  className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
-                                >
-                                  {name}
-                                </button>
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground">{m.phone ? displayPhone(m.phone) : "-"}</td>
-                              <td className="px-4 py-3">
-                                <Badge variant={m.status === "active" ? "default" : "outline"}>{memberStatusLabel(m.status)}</Badge>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  onClick={() => openWhatsApp({ member_id: m.id, name, phone: m.phone ?? "", date: "", kind: campaignTemplate })}
-                                >
-                                  <MessageCircle className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            </tr>
-                          )
-                        })
+                        campaignList.map((m: CampaignMember) => (
+                          <CampaignRow
+                            key={m.id}
+                            m={m}
+                            isSelected={selectedMembers.has(m.id)}
+                            isAdmin={isAdmin}
+                            campaignTemplate={campaignTemplate}
+                            onToggle={toggleMember}
+                            onWhatsApp={openWhatsApp}
+                            onOpenMember={openMember}
+                          />
+                        ))
                       )}
                     </tbody>
                   </table>
@@ -1131,7 +1076,6 @@ export default function NotificationsPage() {
           <TabsContent value="history">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <History className="h-5 w-5" />
                 <div>
                   <h3 className="text-lg font-semibold">{t("notifications.historyTitle") || "Historique des envois WhatsApp"}</h3>
                   <p className="text-sm text-muted-foreground">{t("notifications.historyDesc") || "Consultez les messages envoyés via WhatsApp"}</p>
@@ -1140,19 +1084,17 @@ export default function NotificationsPage() {
                   <Badge variant="outline" className="ml-auto shrink-0">{filteredHistory.length} / {history.length}</Badge>
                 )}
               </div>
-              <div className="relative max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={historySearch}
-                  onChange={(e) => setHistorySearch(e.target.value)}
-                  className="pl-9"
-                  placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
-                />
-              </div>
+              <SearchField
+                value={historySearch.query}
+                onChange={historySearch.setQuery}
+                onSearch={historySearch.flush}
+                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+                className="max-w-sm"
+              />
               {filteredHistory.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <History className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>{historySearch ? t("notifications.noResult") || "Aucun message ne correspond à la recherche" : t("notifications.historyEmpty") || "Aucun message envoyé"}</p>
+                  <p>{historySearch.query ? t("notifications.noResult") || "Aucun message ne correspond à la recherche" : t("notifications.historyEmpty") || "Aucun message envoyé"}</p>
                 </div>
               ) : (
                 <Card>
@@ -1171,36 +1113,7 @@ export default function NotificationsPage() {
                       </thead>
                       <tbody>
                         {filteredHistory.map((h: WhatsappOutbox) => (
-                          <tr key={h.id} className="border-b">
-                            <td className="px-4 py-3 font-medium">
-                              {h.member_id ? (
-                                <button
-                                  type="button"
-                                  onClick={() => openMember(h.member_id)}
-                                  title="Ouvrir la fiche adhérent"
-                                  className="text-left font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
-                                >
-                                  {h.member_name || "-"}
-                                </button>
-                              ) : (h.member_name || "-")}
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">{h.phone ? displayPhone(h.phone) : "-"}</td>
-                            <td className="px-4 py-3">{templateLabel(h.template_key as WaTemplateKey) || h.template_key}</td>
-                            <td className="px-4 py-3 text-muted-foreground max-w-md">
-                              <p className="line-clamp-2 whitespace-pre-wrap">{h.message}</p>
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge variant={h.status === "failed" ? "destructive" : h.status === "sent" || h.status === "sent_via_link" ? "default" : "outline"}>
-                                {outboxStatusLabel(h.status)}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDate(h.created_at)}</td>
-                            <td className="px-4 py-3">
-                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(h)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </td>
-                          </tr>
+                          <HistoryRow key={h.id} h={h} onDelete={requestDelete} onOpenMember={openMember} />
                         ))}
                       </tbody>
                     </table>
@@ -1223,7 +1136,7 @@ export default function NotificationsPage() {
           <div className="space-y-4">
             {WA_TEMPLATE_KEYS.map((key) => (
               <div key={key} className="space-y-2">
-                <Label>{templateLabel(key)}</Label>
+                <Label>{templateLabel(t, key)}</Label>
                 <Textarea
                   value={tplDrafts[key]}
                   onChange={(e) => setTplDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
@@ -1260,7 +1173,7 @@ export default function NotificationsPage() {
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {WA_TEMPLATE_KEYS.map((key) => (
-                      <SelectItem key={key} value={key}>{templateLabel(key)}</SelectItem>
+                      <SelectItem key={key} value={key}>{templateLabel(t, key)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1315,60 +1228,6 @@ export default function NotificationsPage() {
               )}
               {t("notifications.delete") || "Supprimer"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={!!viewTarget} onOpenChange={(o) => { if (!o) setViewTarget(null) }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{viewTarget?.title}</DialogTitle>
-            <DialogDescription>
-              {viewTarget ? formatDate(viewTarget.created_at) : ""}
-            </DialogDescription>
-          </DialogHeader>
-          {viewTarget && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="rounded-full p-2 bg-muted">
-                  {(() => { const Icon = typeIcons[viewTarget.type] || Bell; return <Icon className="h-4 w-4 text-muted-foreground" /> })()}
-                </div>
-                <Badge variant="outline">{typeLabel(viewTarget.type)}</Badge>
-                {!viewTarget.is_read && (
-                  <Badge variant="default">{t("notifications.unreadOnly")}</Badge>
-                )}
-              </div>
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">{viewTarget.message}</p>
-              {viewTarget.body && (
-                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{viewTarget.body}</p>
-              )}
-              {viewTarget.data && (
-                <div className="space-y-1">
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{t("notifications.details") || "Détails"}</p>
-                  <NotificationDetails data={viewTarget.data} />
-                </div>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewTarget(null)}>
-              {t("common.close")}
-            </Button>
-            {(() => {
-              const d = viewTarget?.data
-              if (!d || typeof d !== "object") return null
-              const memberId = (d as Record<string, unknown>).member_id
-              if (memberId == null) return null
-              return (
-                <Button onClick={() => { setViewTarget(null); navigate(`/members?id=${encodeURIComponent(String(memberId))}`) }}>
-                  <UserRound className="mr-2 h-4 w-4" /> {t("notifications.openMember") || "Ouvrir le membre"}
-                </Button>
-              )
-            })()}
-            {viewTarget && !viewTarget.is_read && viewTarget.user_id === user?.id && (
-              <Button onClick={() => { markAsRead.mutate(viewTarget.id); setViewTarget(null) }}>
-                <MessageCircle className="mr-2 h-4 w-4" /> {t("notifications.markAsRead")}
-              </Button>
-            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
