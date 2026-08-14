@@ -14,15 +14,89 @@ import {
 } from "@/components/ui/select"
 import { Pagination } from "@/components/ui/pagination"
 import { usePagination } from "@/hooks/usePagination"
-import { formatDateTime } from "@/lib/utils"
+import { formatDateTime, formatDate } from "@/lib/utils"
 import { IS_MOCK } from "@/lib/config"
 import type { AuditLog, Json } from "@/types/supabase"
 import { Loader2, Search, FilterX } from "lucide-react"
 
 interface Change {
   key: string
-  oldValue: string
-  newValue: string
+  oldValue: Json | null | undefined
+  newValue: Json | null | undefined
+}
+
+const IGNORED_KEYS = new Set(["created_at", "updated_at"])
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isEmpty(value: Json | null | undefined): boolean {
+  return value === null || value === undefined
+}
+
+function fieldLabel(key: string, t: (k: string) => string): string {
+  const value = t(`admin.audit.fieldLabels.${key}`)
+  return value && !value.startsWith("admin.audit.fieldLabels.") ? value : key
+}
+
+function formatValue(key: string, value: Json | null | undefined, t: (k: string) => string): string {
+  if (isEmpty(value)) return "∅"
+  if (typeof value === "boolean") return value ? t("admin.audit.yes") || "Oui" : t("admin.audit.no") || "Non"
+  if (typeof value === "object") return JSON.stringify(value)
+  const s = String(value)
+  const isDateKey = /date|_at$|_on$/i.test(key)
+  if (isDateKey && !Number.isNaN(Date.parse(s))) return formatDate(s)
+  if (UUID_RE.test(s)) return shorten(s, 12)
+  return shorten(s, 30)
+}
+
+function pick(data: Json | null | undefined, keys: string[]): Json | undefined {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return undefined
+  const obj = data as Record<string, Json | undefined>
+  for (const k of keys) {
+    const v = obj[k]
+    if (v !== null && v !== undefined) return v
+  }
+  return undefined
+}
+
+function entityName(log: AuditLog, t: (k: string) => string): string {
+  const data = log.new_data ?? log.old_data
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const obj = data as Record<string, Json | null | undefined>
+    const first = obj.first_name
+    const last = obj.last_name
+    if (typeof first === "string" || typeof last === "string") {
+      const name = `${typeof first === "string" ? first : ""} ${typeof last === "string" ? last : ""}`.trim()
+      if (name) return name
+    }
+    for (const k of ["name", "title", "description", "category"]) {
+      const v = obj[k]
+      if (typeof v === "string" && v.trim()) return shorten(v.trim(), 30)
+    }
+    if (log.entity_type === "payments" && !isEmpty(obj.amount)) {
+      return `${shorten(log.entity_id, 8)} · ${formatValue("amount", obj.amount, t)}`
+    }
+    const sub = pick(data, ["subscription_id", "formula_id"])
+    if (log.entity_type === "member_subscriptions" && typeof sub === "string") return shorten(sub, 12)
+  }
+  return shorten(log.entity_id, 12)
+}
+
+function actionLabel(action: AuditLog["action"], t: (key: string) => string): string {
+  switch (action) {
+    case "INSERT":
+      return t("admin.audit.insert") || "Création"
+    case "UPDATE":
+      return t("admin.audit.update") || "Modification"
+    case "DELETE":
+      return t("admin.audit.delete") || "Suppression"
+  }
+}
+
+function entityLabel(entityType: string, t: (key: string) => string): string {
+  const key = `admin.audit.entityTypes.${entityType}`
+  const value = t(key)
+  return value && !value.startsWith("admin.audit.entityTypes.") ? value : entityType
 }
 
 function toDisplay(value: Json | undefined | null): string {
@@ -38,19 +112,24 @@ function objectEntries(value: Json | null | undefined): [string, Json | undefine
 
 function computeChanges(action: AuditLog["action"], oldData: Json | null, newData: Json | null): Change[] {
   if (action === "INSERT") {
-    return objectEntries(newData).map(([key, value]) => ({ key, oldValue: "", newValue: toDisplay(value) }))
+    return objectEntries(newData)
+      .filter(([key]) => !IGNORED_KEYS.has(key))
+      .map(([key, value]) => ({ key, oldValue: null, newValue: value }))
   }
   if (action === "DELETE") {
-    return objectEntries(oldData).map(([key, value]) => ({ key, oldValue: toDisplay(value), newValue: "" }))
+    return objectEntries(oldData)
+      .filter(([key]) => !IGNORED_KEYS.has(key))
+      .map(([key, value]) => ({ key, oldValue: value, newValue: null }))
   }
   const oldEntries = new Map(objectEntries(oldData))
   const newEntries = new Map(objectEntries(newData))
   const keys = new Set([...oldEntries.keys(), ...newEntries.keys()])
   const changes: Change[] = []
   for (const key of keys) {
-    const oldValue = toDisplay(oldEntries.get(key))
-    const newValue = toDisplay(newEntries.get(key))
-    if (oldValue !== newValue) {
+    if (IGNORED_KEYS.has(key)) continue
+    const oldValue = oldEntries.get(key)
+    const newValue = newEntries.get(key)
+    if (toDisplay(oldValue) !== toDisplay(newValue)) {
       changes.push({ key, oldValue, newValue })
     }
   }
@@ -61,7 +140,7 @@ function shorten(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text
 }
 
-function ChangesCell({ log }: { log: AuditLog }) {
+function ChangesCell({ log, t }: { log: AuditLog; t: (key: string) => string }) {
   const changes = useMemo(() => computeChanges(log.action, log.old_data, log.new_data), [log])
   const visible = changes.slice(0, 4)
   const hidden = changes.length - visible.length
@@ -69,18 +148,20 @@ function ChangesCell({ log }: { log: AuditLog }) {
     <div className="max-w-[320px] space-y-0.5">
       {visible.map((c) => (
         <div key={c.key} className="flex items-baseline gap-1 text-xs leading-tight">
-          <span className="font-medium text-foreground shrink-0">{c.key}</span>
+          <span className="font-medium text-foreground shrink-0">{fieldLabel(c.key, t)}</span>
           <span className="text-muted-foreground">:</span>
-          {c.oldValue && (
-            <span className="line-through text-muted-foreground truncate">{shorten(c.oldValue, 24)}</span>
+          {!isEmpty(c.oldValue) && (
+            <span className="line-through text-muted-foreground truncate">{formatValue(c.key, c.oldValue, t)}</span>
           )}
-          {c.oldValue && c.newValue && <span className="text-muted-foreground shrink-0">→</span>}
-          {c.newValue && <span className="text-foreground truncate">{shorten(c.newValue, 24)}</span>}
+          {!isEmpty(c.oldValue) && !isEmpty(c.newValue) && <span className="text-muted-foreground shrink-0">→</span>}
+          {!isEmpty(c.newValue) && (
+            <span className="text-foreground truncate">{formatValue(c.key, c.newValue, t)}</span>
+          )}
         </div>
       ))}
       {hidden > 0 && (
         <p className="text-xs text-muted-foreground">
-          +{hidden} {hidden === 1 ? "champ" : "champs"}
+          {t("admin.audit.changedFields")?.replace("{n}", String(hidden)) || `+${hidden} champ(s)`}
         </p>
       )}
       {changes.length === 0 && <p className="text-xs text-muted-foreground">—</p>}
@@ -92,7 +173,7 @@ const ACTION_OPTIONS = ["INSERT", "UPDATE", "DELETE"] as const
 
 export default function AuditPage() {
   const t = useT()
-  const { organization } = useAuth()
+  const { organization, user } = useAuth()
   const supabase = useSupabase()
   const orgId = organization?.id
 
@@ -149,10 +230,15 @@ export default function AuditPage() {
   }, [logs])
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
     return logs.filter((log: AuditLog) => {
       if (action !== "all" && log.action !== action) return false
       if (entityType !== "all" && log.entity_type !== entityType) return false
-      if (search && !log.entity_id.toLowerCase().includes(search.toLowerCase())) return false
+      if (q) {
+        const id = (log.entity_id ?? "").toLowerCase()
+        const et = (log.entity_type ?? "").toLowerCase()
+        if (!id.includes(q) && !et.includes(q)) return false
+      }
       if (dateFrom && new Date(log.created_at) < new Date(`${dateFrom}T00:00:00`)) return false
       if (dateTo && new Date(log.created_at) > new Date(`${dateTo}T23:59:59.999`)) return false
       return true
@@ -167,7 +253,8 @@ export default function AuditPage() {
 
   const resolveUser = (userId: string | null): string => {
     if (!userId) return t("admin.audit.system") || "Système"
-    return staffMap.get(userId) ?? shorten(userId, 8)
+    if (user?.id && userId === user.id) return t("admin.audit.you") || "Vous"
+    return staffMap.get(userId) ?? shorten(userId, 12)
   }
 
   const resetFilters = () => {
@@ -225,7 +312,7 @@ export default function AuditPage() {
                 <SelectContent>
                   <SelectItem value="all">{t("admin.audit.all") || "Tous"}</SelectItem>
                   {entityTypes.map((et) => (
-                    <SelectItem key={et} value={et}>{et}</SelectItem>
+                    <SelectItem key={et} value={et}>{entityLabel(et, t)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -239,7 +326,7 @@ export default function AuditPage() {
                 <SelectContent>
                   <SelectItem value="all">{t("admin.audit.all") || "Tous"}</SelectItem>
                   {ACTION_OPTIONS.map((a) => (
-                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                    <SelectItem key={a} value={a}>{actionLabel(a, t)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -287,18 +374,18 @@ export default function AuditPage() {
                           variant={log.action === "DELETE" ? "destructive" : log.action === "UPDATE" ? "secondary" : "default"}
                           className="text-xs"
                         >
-                          {log.action}
+                          {actionLabel(log.action, t)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm">{log.entity_type}</TableCell>
+                      <TableCell className="text-sm">{entityLabel(log.entity_type, t)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground font-mono" title={log.entity_id}>
-                        {shorten(log.entity_id, 16)}
+                        {entityName(log, t)}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-muted-foreground" title={log.user_id ?? undefined}>
                         {resolveUser(log.user_id)}
                       </TableCell>
                       <TableCell>
-                        <ChangesCell log={log} />
+                        <ChangesCell log={log} t={t} />
                       </TableCell>
                     </TableRow>
                   ))}
