@@ -34,7 +34,7 @@ import {
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
 import { Pagination } from "@/components/ui/pagination"
-import { formatDate, formatCurrency, toUpper } from "@/lib/utils"
+import { formatDate, formatCurrency, toUpper, cleanPaymentNotes } from "@/lib/utils"
 import { getNextInvoiceNumber } from "@/lib/invoice"
 import { InvoiceDialog } from "@/components/ui/invoice-dialog"
 import { useOpenMember } from "@/hooks/useOpenMember"
@@ -598,7 +598,9 @@ export default function PaymentsPage() {
                           {payment.status === "completed" ? t("payments.completed") : payment.status === "pending" ? t("common.pending") : t("payments.cancelled")}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate">{toUpper(payment.notes) || "-"}</TableCell>
+                      <TableCell className="max-w-[220px] max-h-20 overflow-y-auto text-xs leading-snug">
+                        {cleanPaymentNotes(payment.notes) ? toUpper(cleanPaymentNotes(payment.notes)) : "-"}
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleGenerateInvoice(payment)}>
                           <FileText className="h-4 w-4" />
@@ -648,7 +650,11 @@ export default function PaymentsPage() {
                       <FileText className="h-4 w-4" />
                     </Button>
                   </div>
-                  {payment.notes && <p className="mt-2 text-xs text-muted-foreground truncate">{toUpper(payment.notes)}</p>}
+                  {cleanPaymentNotes(payment.notes) && (
+                    <p className="mt-2 text-xs text-muted-foreground max-h-16 overflow-y-auto leading-snug">
+                      {toUpper(cleanPaymentNotes(payment.notes))}
+                    </p>
+                  )}
                 </Card>
               ))
             )}

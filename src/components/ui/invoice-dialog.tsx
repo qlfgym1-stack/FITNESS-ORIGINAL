@@ -8,7 +8,7 @@ import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from "@/components/ui/table"
 import { Download, Printer, Loader2 } from "lucide-react"
-import { formatCurrency, formatDate, toUpper } from "@/lib/utils"
+import { formatCurrency, formatDate, toUpper, cleanPaymentNotes } from "@/lib/utils"
 import { generateInvoice, type InvoiceData } from "@/lib/invoice"
 import type { Payment } from "@/types/supabase"
 
@@ -39,8 +39,13 @@ export function InvoiceDialog({
   const [generating, setGenerating] = useState(false)
 
   const memberName = `${toUpper(payment.members?.first_name)} ${toUpper(payment.members?.last_name)}`
-  const description = payment.notes || "Paiement"
   const subscriptionName = payment.member_subscriptions?.subscription_types?.name
+  const cleanNotes = cleanPaymentNotes(payment.notes)
+  const itemDescription = subscriptionName
+    ? cleanNotes && cleanNotes.toLowerCase() !== subscriptionName.toLowerCase()
+      ? `${cleanNotes} - ${subscriptionName}`
+      : subscriptionName
+    : cleanNotes || "Paiement"
 
   const buildInvoiceData = useCallback((): InvoiceData => ({
     invoiceNumber,
@@ -52,7 +57,7 @@ export function InvoiceDialog({
     organizationPhone: organizationPhone ?? undefined,
     items: [
       {
-        description: subscriptionName ? `${description} - ${subscriptionName}` : description,
+        description: itemDescription,
         quantity: 1,
         unitPrice: payment.amount,
         total: payment.amount,
@@ -61,7 +66,7 @@ export function InvoiceDialog({
     subtotal: payment.amount,
     total: payment.amount,
     paymentMethod: payment.payment_method,
-  }), [invoiceNumber, payment, memberName, organizationName, organizationAddress, organizationPhone, subscriptionName, description])
+  }), [invoiceNumber, payment, memberName, organizationName, organizationAddress, organizationPhone, itemDescription])
 
   const handleDownload = useCallback(async () => {
     setGenerating(true)
@@ -129,8 +134,8 @@ export function InvoiceDialog({
             </TableHeader>
             <TableBody>
               <TableRow>
-                <TableCell>
-                  {subscriptionName ? `${description} - ${subscriptionName}` : description}
+                <TableCell className="max-w-[300px] break-words">
+                  {itemDescription}
                 </TableCell>
                 <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
               </TableRow>

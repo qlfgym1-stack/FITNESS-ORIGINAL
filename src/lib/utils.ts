@@ -96,3 +96,17 @@ export function displayPhone(phone: string | null | undefined): string {
   if (!f) return '-'
   return `${f.slice(0, 2)} ${f.slice(2, 4)} ${f.slice(4, 6)} ${f.slice(6, 8)} ${f.slice(8)}`
 }
+
+/**
+ * Nettoie les notes de paiement héritées d'un import (format `LINE=5|LEGACY_MEMBER=4|LEGACY_SUB=4 - Mensuel`).
+ * Retire les métadonnées techniques (ligne d'import, anciens IDs) et ne garde que le libellé exploitable.
+ */
+export function cleanPaymentNotes(notes: string | null | undefined): string {
+  if (!notes) return ""
+  return String(notes)
+    .replace(/\bline\s*=\s*[0-9]+\b/gi, " ")
+    .replace(/\blegacy_[a-z0-9_]+\s*=\s*[^|\s]+/gi, " ")
+    .replace(/\s*\|\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
