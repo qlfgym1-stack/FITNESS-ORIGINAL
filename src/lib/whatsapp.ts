@@ -45,3 +45,16 @@ export function sendWhatsApp(phone: string, message: string): void {
     window.open(webUrl, "_blank")
   }
 }
+
+/** Choisit le modèle WhatsApp selon le statut d'abonnement du membre. */
+export function templateForStatus(status: string | null | undefined): WaTemplateKey {
+  if (status === "expired" || status === "cancelled") return "expired"
+  return "renewal"
+}
+
+/** Couleur d'icône WhatsApp selon le statut d'abonnement. */
+export function toneForStatus(status: string | null | undefined): "green" | "amber" | "red" {
+  if (status === "expired" || status === "cancelled") return "red"
+  if (status === "pending_payment") return "amber"
+  return "green"
+}

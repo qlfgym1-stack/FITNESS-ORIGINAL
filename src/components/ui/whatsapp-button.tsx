@@ -8,6 +8,7 @@ interface WhatsAppButtonProps {
   data: Record<string, string | number>
   size?: "sm" | "md"
   label?: string
+  tone?: "green" | "amber" | "red"
 }
 
 export function WhatsAppIcon({ className }: { className?: string }) {
@@ -18,10 +19,19 @@ export function WhatsAppIcon({ className }: { className?: string }) {
   )
 }
 
-export function WhatsAppButton({ phone, template, data, size = "sm", label }: WhatsAppButtonProps) {
+export function WhatsAppButton({ phone, template, data, size = "sm", label, tone = "green" }: WhatsAppButtonProps) {
   if (!phone) return null
 
   const message = getTemplate(template, data)
+
+  const iconTone =
+    size === "sm"
+      ? {
+          green: "text-[#25d366] hover:bg-[#25d366]/10 hover:text-[#128c7e]",
+          amber: "text-[#f59e0b] hover:bg-[#f59e0b]/10 hover:text-[#b45309]",
+          red: "text-[#ef4444] hover:bg-[#ef4444]/10 hover:text-[#b91c1c]",
+        }[tone]
+      : undefined
 
   return (
     <Button
@@ -30,7 +40,7 @@ export function WhatsAppButton({ phone, template, data, size = "sm", label }: Wh
       className={cn(
         size === "md" &&
           "bg-gradient-to-br from-[#25d366] via-[#1eb457] to-[#128c7e] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_14px_-2px_rgba(37,211,102,0.45)] hover:from-[#1eb457] hover:via-[#128c7e] hover:to-[#075e54] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_26px_-4px_rgba(18,140,126,0.6)]",
-        size === "sm" && "text-[#25d366] hover:bg-[#25d366]/10 hover:text-[#128c7e]",
+        size === "sm" && iconTone,
       )}
       onClick={() => sendWhatsApp(phone, message)}
       title={label || "WhatsApp"}

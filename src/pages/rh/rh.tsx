@@ -96,7 +96,6 @@ export default function RhPage() {
         .from('staff')
         .select('id, first_name, last_name, username, email, phone, role, salary, rate_per_member, bonus, is_active')
         .eq('organization_id', orgId)
-        .eq('is_active', true)
         .order('first_name')
       return (data ?? []) as StaffRow[]
     },
@@ -266,6 +265,7 @@ export default function RhPage() {
                         <p className="font-medium text-sm truncate">{toUpper(s.first_name)} {toUpper(s.last_name)}</p>
                         <div className="flex items-center gap-1.5">
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">{roleLabel(s.role)}</Badge>
+                          {!s.is_active && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-normal">Inactif</Badge>}
                           <span className="text-xs text-muted-foreground">{formatCurrency(s.salary ?? 0)}</span>
                           {(s.bonus ?? 0) > 0 && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal text-warning border-warning/40">{formatCurrency(s.bonus ?? 0)}</Badge>
