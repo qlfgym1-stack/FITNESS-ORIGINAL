@@ -23,7 +23,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Plus, Download, Upload, Pencil, Trash2, Loader2, Shield, CreditCard, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, X, History } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 import { WhatsAppButton } from '@/components/ui/whatsapp-button'
-import { DEFAULT_TEMPLATES } from '@/lib/whatsapp'
+import { DEFAULT_TEMPLATES, templateForStatus, toneForStatus } from '@/lib/whatsapp'
 import { useExportCsv } from '@/hooks/useExportCsv'
 import { formatDate, getInitials, getStatusColor, toUpper, formatCurrency, formatPhone, isValidDzPhone, displayPhone, memberFullName, splitFullName } from '@/lib/utils'
 import type { Member, SubscriptionType, RfidCard } from '@/types/supabase'
@@ -441,7 +441,14 @@ export default function Members() {
         let filtered = [...mockMembers]
         if (search) {
           const q = search.toLowerCase()
-          filtered = filtered.filter(m => memberFullName(m).toLowerCase().includes(q) || (m.email && m.email.toLowerCase().includes(q)) || (m.phone && m.phone.includes(q)) || (m.member_number && m.member_number.toLowerCase().includes(q)))
+          filtered = filtered.filter(m =>
+            (m.first_name && m.first_name.toLowerCase().includes(q)) ||
+            (m.last_name && m.last_name.toLowerCase().includes(q)) ||
+            memberFullName(m).toLowerCase().includes(q) ||
+            (m.email && m.email.toLowerCase().includes(q)) ||
+            (m.phone && m.phone.toLowerCase().includes(q)) ||
+            (m.member_number && m.member_number.toLowerCase().includes(q))
+          )
         }
         if (statusFilter !== 'all') filtered = filtered.filter(m => m.status === statusFilter)
         if (genderFilter !== 'all') filtered = filtered.filter(m => m.gender === genderFilter)
@@ -458,7 +465,7 @@ export default function Members() {
       query = query.order(sortBy, { ascending: sortDir === 'asc' })
 
       if (debouncedSearch) {
-        query = query.or(`full_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%,member_number.ilike.%${debouncedSearch}%`)
+        query = query.or(`first_name.ilike.%${debouncedSearch}%,last_name.ilike.%${debouncedSearch}%,full_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%,member_number.ilike.%${debouncedSearch}%`)
       }
       if (statusFilter !== 'all') query = query.eq('status', statusFilter as any)
       if (genderFilter !== 'all') query = query.eq('gender', genderFilter)
@@ -967,10 +974,11 @@ export default function Members() {
                       {member.phone && (
                         <WhatsAppButton
                           phone={member.phone}
-                          template={DEFAULT_TEMPLATES.renewal}
+                          template={DEFAULT_TEMPLATES[templateForStatus((memberSubMap as Record<string, { status?: string }> | null)?.[member.id]?.status)]}
+                          tone={toneForStatus((memberSubMap as Record<string, { status?: string }> | null)?.[member.id]?.status)}
                           data={{
                             NOM: memberFullName(member),
-                            DATE: (memberSubMap as Record<string, { end_date: string | null }>)[member.id]?.end_date ?? '',
+                            DATE: (memberSubMap as Record<string, { end_date?: string | null }> | null)?.[member.id]?.end_date ?? '',
                             NOM_SALLE: organization?.name || '',
                           }}
                         />
@@ -1030,10 +1038,11 @@ export default function Members() {
                   {member.phone && (
                     <WhatsAppButton
                       phone={member.phone}
-                      template={DEFAULT_TEMPLATES.renewal}
+                      template={DEFAULT_TEMPLATES[templateForStatus((memberSubMap as Record<string, { status?: string }> | null)?.[member.id]?.status)]}
+                      tone={toneForStatus((memberSubMap as Record<string, { status?: string }> | null)?.[member.id]?.status)}
                       data={{
                         NOM: memberFullName(member),
-                        DATE: (memberSubMap as Record<string, { end_date: string | null }>)[member.id]?.end_date ?? '',
+                        DATE: (memberSubMap as Record<string, { end_date?: string | null }> | null)?.[member.id]?.end_date ?? '',
                         NOM_SALLE: organization?.name || '',
                       }}
                     />

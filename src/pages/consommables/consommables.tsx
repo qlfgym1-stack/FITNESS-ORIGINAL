@@ -137,7 +137,13 @@ export default function ConsommablesPage() {
   }, [linkedInventory])
 
   const filtered = items.filter((item: Consumable) => {
-    const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || (item.brand ?? "").toLowerCase().includes(search.toLowerCase())
+    const q = search.toLowerCase()
+    const matchesSearch = !search ||
+      item.name.toLowerCase().includes(q) ||
+      (item.category ?? "").toLowerCase().includes(q) ||
+      (item.brand ?? "").toLowerCase().includes(q) ||
+      (item.unit ?? "").toLowerCase().includes(q) ||
+      (item.notes ?? "").toLowerCase().includes(q)
     const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
     return matchesSearch && matchesCategory
   })

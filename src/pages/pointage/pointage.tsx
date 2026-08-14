@@ -23,7 +23,7 @@ import {
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { PageHeader } from "@/components/layout"
-import { getInitials, toUpper, formatCurrency } from "@/lib/utils"
+import { getInitials, toUpper, formatCurrency, formatPhone, displayPhone } from "@/lib/utils"
 import { buildDayStats } from "./lib/dayActivity"
 import { MemberDayDetail } from "./components/member-day-detail"
 
@@ -34,7 +34,7 @@ type AttendanceRow = {
   member_id: string
   check_in: string | null
   check_out: string | null
-  member: { first_name: string; last_name: string; photo_url: string | null } | null
+  member: { first_name: string; last_name: string; photo_url: string | null; phone: string | null } | null
 }
 
 type PhoneMember = {
@@ -175,7 +175,7 @@ export default function PointagePage() {
       if (!orgId) return []
       const { data } = await supabase
         .from("attendance")
-        .select("id, member_id, check_in, check_out, member:members!inner(first_name, last_name, photo_url)")
+        .select("id, member_id, check_in, check_out, member:members!inner(first_name, last_name, photo_url, phone)")
         .eq("organization_id", orgId)
         .gte("check_in", selectedDate)
         .lt("check_in", nextDayStr)
@@ -273,9 +273,15 @@ export default function PointagePage() {
     return `${Math.round((checkedInToday.length / 100) * 100)}%`
   }, [checkedInToday])
 
-  const filteredToday = checkedInToday.filter((a: AttendanceRow) =>
-    `${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredToday = checkedInToday.filter((a: AttendanceRow) => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return true
+    const name = `${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`.toLowerCase()
+    if (name.includes(q)) return true
+    const phoneDigits = formatPhone(a.member?.phone ?? "")
+    const qDigits = q.replace(/\D/g, "")
+    return qDigits.length >= 2 && phoneDigits.includes(qDigits)
+  })
 
   const { page, setPage, totalPages, paginatedData: paginatedAttendance } = usePagination(filteredToday, 20)
 
@@ -1257,7 +1263,7 @@ export default function PointagePage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher un membre..."
+                placeholder="Rechercher par nom ou téléphone..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -1301,6 +1307,9 @@ export default function PointagePage() {
                         {toUpper(`${a.member?.first_name ?? ""} ${a.member?.last_name ?? ""}`)}
                       </button>
                       <div className="flex items-center gap-2 text-xs">
+                        {a.member?.phone && (
+                          <span className="text-muted-foreground font-mono">{displayPhone(a.member.phone)}</span>
+                        )}
                         <span className="text-success font-medium flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
                           {formatTime(a.check_in)}
