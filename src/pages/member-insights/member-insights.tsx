@@ -11,6 +11,11 @@ import { BehaviorMatrix } from "./components/behavior-matrix"
 import { AttendanceSection } from "./components/attendance-section"
 import { SubscriptionTypes } from "./components/subscription-types"
 import { TopMembers } from "./components/top-members"
+import { PeriodSection } from "./components/period-section"
+import { SegmentationSection } from "./components/segmentation-section"
+import { CoachSection } from "./components/coach-section"
+import { RecommendationsSection } from "./components/recommendations-section"
+import { FinanceSection } from "./components/finance-section"
 
 export default function MemberInsights() {
   const t = useT()
@@ -43,12 +48,29 @@ export default function MemberInsights() {
         <>
           <KpiCards aggregate={data.aggregate} churnDist={data.churnDist} t={t} />
 
+          <PeriodSection
+            members={data.members}
+            subscriptions={data.subscriptions}
+            payments={data.payments}
+            attendance={data.attendance}
+            posTransactions={data.posTransactions}
+            t={t}
+          />
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ActivitySection activity={data.activity} total={data.members.length} t={t} />
             <ChurnSection risks={data.risks} churnDist={data.churnDist} highValue={data.highValue} t={t} />
           </div>
 
           <BehaviorMatrix behavior={data.behavior} t={t} />
+
+          <SegmentationSection segmentSummary={data.segmentSummary} total={data.members.length} t={t} />
+
+          <CoachSection analysis={data.coachAnalysis} t={t} />
+
+          <RecommendationsSection recommendations={data.recommendations} t={t} />
+
+          <FinanceSection stats={data.finance} t={t} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <AttendanceSection stats={data.attendanceStats} t={t} />

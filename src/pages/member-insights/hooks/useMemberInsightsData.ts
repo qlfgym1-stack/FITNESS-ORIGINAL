@@ -3,11 +3,14 @@ import { useQuery } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
 import { IS_MOCK } from "@/lib/config"
-import type { MemberRow, PaymentRow, SubscriptionRow, AttendanceRow, PosTransactionRow } from "../lib/raw"
+import type { MemberRow, PaymentRow, SubscriptionRow, AttendanceRow, PosTransactionRow, StaffRow } from "../lib/raw"
 import { computeMemberKpis, aggregateKpis, analyzeSubscriptionTypes, analyzeAttendance, activitySegment } from "../lib/kpi"
 import { churnRiskBatch, churnDistribution } from "../lib/churn"
 import { segmentMembers, summarizeSegments } from "../lib/segmentation"
 import { behaviorMatrix, highValueAtRisk } from "../lib/behaviorMatrix"
+import { analyzeCoaches } from "../lib/coach"
+import { generateRecommendations } from "../lib/recommend"
+import { analyzeFinance } from "../lib/finance"
 import type { MemberInsightsData } from "./types"
 
 interface PosItem {
@@ -34,6 +37,12 @@ function parseItems(items: unknown): PosItem[] {
   }))
 }
 
+const MOCK_STAFF: StaffRow[] = [
+  { id: "mock-coach-0", first_name: "Karim", last_name: "Slimani", role: "coach" },
+  { id: "mock-coach-1", first_name: "Nadia", last_name: "Bekkar", role: "coach" },
+  { id: "mock-staff-0", first_name: "Rachid", last_name: "Mansouri", role: "manager" },
+]
+
 const MOCK_MEMBERS: MemberRow[] = Array.from({ length: 40 }, (_, i) => {
   const active = i % 5 !== 0
   const lastVisit = active
@@ -47,7 +56,7 @@ const MOCK_MEMBERS: MemberRow[] = Array.from({ length: 40 }, (_, i) => {
     status: active ? "active" : "inactive",
     last_visit: lastVisit,
     created_at: new Date(Date.now() - (30 + i * 3) * DAY).toISOString(),
-    coach_id: null,
+    coach_id: i % 3 === 0 ? `mock-coach-${i % 2}` : null,
     corporate_id: null,
   }
 })
@@ -248,11 +257,25 @@ export function useMemberInsightsData(): MemberInsightsData {
     enabled: !!orgId && !isMock,
   })
 
+  const { data: staffData, error: staffError } = useQuery({
+    queryKey: ["member-insights", "staff", orgId],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("staff")
+        .select("id, first_name, last_name, role")
+        .eq("organization_id", orgId!)
+      if (error) throw error
+      return (data ?? []) as StaffRow[]
+    },
+    enabled: !!orgId && !isMock,
+  })
+
   const members = membersData ?? (isMock ? MOCK_MEMBERS : [])
   const subscriptions = subsData ?? (isMock ? MOCK_SUBSCRIPTIONS : [])
   const payments = paymentsData ?? (isMock ? MOCK_PAYMENTS : [])
   const attendance = attendanceData ?? (isMock ? MOCK_ATTENDANCE : [])
   const posTransactions = posData ?? (isMock ? MOCK_POS : [])
+  const staff = staffData ?? (isMock ? MOCK_STAFF : [])
 
   const loading = useMemo(
     () =>
@@ -261,13 +284,17 @@ export function useMemberInsightsData(): MemberInsightsData {
         subsData === undefined ||
         paymentsData === undefined ||
         attendanceData === undefined ||
-        posData === undefined),
-    [membersData, subsData, paymentsData, attendanceData, posData, isMock]
+        posData === undefined ||
+        staffData === undefined),
+    [membersData, subsData, paymentsData, attendanceData, posData, staffData, isMock]
   )
 
   const error = useMemo(
-    () => (isMock ? null : (membersError ?? subsError ?? paymentsError ?? attendanceError ?? posError ?? null)),
-    [membersError, subsError, paymentsError, attendanceError, posError, isMock]
+    () =>
+      isMock
+        ? null
+        : (membersError ?? subsError ?? paymentsError ?? attendanceError ?? posError ?? staffError ?? null),
+    [membersError, subsError, paymentsError, attendanceError, posError, staffError, isMock]
   )
 
   return useMemo(
@@ -283,6 +310,9 @@ export function useMemberInsightsData(): MemberInsightsData {
       const attendanceStats = analyzeAttendance(attendance, members.length)
       const typeStats = analyzeSubscriptionTypes(subscriptions)
       const highValue = highValueAtRisk(memberKpis)
+      const coachAnalysis = analyzeCoaches(members, staff, memberKpis, payments, attendance)
+      const recommendations = generateRecommendations(memberKpis)
+      const finance = analyzeFinance(payments, posTransactions)
       return {
         loading,
         error,
@@ -291,6 +321,7 @@ export function useMemberInsightsData(): MemberInsightsData {
         payments,
         attendance,
         posTransactions,
+        staff,
         memberKpis,
         aggregate,
         risks,
@@ -302,8 +333,11 @@ export function useMemberInsightsData(): MemberInsightsData {
         attendanceStats,
         typeStats,
         highValue,
+        coachAnalysis,
+        recommendations,
+        finance,
       }
     },
-    [loading, error, members, subscriptions, payments, attendance, posTransactions]
+    [loading, error, members, subscriptions, payments, attendance, posTransactions, staff]
   )
 }

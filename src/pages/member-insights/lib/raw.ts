@@ -53,3 +53,10 @@ export interface CoachRow {
   id: string
   full_name: string
 }
+
+export interface StaffRow {
+  id: string
+  first_name: string
+  last_name: string
+  role: string | null
+}
