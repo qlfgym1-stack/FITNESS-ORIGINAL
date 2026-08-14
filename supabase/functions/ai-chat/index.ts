@@ -29,7 +29,7 @@ const FREE_MODELS = [
 ]
 
 const FREE_CODING = 'openai/gpt-oss-20b:free'
-const FREE_REASONING = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
+const FREE_REASONING = 'openai/gpt-oss-20b:free'
 const FREE_MULTILINGUAL = 'google/gemma-4-26b-a4b-it:free'
 const DEFAULT_MODEL = 'openai/gpt-oss-20b:free'
 
@@ -125,44 +125,77 @@ serve(async (req) => {
     const prompt = lastUser ? lastUser.content : ''
     const selectedModel = model && isFreeModel(model) ? model : pickFreeModel(prompt)
 
+    // Candidats à essayer : modèle sélectionné en premier, puis les 2 premiers
+    // modèles de secours uniquement (on borne la latence : réponse visée 5-6 s).
+    const candidates = [selectedModel, ...FREE_MODELS.filter((m) => m !== selectedModel)].slice(0, 3)
+
     const systemContent = context
-      ? `Tu es l'assistant IA de gestion d'une salle de sport (FitManager Pro). Utilise le contexte de données fourni pour répondre en français, de façon concise et actionnable.\n\nContexte de données:\n${context}`
-      : `Tu es l'assistant IA de gestion d'une salle de sport (FitManager Pro). Réponds en français, de façon concise et actionnable.`
+      ? `Tu es l'assistant IA de gestion d'une salle de sport (QLF GYM). Utilise le contexte de données fourni pour répondre en français, de façon concise et actionnable.\n\nContexte de données:\n${context}`
+      : `Tu es l'assistant IA de gestion d'une salle de sport (QLF GYM). Réponds en français, de façon concise et actionnable.`
 
     const fullMessages: ChatMessage[] = [
       { role: 'system', content: systemContent },
       ...messages,
     ]
 
-    const response = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openrouterKey}`,
-        'HTTP-Referer': 'https://qlfgym.vercel.app',
-        'X-Title': 'FitManager Pro',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages: fullMessages,
-        max_tokens: 300,
-      }),
-      signal: AbortSignal.timeout(45000),
-    })
+    let lastStatus = 0
+    let lastText = ''
+    let lastModel = ''
+    let tried = 0
 
-    if (!response.ok) {
-      const errText = await response.text()
-      console.error('OpenRouter error:', response.status, errText)
-      return json({ error: 'AI provider error', status: response.status, details: errText }, 502, cors)
+    for (const candidate of candidates) {
+      lastModel = candidate
+      tried += 1
+      let response: Response
+      try {
+        response = await fetch(OPENROUTER_API_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${openrouterKey}`,
+            'HTTP-Referer': 'https://qlfgym.vercel.app',
+            'X-Title': 'QLF GYM',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: candidate,
+            messages: fullMessages,
+            max_tokens: 200,
+            temperature: 0.3,
+          }),
+          signal: AbortSignal.timeout(15000),
+        })
+      } catch (fetchErr) {
+        // Timeout / réseau : on tente le modèle suivant.
+        lastStatus = 0
+        lastText = `network error: ${(fetchErr as Error).message}`
+        continue
+      }
+
+      if (response.ok) {
+        const data = await response.json()
+        const content = data?.choices?.[0]?.message?.content ?? null
+        if (content) {
+          return json({ content, model: candidate }, 200, cors)
+        }
+        lastStatus = 502
+        lastText = 'empty AI response'
+        continue
+      }
+
+      lastStatus = response.status
+      lastText = await response.text()
+
+      // 401/403 → clé API invalide : retenter un autre modèle ne changera rien.
+      if (response.status === 401 || response.status === 403) break
+      // Les autres erreurs (404 modèle retiré, 429 débit, 4xx/5xx provider) → on
+      // tente le modèle suivant de la whitelist.
     }
 
-    const data = await response.json()
-    const content = data?.choices?.[0]?.message?.content ?? null
-    if (!content) {
-      return json({ error: 'Empty AI response' }, 502, cors)
-    }
-
-    return json({ content }, 200, cors)
+    console.error('OpenRouter error:', lastStatus, lastModel, lastText)
+    const details = tried > 1
+      ? `${lastText} (modèles essayés: ${tried})`
+      : lastText
+    return json({ error: 'AI provider error', status: lastStatus, details, model: lastModel }, 502, cors)
   } catch (err) {
     console.error('ai-chat error:', err)
     return json({ error: 'Internal server error', details: err.message }, 500, cors)
