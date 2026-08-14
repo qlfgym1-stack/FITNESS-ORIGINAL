@@ -14,6 +14,17 @@ const ROBOT_SIZE = 56
 const DRAG_THRESHOLD = 5
 const STORAGE_KEY = "fitmanager-ai-robot-pos"
 
+// ===== Mode FITNESS : après 15s d'inactivité le robot s'entraîne (1x → 3x) =====
+const FITNESS_IDLE_MS = 15000
+const FITNESS_SCALE = 3
+const FITNESS_MARGIN = 60
+const GROW_MS = 1150
+const DRINK_MS = 2400
+const REST_MS = 1600
+
+type FitPhase = "normal" | "growing" | "fitness" | "water" | "resting"
+type FitExercise = "none" | "curl" | "bar" | "rest" | "water"
+
 interface RobotPos {
   x: number
   y: number
@@ -26,6 +37,19 @@ function clampPos(p: RobotPos): RobotPos {
     x: Math.min(Math.max(0, p.x), Math.max(0, vw - ROBOT_SIZE)),
     y: Math.min(Math.max(0, p.y), Math.max(0, vh - ROBOT_SIZE)),
   }
+}
+
+// En mode fitness le robot est agrandi à 3x (origine centre) : on garde le
+// visuel entier dans le viewport pour ne jamais cacher d'éléments d'interface.
+function fitClampPos(p: RobotPos): RobotPos {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const half = Math.round((ROBOT_SIZE * (FITNESS_SCALE - 1)) / 2)
+  const minX = FITNESS_MARGIN + half
+  const minY = FITNESS_MARGIN + half
+  const maxX = Math.max(minX, vw - FITNESS_MARGIN - half - ROBOT_SIZE)
+  const maxY = Math.max(minY, vh - FITNESS_MARGIN - half - ROBOT_SIZE)
+  return { x: Math.min(Math.max(minX, p.x), maxX), y: Math.min(Math.max(minY, p.y), maxY) }
 }
 
 function defaultPos(): RobotPos {
@@ -75,6 +99,23 @@ export function AiFloatingRobot() {
   const mouseActive = useRef(false)
   const mouseActiveTimer = useRef<number | null>(null)
 
+  // ===== Mode FITNESS (15s d'inactivité → 3x + exercices) =====
+  const [fitActive, setFitActive] = useState(false)
+  const [fitEx, setFitEx] = useState<FitExercise>("none")
+  const fitPhase = useRef<FitPhase>("normal")
+  const fitActiveRef = useRef(false)
+  const openRef = useRef(open)
+  const draggingRef = useRef(dragging)
+  const onlineRef = useRef(isOnline)
+  const reducedMotion = useRef(false)
+  const posRef = useRef<RobotPos>(pos)
+  const idleTimer = useRef<number | null>(null)
+  const fitPhaseTimer = useRef<number | null>(null)
+  const fitCycleTimer = useRef<number | null>(null)
+  const fitRaf = useRef<number | null>(null)
+  const fitTarget = useRef<RobotPos | null>(null)
+  const fitHomePos = useRef<RobotPos | null>(null)
+
   const currentModule = location.pathname.split("/")[1] || "dashboard"
 
   // Ferme le panneau lors d'un changement de module (le robot reste visible)
@@ -94,9 +135,168 @@ export function AiFloatingRobot() {
     return () => window.removeEventListener("resize", onResize)
   }, [])
 
+  // Miroirs de state pour les callbacks fitness (stable, sans re-création)
+  useEffect(() => { openRef.current = open }, [open])
+  useEffect(() => { draggingRef.current = dragging }, [dragging])
+  useEffect(() => { onlineRef.current = isOnline }, [isOnline])
+  useEffect(() => { posRef.current = pos }, [pos])
+  useEffect(() => { fitActiveRef.current = fitActive }, [fitActive])
+
+  // ===== Mode FITNESS : machine à états (aucune API, aucun timer global) =====
+  const clearFitTimers = () => {
+    if (fitPhaseTimer.current != null) { clearTimeout(fitPhaseTimer.current); fitPhaseTimer.current = null }
+    if (fitCycleTimer.current != null) { clearTimeout(fitCycleTimer.current); fitCycleTimer.current = null }
+    if (fitRaf.current != null) { cancelAnimationFrame(fitRaf.current); fitRaf.current = null }
+    fitTarget.current = null
+  }
+
+  // Le robot rove dans le viewport (bornes fitness) pendant l'entraînement
+  const startRoam = () => {
+    const pick = () => {
+      fitTarget.current = fitClampPos({ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight })
+    }
+    pick()
+    const animate = () => {
+      const target = fitTarget.current
+      if (!target) { fitRaf.current = null; return }
+      setPos((prev) => {
+        const dx = target.x - prev.x
+        const dy = target.y - prev.y
+        const dist = Math.hypot(dx, dy)
+        if (dist < 2) { fitTarget.current = null; return prev }
+        const speed = 2.2
+        return { x: prev.x + (dx / dist) * speed, y: prev.y + (dy / dist) * speed }
+      })
+      fitRaf.current = requestAnimationFrame(animate)
+    }
+    fitRaf.current = requestAnimationFrame(animate)
+  }
+
+  // Cycle d'exercices : curl ↔ bar avec une courte pause entre chaque
+  const runExerciseCycle = () => {
+    if (fitPhase.current !== "fitness") return
+    setFitEx((ex) => (ex === "curl" ? "bar" : "curl"))
+    fitCycleTimer.current = window.setTimeout(() => {
+      setFitEx("rest")
+      fitCycleTimer.current = window.setTimeout(runExerciseCycle, 650) as unknown as number
+    }, 2400) as unknown as number
+  }
+
+  // Retour progressif : eau (2.4s) → repos (1.6s) → taille 1x + retour à la position de départ
+  const startReturn = () => {
+    if (fitPhase.current === "normal" || fitPhase.current === "water" || fitPhase.current === "resting") return
+    clearFitTimers()
+    fitPhase.current = "water"
+    setFitEx("water")
+    fitPhaseTimer.current = window.setTimeout(() => {
+      fitPhase.current = "resting"
+      setFitEx("rest")
+      fitPhaseTimer.current = window.setTimeout(() => {
+        fitPhase.current = "normal"
+        setFitActive(false)
+        setFitEx("none")
+        rearmIdle()
+        const home = fitHomePos.current
+        const animate = () => {
+          if (!home) { fitRaf.current = null; return }
+          setPos((prev) => {
+            const dx = home.x - prev.x
+            const dy = home.y - prev.y
+            const dist = Math.hypot(dx, dy)
+            if (dist < 2) { fitRaf.current = null; return home }
+            const speed = 3
+            return { x: prev.x + (dx / dist) * speed, y: prev.y + (dy / dist) * speed }
+          })
+          if (fitRaf.current != null) fitRaf.current = requestAnimationFrame(animate)
+        }
+        fitRaf.current = requestAnimationFrame(animate)
+      }, REST_MS)
+    }, DRINK_MS)
+  }
+
+  // Démarre l'entraînement après 15s d'inactivité (gardes en lecture via refs)
+  const enterFitness = () => {
+    if (fitActiveRef.current) return
+    if (openRef.current || draggingRef.current || !onlineRef.current || document.hidden) return
+    reducedMotion.current = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false
+    if (reducedMotion.current) return
+    if (fitRaf.current != null) { cancelAnimationFrame(fitRaf.current); fitRaf.current = null }
+    fitHomePos.current = { ...posRef.current }
+    fitPhase.current = "growing"
+    setFitActive(true)
+    setFitEx("none")
+    fitPhaseTimer.current = window.setTimeout(() => {
+      fitPhase.current = "fitness"
+      runExerciseCycle()
+      startRoam()
+    }, GROW_MS)
+  }
+
+  // Réarme le minuteur d'inactivité (un seul timer, reset à chaque interaction)
+  const rearmIdle = () => {
+    if (idleTimer.current != null) { clearTimeout(idleTimer.current); idleTimer.current = null }
+    idleTimer.current = window.setTimeout(enterFitness, FITNESS_IDLE_MS) as unknown as number
+  }
+
+  // Timer d'inactivité + détection d'interaction pour ramener le robot
+  useEffect(() => {
+    reducedMotion.current = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false
+    const clearIdle = () => {
+      if (idleTimer.current != null) { clearTimeout(idleTimer.current); idleTimer.current = null }
+    }
+    const canFit = () =>
+      !openRef.current && !draggingRef.current && onlineRef.current && !reducedMotion.current && !document.hidden
+
+    const onInteraction = () => {
+      if (fitPhase.current !== "normal") { startReturn(); return }
+      if (canFit()) rearmIdle()
+    }
+    const onVisibility = () => {
+      if (document.hidden) {
+        clearIdle()
+      } else {
+        if (fitPhase.current !== "normal") startReturn()
+        else if (canFit()) rearmIdle()
+      }
+    }
+
+    if (!canFit()) {
+      clearIdle()
+      if (fitPhase.current !== "normal" && (openRef.current || !onlineRef.current)) startReturn()
+    } else if (fitPhase.current === "normal") {
+      rearmIdle()
+    }
+
+    window.addEventListener("pointermove", onInteraction, { passive: true })
+    window.addEventListener("pointerdown", onInteraction, { passive: true })
+    window.addEventListener("keydown", onInteraction, { passive: true })
+    window.addEventListener("wheel", onInteraction, { passive: true })
+    window.addEventListener("touchstart", onInteraction, { passive: true })
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      clearIdle()
+      window.removeEventListener("pointermove", onInteraction)
+      window.removeEventListener("pointerdown", onInteraction)
+      window.removeEventListener("keydown", onInteraction)
+      window.removeEventListener("wheel", onInteraction)
+      window.removeEventListener("touchstart", onInteraction)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, dragging, isOnline])
+
+  // Nettoyage complet au démontage
+  useEffect(() => {
+    return () => {
+      if (idleTimer.current != null) clearTimeout(idleTimer.current)
+      clearFitTimers()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Wander : mouvement auto quand pas de drag, pas de panneau ouvert, en ligne
   useEffect(() => {
-    if (dragging || open || !isOnline) {
+    if (dragging || open || !isOnline || fitActive) {
       if (wanderRaf.current != null) { cancelAnimationFrame(wanderRaf.current); wanderRaf.current = null }
       if (wanderTimer.current != null) { clearTimeout(wanderTimer.current); wanderTimer.current = null }
       return
@@ -144,7 +344,7 @@ export function AiFloatingRobot() {
       if (wanderRaf.current != null) { cancelAnimationFrame(wanderRaf.current); wanderRaf.current = null }
       if (wanderTimer.current != null) { clearTimeout(wanderTimer.current); wanderTimer.current = null }
     }
-  }, [dragging, open, isOnline])
+  }, [dragging, open, isOnline, fitActive])
 
   // Sauvegarde la position pendant le wander
   useEffect(() => {
@@ -344,7 +544,7 @@ export function AiFloatingRobot() {
       <button
         ref={buttonRef}
         type="button"
-        className={`fitmanager-ai-floating-button${stateClass}${dragging ? " is-dragging" : ""}`}
+        className={`fitmanager-ai-floating-button${stateClass}${dragging ? " is-dragging" : ""}${fitActive ? " is-fitness-mode" : ""}`}
         style={{ left: pos.x, top: pos.y }}
         aria-label={t("aiAssistant.openAssistant")}
         title={t("aiAssistant.openAssistant")}
@@ -354,7 +554,9 @@ export function AiFloatingRobot() {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
       >
-        <AiRobotSvg state={orbState} />
+        <span className="fitmanager-ai-robot-scope" style={{ transform: fitActive ? `scale(${FITNESS_SCALE})` : "scale(1)" }}>
+          <AiRobotSvg state={orbState} fitMode={fitActive} fitEx={fitEx} />
+        </span>
       </button>
     </>
   )
@@ -429,12 +631,25 @@ function useLazyAssistantData() {
 
 // ===== Robot glass/transparent, QF GYM, néon rouge+bleu =====
 // SVG + CSS natifs, ids uniques par instance via `uid`.
-function AiRobotSvg({ state, small }: { state: "idle" | "thinking" | "responding" | "offline"; small?: boolean }) {
+function AiRobotSvg({
+  state,
+  small,
+  fitMode,
+  fitEx,
+}: {
+  state: "idle" | "thinking" | "responding" | "offline"
+  small?: boolean
+  fitMode?: boolean
+  fitEx?: FitExercise
+}) {
   const uid = small ? "fitm-ai-s" : "fitm-ai"
   const offline = state === "offline"
   const thinking = state === "thinking"
   const responding = state === "responding"
   const active = thinking || responding
+  const fitClass = fitMode ? " fitmanager-ai-robot__body is-fitness" : ""
+  const exClass =
+    fitEx === "curl" ? " is-curl" : fitEx === "bar" ? " is-bar" : fitEx === "water" ? " is-drinking" : fitEx === "rest" ? " is-resting" : ""
   return (
     <svg
       className="fitmanager-ai-robot"
@@ -486,7 +701,7 @@ function AiRobotSvg({ state, small }: { state: "idle" | "thinking" | "responding
         </linearGradient>
       </defs>
 
-      <g className={offline ? "fitmanager-ai-robot--offline" : ""}>
+      <g className={`${offline ? "fitmanager-ai-robot--offline" : ""}${fitClass}${exClass}`}>
 
         {/* === BASE DE VOL === */}
         <ellipse cx="60" cy="122" rx="28" ry="5" fill={`url(#${uid}-hoverRed)`} className="fitmanager-ai-robot__base-ring" />
@@ -556,7 +771,7 @@ function AiRobotSvg({ state, small }: { state: "idle" | "thinking" | "responding
         <path d="M55 50 Q60 54 65 50" fill="none" stroke="#60a5fa" strokeWidth="1.2" strokeLinecap="round" opacity="0.7" />
 
         {/* === MAIN GAUCHE : pouce levé === */}
-        <g transform="translate(18, 78)">
+        <g className="fitmanager-ai-robot__arm-l" transform="translate(18, 78)">
           {/* Paume */}
           <rect x="0" y="4" width="10" height="12" rx="3" fill="rgba(30,30,30,0.8)" stroke="rgba(96,165,250,0.25)" strokeWidth="0.8" />
           {/* Pouce */}
@@ -565,10 +780,19 @@ function AiRobotSvg({ state, small }: { state: "idle" | "thinking" | "responding
           <rect x="0" y="14" width="3" height="6" rx="1.5" fill="rgba(30,30,30,0.7)" />
           <rect x="3.5" y="14" width="3" height="6" rx="1.5" fill="rgba(30,30,30,0.7)" />
           <rect x="7" y="14" width="3" height="5" rx="1.5" fill="rgba(30,30,30,0.7)" />
+          {/* Haltère bleu pendant les curls */}
+          {fitMode && fitEx === "curl" && (
+            <g className="fitmanager-ai-robot__dumbbell">
+              <line x1="4" y1="20" x2="4" y2="34" stroke="#cbd5e1" strokeWidth="2.2" />
+              <rect x="0.5" y="34" width="7" height="6" rx="1.5" fill="#3b82f6" opacity="0.95" />
+              <rect x="0.5" y="18" width="7" height="6" rx="1.5" fill="#2563eb" opacity="0.95" />
+              <rect x="0.5" y="34" width="3" height="6" rx="1" fill="#60a5fa" opacity="0.6" />
+            </g>
+          )}
         </g>
 
         {/* === MAIN DROITE : bulle cerveau === */}
-        <g transform="translate(88, 76)">
+        <g className="fitmanager-ai-robot__arm-r" transform="translate(88, 76)">
           {/* Bras */}
           <rect x="-2" y="6" width="6" height="10" rx="3" fill="rgba(30,30,30,0.7)" stroke="rgba(96,165,250,0.2)" strokeWidth="0.6" />
           {/* Bulle */}
@@ -577,7 +801,36 @@ function AiRobotSvg({ state, small }: { state: "idle" | "thinking" | "responding
           <path d="M1 -2 Q0 -4 2 -4 Q4 -4 3 -2" fill="none" stroke="#ef4444" strokeWidth="0.7" opacity="0.8" />
           <path d="M5 -2 Q4 -4 6 -4 Q8 -4 7 -2" fill="none" stroke="#3b82f6" strokeWidth="0.7" opacity="0.8" />
           <line x1="4" y1="-4" x2="4" y2="2" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+          {/* Haltère rouge pendant les curls */}
+          {fitMode && fitEx === "curl" && (
+            <g className="fitmanager-ai-robot__dumbbell">
+              <line x1="3" y1="16" x2="3" y2="30" stroke="#cbd5e1" strokeWidth="2.2" />
+              <rect x="-0.5" y="30" width="7" height="6" rx="1.5" fill="#ef4444" opacity="0.95" />
+              <rect x="-0.5" y="14" width="7" height="6" rx="1.5" fill="#dc2626" opacity="0.95" />
+              <rect x="-0.5" y="30" width="3" height="6" rx="1" fill="#fca5a5" opacity="0.6" />
+            </g>
+          )}
         </g>
+
+        {/* === BARRE : développé épaules (au-dessus de la poitrine) === */}
+        {fitMode && fitEx === "bar" && (
+          <g className="fitmanager-ai-robot__bar">
+            <line x1="16" y1="72" x2="104" y2="72" stroke="#cbd5e1" strokeWidth="3" strokeLinecap="round" />
+            <rect x="14" y="66" width="6" height="12" rx="1.5" fill="#ef4444" />
+            <rect x="14" y="66" width="3" height="12" rx="1" fill="#fca5a5" opacity="0.6" />
+            <rect x="100" y="66" width="6" height="12" rx="1.5" fill="#3b82f6" />
+            <rect x="100" y="66" width="3" height="12" rx="1" fill="#93c5fd" opacity="0.6" />
+          </g>
+        )}
+
+        {/* === BOUTEILLE D'EAU : près de la bouche pendant le retour === */}
+        {fitMode && fitEx === "water" && (
+          <g className="fitmanager-ai-robot__bottle" transform="translate(66, 40)">
+            <rect x="-4" y="-2" width="10" height="14" rx="3" fill="rgba(147,197,253,0.55)" stroke="rgba(147,197,253,0.8)" strokeWidth="0.8" transform="rotate(16)" />
+            <rect x="-4" y="-2" width="4" height="14" rx="2" fill="rgba(255,255,255,0.25)" transform="rotate(16)" />
+            <rect x="0" y="-6" width="3" height="4" rx="1" fill="#60a5fa" transform="rotate(16)" />
+          </g>
+        )}
 
       </g>
     </svg>

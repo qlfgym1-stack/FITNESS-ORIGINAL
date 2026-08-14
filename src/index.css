@@ -405,7 +405,13 @@
   .fitmanager-ai-robot__core,
   .fitmanager-ai-robot__core-halo,
   .fitmanager-ai-robot__antenna,
-  .fitmanager-ai-robot__base-ring {
+  .fitmanager-ai-robot__base-ring,
+  .fitmanager-ai-robot-scope,
+  .fitmanager-ai-robot__arm-l,
+  .fitmanager-ai-robot__arm-r,
+  .fitmanager-ai-robot__bar,
+  .fitmanager-ai-robot__bottle,
+  .fitmanager-ai-robot__body.is-fitness {
     animation: none !important;
     transition: none !important;
   }
@@ -413,7 +419,96 @@
     animation: none !important;
     opacity: 0;
   }
-  .fitmanager-ai-panel {
+/* ===== Mode FITNESS : le robot s'entraîne après 15s d'inactivité (1x → 3x) ===== */
+.fitmanager-ai-robot-scope {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  transition: transform 1.15s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.fitmanager-ai-floating-button.is-fitness-mode {
+  animation-play-state: paused;
+}
+.fitmanager-ai-floating-button.is-fitness-mode .fitmanager-ai-robot {
+  animation-play-state: paused;
+}
+.fitmanager-ai-floating-button.is-fitness-mode::after {
+  opacity: 0;
+  animation: none;
+}
+
+/* Équipement : bras / barre / bouteille (origine locale pour les rotations) */
+.fitmanager-ai-robot__arm-l,
+.fitmanager-ai-robot__arm-r {
+  transform-box: fill-box;
+  transform-origin: 50% 10%;
+}
+.fitmanager-ai-robot__bar {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.fitmanager-ai-robot__body.is-fitness {
+  transform-box: fill-box;
+  transform-origin: 50% 80%;
+}
+
+/* Curl haltères : les deux bras montent/descendent en alternance */
+.fitmanager-ai-robot__body.is-curl .fitmanager-ai-robot__arm-l {
+  animation: fitmanager-ai-curl-l 0.85s ease-in-out infinite;
+}
+.fitmanager-ai-robot__body.is-curl .fitmanager-ai-robot__arm-r {
+  animation: fitmanager-ai-curl-r 0.85s ease-in-out infinite;
+}
+@keyframes fitmanager-ai-curl-l {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(38deg); }
+}
+@keyframes fitmanager-ai-curl-r {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-38deg); }
+}
+
+/* Barre : développé épaules (barre + bras montent/descendent ensemble) */
+.fitmanager-ai-robot__body.is-bar .fitmanager-ai-robot__bar,
+.fitmanager-ai-robot__body.is-bar .fitmanager-ai-robot__arm-l,
+.fitmanager-ai-robot__body.is-bar .fitmanager-ai-robot__arm-r {
+  animation: fitmanager-ai-press 0.9s ease-in-out infinite;
+}
+@keyframes fitmanager-ai-press {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+/* Boire : inclinaison du corps + bouteille inclinée */
+.fitmanager-ai-robot__body.is-drinking {
+  animation: fitmanager-ai-gulp 0.7s ease-in-out infinite;
+}
+@keyframes fitmanager-ai-gulp {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(3deg); }
+}
+.fitmanager-ai-robot__bottle {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: fitmanager-ai-sip 0.9s ease-in-out infinite;
+}
+@keyframes fitmanager-ai-sip {
+  0%, 100% { transform: rotate(-12deg) translate(0, 0); }
+  50% { transform: rotate(8deg) translate(1px, -1px); }
+}
+
+/* Repos : respiration douce */
+.fitmanager-ai-robot__body.is-resting {
+  animation: fitmanager-ai-breathe 1.5s ease-in-out infinite;
+}
+@keyframes fitmanager-ai-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+.fitmanager-ai-panel {
     animation: none !important;
   }
 }
