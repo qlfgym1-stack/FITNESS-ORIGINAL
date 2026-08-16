@@ -1,8 +1,8 @@
 {
-  "version": "2.1.2",
-  "build": 214,
-  "buildId": "2.1.2-214",
-  "commitSha": "d9ccb1f",
-  "buildDate": "2026-08-15T00:58:40+01:00",
+  "version": "2.1.5",
+  "build": 217,
+  "buildId": "2.1.5-217",
+  "commitSha": "0074a8c",
+  "buildDate": "2026-08-16T12:06:58+01:00",
   "minSupportedVersion": "2.0.0"
 }

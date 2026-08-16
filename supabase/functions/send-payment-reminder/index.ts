@@ -30,13 +30,6 @@ serve(async (req) => {
     })
   }
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ error: 'Missing JWT' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
-      })
-    }
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if (!supabaseUrl || !supabaseKey) {
@@ -45,10 +38,17 @@ serve(async (req) => {
         headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Missing JWT' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+      })
+    }
+    const token = authHeader.slice(7)
     const supabase = createClient(supabaseUrl, supabaseKey)
-    const jwt = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: jwtError } = await supabase.auth.getUser(jwt)
-    if (jwtError || !user) {
+    const { data: authOk } = await supabase.rpc('is_valid_service_role', { p_token: token })
+    if (!authOk) {
       return new Response(JSON.stringify({ error: 'Invalid JWT' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },

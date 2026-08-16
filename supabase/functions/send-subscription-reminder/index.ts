@@ -47,18 +47,14 @@ serve(async (req) => {
       })
     }
     const token = authHeader.slice(7)
-    const authClient = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    })
-    const { data: { user }, error: authError } = await authClient.auth.getUser()
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
+    const supabase = createClient(supabaseUrl, supabaseKey)
+    const { data: authOk } = await supabase.rpc('is_valid_service_role', { p_token: token })
+    if (!authOk) {
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
       })
     }
-
-    const supabase = createClient(supabaseUrl, supabaseKey)
 
     const { data: expiringSubs } = await supabase
       .from('member_subscriptions')
