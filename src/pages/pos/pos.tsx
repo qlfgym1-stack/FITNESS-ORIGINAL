@@ -87,6 +87,7 @@ interface CartPanelProps {
   onAddPendingSub: () => void
   isProcessing: boolean
   mobileCartOpen: boolean
+  onCheckout: () => void
   t: (key: string) => string
 }
 
@@ -97,7 +98,7 @@ const CartPanel = React.memo(function CartPanel({
   corporateDiscount, subscriptionSubtotal, corporateRemoved, setCorporateRemoved,
   updateQuantity, removeFromCart, onEditSubscriptionItem,
   selectedPendingSub, selectedPendingSubInCart, onAddPendingSub,
-  isProcessing, mobileCartOpen, t,
+  isProcessing, mobileCartOpen, onCheckout, t,
 }: CartPanelProps) {
   return (
     <Card className={mobileCartOpen ? "border-0 rounded-none h-full" : "sticky top-4"}>
@@ -277,6 +278,7 @@ const CartPanel = React.memo(function CartPanel({
           className="w-full"
           size="lg"
           disabled={cart.length === 0 || isProcessing}
+          onClick={onCheckout}
         >
           {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           {t("pos.checkout")} — {formatCurrency(total)}
@@ -1074,7 +1076,7 @@ export default function POSPage() {
             selectedPendingSubInCart={selectedPendingSubInCart}
             onAddPendingSub={addPendingSubToCart}
             isProcessing={checkoutMutation.isPending}
-            mobileCartOpen={false} t={t}
+            mobileCartOpen={false} onCheckout={() => setShowCheckout(true)} t={t}
           />
         </div>
       </div>
@@ -1106,7 +1108,7 @@ export default function POSPage() {
             selectedPendingSubInCart={selectedPendingSubInCart}
             onAddPendingSub={addPendingSubToCart}
             isProcessing={checkoutMutation.isPending}
-            mobileCartOpen={mobileCartOpen} t={t}
+            mobileCartOpen={mobileCartOpen} onCheckout={() => setShowCheckout(true)} t={t}
           />
         </SheetContent>
       </Sheet>
