@@ -38,6 +38,7 @@ const ROLE_OPTIONS = [
   { value: "admin", labelKey: "admin.users.roleAdmin" },
   { value: "coach", labelKey: "admin.users.roleCoach" },
   { value: "staff", labelKey: "admin.users.roleStaff" },
+  { value: "receptionist", labelKey: "admin.users.roleReception" },
 ]
 
 export default function AdminUsersPage() {
@@ -339,12 +340,12 @@ export default function AdminUsersPage() {
             </div>
             {createForm.role === 'admin' ? (
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t('admin.users.email')}</label>
-                <Input type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} />
+                <label className="text-sm font-medium">{t('admin.users.email')} <span className="text-destructive">*</span></label>
+                <Input type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} placeholder="admin@votre-salle.com" />
               </div>
             ) : (
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t('admin.users.username')}</label>
+                <label className="text-sm font-medium">{t('admin.users.username')} <span className="text-destructive">*</span></label>
                 <Input
                   value={createForm.username}
                   onChange={e => setCreateForm(p => ({ ...p, username: e.target.value.toLowerCase() }))}

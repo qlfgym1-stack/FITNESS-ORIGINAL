@@ -50,7 +50,7 @@ const staffSchema = z.object({
 
 type StaffForm = z.infer<typeof staffSchema>
 
-const ROLES = ["admin", "coach", "staff"]
+const ROLES = ["admin", "coach", "staff", "receptionist"]
 const TABS = [
   { value: "list", labelKey: "staff.staffList", path: "/staff" },
   { value: "timesheet", labelKey: "staff.timesheet", path: "/staff/timesheet" },

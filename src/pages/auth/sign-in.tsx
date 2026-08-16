@@ -33,7 +33,7 @@ export default function SignIn() {
 
   const form = useForm<SignInForm>({
     resolver: zodResolver(signInSchema),
-    defaultValues: { identifier: 'MoussaMohamedelmabrouk@gmail.com', password: '' },
+    defaultValues: { identifier: '', password: '' },
   })
 
   async function onSubmit(values: SignInForm) {
