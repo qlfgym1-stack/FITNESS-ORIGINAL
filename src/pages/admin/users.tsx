@@ -37,8 +37,6 @@ interface AdminUser {
 const ROLE_OPTIONS = [
   { value: "admin", labelKey: "admin.users.roleAdmin" },
   { value: "coach", labelKey: "admin.users.roleCoach" },
-  { value: "receptionist", labelKey: "admin.users.roleReception" },
-  { value: "cleaner", labelKey: "admin.users.roleCleaner" },
   { value: "staff", labelKey: "admin.users.roleStaff" },
 ]
 

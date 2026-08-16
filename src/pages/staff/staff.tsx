@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/toast"
-import { Plus, Pencil, Loader2, MoreHorizontal, Mail, Download } from "lucide-react"
+import { Plus, Pencil, Loader2, MoreHorizontal, Download } from "lucide-react"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
 import { Pagination } from "@/components/ui/pagination"
@@ -50,7 +50,7 @@ const staffSchema = z.object({
 
 type StaffForm = z.infer<typeof staffSchema>
 
-const ROLES = ["admin", "coach", "receptionist", "cleaner", "staff"]
+const ROLES = ["admin", "coach", "staff"]
 const TABS = [
   { value: "list", labelKey: "staff.staffList", path: "/staff" },
   { value: "timesheet", labelKey: "staff.timesheet", path: "/staff/timesheet" },
@@ -71,10 +71,6 @@ export default function StaffPage() {
   const [editing, setEditing] = useState<Staff | null>(null)
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
   const [statusConfirmStaff, setStatusConfirmStaff] = useState<Staff | null>(null)
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState("")
-  const [inviteRole, setInviteRole] = useState("staff")
-  const [inviteLoading, setInviteLoading] = useState(false)
   const [rfidUid, setRfidUid] = useState("")
 
   const form = useForm<StaffForm>({
@@ -204,10 +200,6 @@ export default function StaffPage() {
             <Button variant="outline" onClick={() => exportCsv()}>
               <Download className="mr-2 h-4 w-4" />
               {t("common.export") || "Export"}
-            </Button>
-            <Button variant="outline" onClick={() => setInviteOpen(true)}>
-              <Mail className="mr-2 h-4 w-4" />
-              {t("staff.invite") || "Inviter"}
             </Button>
             <Button onClick={openAdd}>
               <Plus className="mr-2 h-4 w-4" />
@@ -400,56 +392,6 @@ export default function StaffPage() {
               </DialogFooter>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={inviteOpen} onOpenChange={(v) => { setInviteOpen(v); if (!v) { setInviteEmail(""); setInviteRole("staff") } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("staff.inviteStaff") || "Inviter un membre"}</DialogTitle>
-            <DialogDescription>{t("staff.inviteDescription") || "Envoyer une invitation par email"}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <FormLabel>{t("staff.email")}</FormLabel>
-              <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@example.com" />
-            </div>
-            <div>
-              <FormLabel>{t("staff.role")}</FormLabel>
-              <Select value={inviteRole} onValueChange={setInviteRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map(r => (
-                    <SelectItem key={r} value={r} className="capitalize">{t(`staff.${r}`)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteOpen(false)}>{t("common.cancel")}</Button>
-            <Button disabled={!inviteEmail || inviteLoading} onClick={async () => {
-              setInviteLoading(true)
-              try {
-                const { error } = await supabase.functions.invoke("send-staff-invitation", {
-                  body: { email: inviteEmail, role: inviteRole, organization_id: orgId },
-                })
-                if (error) throw error
-                toast({ title: t("staff.inviteSent") || "Invitation envoyée" })
-                setInviteOpen(false)
-                setInviteEmail("")
-              } catch (err: any) {
-                toast({ title: t("errors.error"), description: err.message, variant: "destructive" })
-              } finally {
-                setInviteLoading(false)
-              }
-            }}>
-              {inviteLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t("staff.sendInvite") || "Envoyer"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
