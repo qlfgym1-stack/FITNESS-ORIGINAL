@@ -306,6 +306,10 @@ serve(async (req) => {
           })
         }
 
+        // Best-effort: remove staff row (FK ON DELETE SET NULL leaves orphans)
+        await supabase.from('staff').delete().eq('user_id', user_id)
+        // user_roles → ON DELETE CASCADE (auto-removed)
+
         const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id)
         if (deleteError) throw deleteError
 

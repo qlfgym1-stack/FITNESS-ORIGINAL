@@ -17,7 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/toast"
-import { Loader2, Plus, Search, ShieldAlert, Power, PowerOff, KeyRound } from "lucide-react"
+import { Loader2, Plus, Search, ShieldAlert, Power, PowerOff, KeyRound, Trash2 } from "lucide-react"
 
 const API_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-manage-users`
 
@@ -61,6 +61,9 @@ export default function AdminUsersPage() {
   const [statusOpen, setStatusOpen] = useState(false)
   const [statusTarget, setStatusTarget] = useState<AdminUser | null>(null)
   const [statusPending, setStatusPending] = useState(false)
+
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
 
   const generatePassword = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
@@ -174,6 +177,23 @@ export default function AdminUsersPage() {
       setStatusPending(false)
     }
   }
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const result = await callApi('delete', { user_id: deleteTarget?.id })
+      if (result.error) throw new Error(String(result.error))
+      return result as Record<string, unknown>
+    },
+    onSuccess: () => {
+      toast({ title: t('admin.users.deleted') })
+      setDeleteOpen(false)
+      setDeleteTarget(null)
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+    },
+    onError: (err: Error) => {
+      toast({ title: t('admin.users.error'), description: err.message, variant: 'destructive' })
+    },
+  })
 
   return (
     <div className="space-y-6">
@@ -297,6 +317,17 @@ export default function AdminUsersPage() {
                           >
                             {u.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
                           </Button>
+                          {!u.roles.some(r => r.role === 'admin') && u.id !== user?.id && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => { setDeleteTarget(u); setDeleteOpen(true); }}
+                              title={t('admin.users.deleteTitle')}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -461,6 +492,33 @@ export default function AdminUsersPage() {
             >
               {statusPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {statusTarget?.isActive ? t('admin.users.deactivate') : t('admin.users.activate')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Dialog */}
+      <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleteMutation.isPending) setDeleteOpen(open); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('admin.users.deleteTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('admin.users.deleteDescription')}{' '}
+              <strong>{deleteTarget?.username ?? deleteTarget?.email}</strong>.
+              {t('admin.users.deleteWarning')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteMutation.isPending}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteMutation.mutate()}
+              disabled={!deleteTarget || deleteMutation.isPending}
+            >
+              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {t('admin.users.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
