@@ -64,7 +64,6 @@ export default function AdminUsersPage() {
 
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
-  const [deletePending, setDeletePending] = useState(false)
 
   const generatePassword = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
@@ -79,7 +78,9 @@ export default function AdminUsersPage() {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ action, ...params }),
     })
-    return res.json() as Promise<Record<string, unknown>>
+    const json = await res.json() as Record<string, unknown>
+    if (!res.ok) throw new Error(String(json.error || json.message || `HTTP ${res.status}`))
+    return json
   }
 
   const { data, isLoading, isError, error } = useQuery({
@@ -179,21 +180,21 @@ export default function AdminUsersPage() {
     }
   }
 
-  const confirmDelete = async (target: AdminUser) => {
-    setDeletePending(true)
-    try {
-      const result = await callApi('delete', { user_id: target.id })
-      if (result.error) throw new Error(String(result.error))
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!deleteTarget) throw new Error('No target')
+      return await callApi('delete', { user_id: deleteTarget.id })
+    },
+    onSuccess: () => {
       toast({ title: t('admin.users.deleted') })
       setDeleteOpen(false)
       setDeleteTarget(null)
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-    } catch (err) {
-      toast({ title: t('admin.users.error'), description: (err as Error).message, variant: 'destructive' })
-    } finally {
-      setDeletePending(false)
-    }
-  }
+    },
+    onError: (err: Error) => {
+      toast({ title: t('admin.users.error'), description: err.message, variant: 'destructive' })
+    },
+  })
 
   return (
     <div className="space-y-6">
@@ -498,7 +499,7 @@ export default function AdminUsersPage() {
       </Dialog>
 
       {/* Delete User Dialog */}
-      <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deletePending) setDeleteOpen(open); }}>
+      <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleteMutation.isPending) setDeleteOpen(open); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('admin.users.deleteTitle')}</DialogTitle>
@@ -509,15 +510,15 @@ export default function AdminUsersPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deletePending}>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteMutation.isPending}>
               {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
-              onClick={() => { if (deleteTarget) confirmDelete(deleteTarget); }}
-              disabled={!deleteTarget || deletePending}
+              onClick={() => deleteMutation.mutate()}
+              disabled={!deleteTarget || deleteMutation.isPending}
             >
-              {deletePending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {t('admin.users.delete')}
             </Button>
           </DialogFooter>
