@@ -306,12 +306,21 @@ serve(async (req) => {
           })
         }
 
-        // Best-effort: remove staff row (FK ON DELETE SET NULL leaves orphans)
-        await supabase.from('staff').delete().eq('user_id', user_id)
+        // Best-effort: nullify FK references before deleting
+        await Promise.all([
+          supabase.from('staff').delete().eq('user_id', user_id),
+          supabase.from('investments').update({ created_by: null }).eq('created_by', user_id),
+        ])
         // user_roles → ON DELETE CASCADE (auto-removed)
 
         const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id)
-        if (deleteError) throw deleteError
+        if (deleteError) {
+          console.error('deleteUser error:', JSON.stringify(deleteError))
+          return new Response(JSON.stringify({ error: `Delete failed: ${deleteError.message || deleteError.code || 'unknown'}` }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
+          })
+        }
 
         return new Response(JSON.stringify({ success: true }), {
           headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req) },
