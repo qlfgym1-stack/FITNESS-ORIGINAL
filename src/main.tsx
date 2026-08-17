@@ -17,9 +17,9 @@ import './index.css'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 2,
-      gcTime: 1000 * 60 * 60 * 24,
-      retry: 1,
+      staleTime: 1000 * 30,
+      gcTime: 1000 * 60 * 60,
+      retry: 2,
       networkMode: 'offlineFirst',
     },
     mutations: {
@@ -30,7 +30,7 @@ const queryClient = new QueryClient({
 
 const persister = createSyncStoragePersister({
   storage: window.localStorage,
-  key: 'FITMANAGER_QUERY_CACHE',
+  key: `FITMANAGER_QUERY_CACHE_${__VERSION_INFO__?.version ?? 'v0'}_${__VERSION_INFO__?.build ?? 0}`,
 })
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -38,7 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <PersistQueryClientProvider
         client={queryClient}
-        persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
+        persistOptions={{ persister, maxAge: 1000 * 60 * 60 }}
       >
         <ThemeProvider>
           <I18nProvider>

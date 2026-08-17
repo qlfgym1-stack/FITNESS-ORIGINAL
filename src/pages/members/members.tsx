@@ -436,7 +436,7 @@ export default function Members() {
   const { data: membersData, isLoading } = useQuery({
     queryKey: ['members', orgId, debouncedSearch, statusFilter, genderFilter, page, sortBy, sortDir],
     queryFn: async () => {
-      if (!orgId) return { data: [], count: 0 }
+      if (!orgId) throw new Error('NO_ORG_ID')
       if (IS_MOCK) {
         let filtered = [...mockMembers]
         if (search) {

@@ -12,12 +12,14 @@ interface Profile {
 interface AuthState {
   user: User | null; profile: Profile | null; organization: Organization | null
   roles: UserRole[]; isLoading: boolean; isAuthenticated: boolean
+  authError: string | null
 }
 
 interface AuthContextValue extends AuthState {
   signIn: (identifier: string, password: string, recoveryCode?: string) => Promise<{ error: Error | null; newCode?: string }>
   signUp: (email: string, password: string, orgData: { name: string; slug: string }) => Promise<{ error: Error | null; recoveryCode?: string }>
   signOut: () => Promise<void>
+  retryAuth: () => Promise<void>
 }
 
 
@@ -27,12 +29,12 @@ const MOCK_ADMIN: AuthState = {
   profile: { id: 'mock-admin-id', email: 'MoussaMohamedelmabrouk@gmail.com', full_name: 'Moussa Mohamed Elmabrouk' },
   organization: { id: 'mock-org-id', name: 'QLF GYM', slug: 'qlf-gym', logo_url: null, address: null, phone: null, email: 'MoussaMohamedelmabrouk@gmail.com', created_at: new Date().toISOString(), coach_default_salary: 0, coach_default_rate_per_member: 0 },
   roles: [{ id: 'mock-role-id', user_id: 'mock-admin-id', organization_id: 'mock-org-id', role: 'admin', created_at: new Date().toISOString() }],
-  isLoading: false, isAuthenticated: true,
+  isLoading: false, isAuthenticated: true, authError: null,
 }
 
 const initialState: AuthState = {
   user: null, profile: null, organization: null, roles: [],
-  isLoading: true, isAuthenticated: false,
+  isLoading: true, isAuthenticated: false, authError: null,
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -42,22 +44,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = supabaseRef.current
   const [state, setState] = useState<AuthState>(initialState)
 
-  const fetchSession = useCallback(async () => {
+  const fetchSession = useCallback(async (retryCount = 0) => {
     if (IS_MOCK) { setState(MOCK_ADMIN); return }
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user) { setState(s => ({ ...s, isLoading: false })); return }
-    const user = session.user
-    const profile: Profile = { id: user.id, email: user.email ?? '', full_name: user.user_metadata?.full_name, avatar_url: user.user_metadata?.avatar_url }
-    const { data: roles, error: rolesError } = await supabase.from('user_roles').select('*').eq('user_id', user.id)
-    if (rolesError) console.error('Failed to fetch roles:', rolesError)
-    const userRoles = roles ?? []
-    const orgId = userRoles[0]?.organization_id
-    let org: Organization | null = null
-    if (orgId) {
-      const { data: orgData } = await supabase.from('organizations').select('*').eq('id', orgId).single()
-      org = orgData
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { setState(s => ({ ...s, isLoading: false })); return }
+      const user = session.user
+      const profile: Profile = { id: user.id, email: user.email ?? '', full_name: user.user_metadata?.full_name, avatar_url: user.user_metadata?.avatar_url }
+      const { data: roles, error: rolesError } = await supabase.from('user_roles').select('*').eq('user_id', user.id)
+      if (rolesError) {
+        console.error('Failed to fetch roles:', rolesError)
+        setState({ user, profile, organization: null, roles: [], isLoading: false, isAuthenticated: true, authError: 'Erreur de chargement des rôles. Rechargez la page.' })
+        return
+      }
+      const userRoles = roles ?? []
+      const orgId = userRoles[0]?.organization_id
+      if (!orgId) {
+        setState({ user, profile, organization: null, roles: userRoles, isLoading: false, isAuthenticated: true, authError: 'Aucune organisation associée à votre compte.' })
+        return
+      }
+      const { data: orgData, error: orgError } = await supabase.from('organizations').select('*').eq('id', orgId).single()
+      if (orgError || !orgData) {
+        console.error('Failed to fetch organization:', orgError)
+        if (retryCount < 2) {
+          await new Promise(r => setTimeout(r, 2000 * (retryCount + 1)))
+          return fetchSession(retryCount + 1)
+        }
+        setState({ user, profile, organization: null, roles: userRoles, isLoading: false, isAuthenticated: true, authError: 'Erreur de connexion au serveur. Veuillez recharger la page.' })
+        return
+      }
+      setState({ user, profile, organization: orgData, roles: userRoles, isLoading: false, isAuthenticated: true, authError: null })
+    } catch (err) {
+      console.error('Auth session error:', err)
+      if (retryCount < 2) {
+        await new Promise(r => setTimeout(r, 2000 * (retryCount + 1)))
+        return fetchSession(retryCount + 1)
+      }
+      setState(s => ({ ...s, isLoading: false, authError: 'Erreur de connexion. Vérifiez votre réseau et recharger la page.' }))
     }
-    setState({ user, profile, organization: org, roles: userRoles, isLoading: false, isAuthenticated: true })
   }, [])
 
   useEffect(() => {
@@ -154,11 +178,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await supabase.auth.signOut()
     } finally {
-      setState(s => ({ ...s, user: null, profile: null, organization: null, roles: [], isAuthenticated: false }))
+      setState(s => ({ ...s, user: null, profile: null, organization: null, roles: [], isAuthenticated: false, authError: null }))
     }
   }, [])
 
-  const ctxValue = useMemo(() => ({ ...state, signIn, signUp, signOut }), [state, signIn, signUp, signOut])
+  const retryAuth = useCallback(async () => {
+    setState(s => ({ ...s, isLoading: true, authError: null }))
+    await fetchSession(0)
+  }, [fetchSession])
+
+  const ctxValue = useMemo(() => ({ ...state, signIn, signUp, signOut, retryAuth }), [state, signIn, signUp, signOut, retryAuth])
   return <AuthContext.Provider value={ctxValue}>{children}</AuthContext.Provider>
 }
 
