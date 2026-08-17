@@ -25,7 +25,7 @@ import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
 import { toUpper } from "../../lib/utils"
 import {
-  Package, Plus, Search, Edit, Trash2, AlertTriangle, Loader2, Download, Camera, ImageIcon, X,
+  Package, Plus, Search, Edit, Trash2, AlertTriangle, Loader2, Download, Camera, ImageIcon, X, Clock, ArrowDownCircle, ArrowUpCircle,
 } from "lucide-react"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
@@ -47,9 +47,17 @@ interface InventoryItem {
 }
 
 interface StockMovementLine {
+  id: string
   inventory_id: string
+  product_id: string | null
   type: "in" | "out"
   quantity: number
+  unit_price: number | null
+  reference: string | null
+  movement_date: string
+  reason: string | null
+  notes: string | null
+  created_at: string
 }
 
 const inventorySchema = z.object({
@@ -77,6 +85,7 @@ export default function InventoryPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState<InventoryItem | null>(null)
+  const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null)
   const [imageUploading, setImageUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -100,7 +109,7 @@ export default function InventoryPage() {
       if (!orgId) return []
       const { data } = await supabase
         .from("stock_movements")
-        .select("inventory_id, type, quantity")
+        .select("id, inventory_id, product_id, type, quantity, unit_price, reference, movement_date, reason, notes, created_at")
         .eq("organization_id", orgId)
       return (data ?? []) as StockMovementLine[]
     },
@@ -132,6 +141,22 @@ export default function InventoryPage() {
     }
     return map
   }, [movements])
+
+  const historyMovements = useMemo(() => {
+    if (!historyItem) return []
+    const all = movementsByItem.get(historyItem.id) ?? []
+    const sorted = [...all].sort((a, b) => {
+      const da = a.movement_date || a.created_at
+      const db = b.movement_date || b.created_at
+      return da.localeCompare(db)
+    })
+    let running = historyItem.stock_initial ?? 0
+    return sorted.map((m) => {
+      const stockBefore = running
+      running += m.type === "in" ? m.quantity : -m.quantity
+      return { ...m, stockBefore, stockAfter: running }
+    })
+  }, [historyItem, movementsByItem])
 
   const verifyMutation = useMutation({
     mutationFn: async () => {
@@ -382,6 +407,9 @@ export default function InventoryPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => setHistoryItem(item)} title={t("inventory.stockHistory") || "Historique"}>
+                        <Clock className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -437,6 +465,9 @@ export default function InventoryPage() {
                 </p>
                 <p className="text-sm text-muted-foreground">{t("inventory.price")}: {item.price.toLocaleString()} DA</p>
                 <div className="flex justify-end gap-1 mt-2">
+                  <Button variant="ghost" size="icon" onClick={() => setHistoryItem(item)} title={t("inventory.stockHistory") || "Historique"}>
+                    <Clock className="h-4 w-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -592,6 +623,99 @@ export default function InventoryPage() {
               {t("common.delete") || "Delete"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!historyItem} onOpenChange={(open) => { if (!open) setHistoryItem(null) }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              {t("inventory.stockHistory") || "Historique de stock"} — {historyItem ? toUpper(historyItem.name) : ""}
+            </DialogTitle>
+            <DialogDescription>{historyItem ? `${toUpper(historyItem.category)} · ${toUpper(historyItem.unit)}` : ""}</DialogDescription>
+          </DialogHeader>
+
+          {historyItem && (() => {
+            const summary = getSummary(historyItem)
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="rounded-md border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">{t("inventory.stockInitial") || "Stock initial"}</p>
+                    <p className="text-lg font-bold font-mono">{summary.stockInitial}</p>
+                  </div>
+                  <div className="rounded-md border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">{t("inventory.totalIn") || "Entrées"}</p>
+                    <p className="text-lg font-bold font-mono text-emerald-600">+{summary.totalIn}</p>
+                  </div>
+                  <div className="rounded-md border p-3 text-center">
+                    <p className="text-xs text-muted-foreground">{t("inventory.totalOut") || "Sorties"}</p>
+                    <p className="text-lg font-bold font-mono text-red-600">-{summary.totalOut}</p>
+                  </div>
+                  <div className="rounded-md border p-3 text-center bg-primary/5">
+                    <p className="text-xs text-muted-foreground">{t("inventory.quantity")}</p>
+                    <p className="text-lg font-bold font-mono">{summary.expected}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-md border p-3 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{t("inventory.price") || "Prix"}:</span>
+                  <span className="font-mono font-bold">{historyItem.price.toLocaleString()} DA</span>
+                </div>
+
+                {historyMovements.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">{t("inventory.noMovements") || "Aucun mouvement de stock pour cet article."}</p>
+                ) : (
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t("inventory.movementDate") || "Date"}</TableHead>
+                          <TableHead>{t("inventory.movementType") || "Type"}</TableHead>
+                          <TableHead className="text-right">{t("inventory.movementQty") || "Quantité"}</TableHead>
+                          <TableHead className="text-right">{t("inventory.movementUnitPrice") || "Prix unitaire"}</TableHead>
+                          <TableHead className="text-right">{t("inventory.stockBefore") || "Stock avant"}</TableHead>
+                          <TableHead className="text-right">{t("inventory.stockAfter") || "Stock après"}</TableHead>
+                          <TableHead>{t("inventory.ref") || "Référence"}</TableHead>
+                          <TableHead>{t("inventory.movementReason") || "Motif"}</TableHead>
+                          <TableHead>{t("inventory.movementNotes") || "Notes"}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {historyMovements.map((m) => (
+                          <TableRow key={m.id}>
+                            <TableCell className="whitespace-nowrap text-sm">
+                              {m.movement_date ? new Date(m.movement_date).toLocaleDateString("fr-DZ") : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={m.type === "in" ? "default" : "destructive"} className="gap-1">
+                                {m.type === "in" ? <ArrowDownCircle className="h-3 w-3" /> : <ArrowUpCircle className="h-3 w-3" />}
+                                {m.type === "in" ? (t("inventory.entry") || "Entrée") : (t("inventory.exit") || "Sortie")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              <span className={m.type === "in" ? "text-emerald-600" : "text-red-600"}>
+                                {m.type === "in" ? "+" : "-"}{m.quantity}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {m.unit_price != null ? `${m.unit_price.toLocaleString()} DA` : "—"}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-medium">{m.stockBefore}</TableCell>
+                            <TableCell className="text-right font-mono font-bold">{m.stockAfter}</TableCell>
+                            <TableCell className="text-sm">{m.reference || "—"}</TableCell>
+                            <TableCell className="text-sm">{m.reason || "—"}</TableCell>
+                            <TableCell className="text-sm max-w-[150px] truncate" title={m.notes || ""}>{m.notes || "—"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </DialogContent>
       </Dialog>
     </div>
