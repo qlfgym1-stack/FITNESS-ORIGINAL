@@ -886,7 +886,7 @@ const en = {
     name: "Name",
     category: "Category",
     brand: "Brand",
-    sku: "SKU",
+
     reference: "Reference",
     price: "Price",
     cost: "Cost",

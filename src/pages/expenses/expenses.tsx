@@ -427,7 +427,7 @@ export default function ExpensesPage() {
                 Voir le catalogue Produits →
               </Button>
               <span className="text-xs text-muted-foreground">
-                {filteredExpenses.length} dépenses liées aux produits
+                {(filteredExpenses ?? []).length} dépenses liées aux produits
               </span>
             </div>
           )}

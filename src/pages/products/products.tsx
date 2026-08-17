@@ -57,7 +57,6 @@ const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
   category: z.string().min(1, "Category is required"),
   brand: z.string().optional().or(z.literal("")),
-  sku: z.string().optional().or(z.literal("")),
   reference: z.string().optional().or(z.literal("")),
   price: z.coerce.number().min(0, "Min 0"),
   cost: z.coerce.number().min(0, "Min 0").optional().or(z.literal("")),
@@ -80,7 +79,6 @@ export default function ProductsPage() {
   const [filterCategory, setFilterCategory] = useState("")
   const [filterBrand, setFilterBrand] = useState("")
   const [filterStatus, setFilterStatus] = useState("")
-  const [filterSku, setFilterSku] = useState("")
   const [filterBarcode, setFilterBarcode] = useState("")
   const [filterPriceMin, setFilterPriceMin] = useState("")
   const [filterPriceMax, setFilterPriceMax] = useState("")
@@ -175,7 +173,6 @@ export default function ProductsPage() {
         name: String(r.NOM || r.nom || r.Name || r.name || '').trim(),
         category: category && PRODUCT_CATEGORIES.has(category) ? category : null,
         brand: String(r.MARQUE || r.marque || r.Brand || r.brand || '').trim() || null,
-        sku: String(r.SKU || r.sku || '').trim() || null,
         reference: String(r['REF*'] || r.REF || r.Ref || r.reference || '').trim() || null,
         price: Number(r['PRICE DA'] ?? r.price ?? r.Price ?? 0),
         cost: Number(r['COST (DA)'] ?? r.cost ?? r.Cost ?? 0) || null,
@@ -236,7 +233,7 @@ export default function ProductsPage() {
 
   const form = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
-    defaultValues: { name: "", category: "", brand: "", sku: "", reference: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true },
+    defaultValues: { name: "", category: "", brand: "", reference: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true },
   })
 
   const { data: suppliers = [] } = useQuery({
@@ -299,14 +296,12 @@ export default function ProductsPage() {
       i.name.toLowerCase().includes(search.toLowerCase()) ||
       (i.category ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (i.brand ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (i.sku ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (i.barcode ?? "").toLowerCase().includes(search.toLowerCase())
     if (!matchesSearch) return false
     if (filterCategory && i.category !== filterCategory) return false
     if (filterBrand && i.brand !== filterBrand) return false
     if (filterStatus === "active" && !i.is_active) return false
     if (filterStatus === "inactive" && i.is_active) return false
-    if (filterSku && !(i.sku ?? "").toLowerCase().includes(filterSku.toLowerCase())) return false
     if (filterBarcode && !(i.barcode ?? "").toLowerCase().includes(filterBarcode.toLowerCase())) return false
     if (filterPriceMin && (i.price ?? 0) < Number(filterPriceMin)) return false
     if (filterPriceMax && (i.price ?? 0) > Number(filterPriceMax)) return false
@@ -327,7 +322,7 @@ export default function ProductsPage() {
 
   const { exportCsv } = useExportCsv(
     filtered.map((i: Product) => ({
-      name: i.name, category: normalizeCategory(i.category ?? '') ?? '', brand: i.brand ?? "", sku: i.sku ?? "",
+      name: i.name, category: normalizeCategory(i.category ?? '') ?? '', brand: i.brand ?? "",
       price: i.price, cost: i.cost ?? 0, stock: i.stock ?? 0, barcode: i.barcode ?? "", status: i.is_active ? "Active" : "Inactive"
     })),
     'products',
@@ -335,7 +330,6 @@ export default function ProductsPage() {
       { key: 'name', label: t('products.name') || 'Name' },
       { key: 'category', label: t('products.category') || 'Category' },
       { key: 'brand', label: t('products.brand') || 'Brand' },
-      { key: 'sku', label: t('products.sku') || 'SKU' },
       { key: 'price', label: t('products.price') || 'Price' },
       { key: 'cost', label: t('products.cost') || 'Cost' },
       { key: 'stock', label: t('products.stock') || 'Stock' },
@@ -351,7 +345,6 @@ export default function ProductsPage() {
         name: values.name,
         category: values.category,
         brand: values.brand || null,
-        sku: values.sku || null,
         reference: values.reference || null,
         price: values.price,
         cost: values.cost || null,
@@ -418,7 +411,7 @@ export default function ProductsPage() {
 
   function openCreate() {
     setEditing(null)
-    form.reset({ name: "", category: "", brand: "", sku: "", reference: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true })
+    form.reset({ name: "", category: "", brand: "", reference: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true })
     setDialogOpen(true)
   }
 
@@ -428,7 +421,6 @@ export default function ProductsPage() {
       name: item.name,
       category: item.category ?? "",
       brand: item.brand ?? "",
-      sku: item.sku ?? "",
       reference: item.reference ?? "",
       price: item.price,
       cost: item.cost ?? "" as any,
@@ -554,7 +546,7 @@ export default function ProductsPage() {
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Rechercher nom, catégorie, marque, SKU, réf, code..."
+              placeholder="Rechercher nom, catégorie, marque, réf, code..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -584,10 +576,6 @@ export default function ProductsPage() {
           </Select>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span>SKU:</span>
-            <Input placeholder="SKU" value={filterSku} onChange={e => setFilterSku(e.target.value)} className="h-8 w-[120px]" />
-          </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>Code:</span>
             <Input placeholder="Code-barres" value={filterBarcode} onChange={e => setFilterBarcode(e.target.value)} className="h-8 w-[130px]" />
@@ -625,7 +613,6 @@ export default function ProductsPage() {
               <TableHead>{t("products.name") || "Name"}</TableHead>
               <TableHead>{t("products.category") || "Category"}</TableHead>
               <TableHead>{t("products.brand") || "Brand"}</TableHead>
-              <TableHead>{t("products.sku") || "SKU"}</TableHead>
               <TableHead className="text-right">{t("products.price") || "Price"}</TableHead>
               <TableHead className="text-right">{t("products.cost") || "Cost"}</TableHead>
               <TableHead className="text-right">{t("products.stock") || "Stock"}</TableHead>
@@ -637,7 +624,7 @@ export default function ProductsPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8">
+                <TableCell colSpan={10} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
@@ -658,7 +645,6 @@ export default function ProductsPage() {
                 </TableCell>
                 <TableCell><Badge variant="outline">{toUpper(item.category ?? "")}</Badge></TableCell>
                 <TableCell className="text-xs">{item.brand ?? "-"}</TableCell>
-                <TableCell className="font-mono text-xs">{item.sku ?? "-"}</TableCell>
                 <TableCell className="text-right">{item.price.toLocaleString()}</TableCell>
                 <TableCell className="text-right">{item.cost ? item.cost.toLocaleString() : "-"}</TableCell>
                 <TableCell className="text-right">{item.stock ?? "-"}</TableCell>
@@ -688,7 +674,7 @@ export default function ProductsPage() {
             ))}
             {!isLoading && paginatedItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   {t("common.noResults") || "No results"}
                 </TableCell>
               </TableRow>
@@ -715,7 +701,6 @@ export default function ProductsPage() {
               </div>
               <p className="text-sm text-muted-foreground"><Badge variant="outline">{toUpper(item.category ?? "")}</Badge></p>
               {item.brand && <p className="text-xs text-muted-foreground mt-1">Marque: {item.brand}</p>}
-              {item.sku && <p className="text-xs text-muted-foreground font-mono">SKU: {item.sku}</p>}
               <p className="text-sm text-muted-foreground mt-1">
                 {t("products.price") || "Price"}: {item.price.toLocaleString()}
                 {item.cost ? ` | ${t("products.cost") || "Coût"}: ${item.cost.toLocaleString()}` : ""}
@@ -829,13 +814,6 @@ export default function ProductsPage() {
                     <FormMessage />
                   </FormItem>
                 )} />
-                <FormField control={form.control} name="sku" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("products.sku") || "SKU"}</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <FormField control={form.control} name="reference" render={({ field }) => (
@@ -937,7 +915,6 @@ export default function ProductsPage() {
                       <th className="text-left p-2 font-medium">Nom</th>
                       <th className="text-left p-2 font-medium">Catégorie</th>
                       <th className="text-left p-2 font-medium">Marque</th>
-                      <th className="p-2 font-medium">SKU</th>
                       <th className="p-2 font-medium">Réf</th>
                       <th className="text-right p-2 font-medium">Prix</th>
                       <th className="text-right p-2 font-medium">Coût</th>
@@ -952,7 +929,6 @@ export default function ProductsPage() {
                         <td className="p-2 whitespace-nowrap">{String(r.NOM || r.nom || '')}</td>
                         <td className="p-2">{String(r.CATEGORY || r.category || '')}</td>
                         <td className="p-2">{String(r.MARQUE || r.marque || '')}</td>
-                        <td className="p-2 font-mono text-xs">{String(r.SKU || '')}</td>
                         <td className="p-2 font-mono text-xs">{String(r['REF*'] || r.REF || '')}</td>
                         <td className="p-2 text-right">{Number(r['PRICE DA'] ?? 0).toLocaleString()}</td>
                         <td className="p-2 text-right">{r['COST (DA)'] ?? '-'}</td>

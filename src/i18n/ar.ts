@@ -830,7 +830,7 @@ const ar = {
     name: "الاسم",
     category: "الفئة",
     brand: "العلامة التجارية",
-    sku: "رمز SKU",
+
     reference: "المرجع",
     price: "السعر",
     cost: "التكلفة",

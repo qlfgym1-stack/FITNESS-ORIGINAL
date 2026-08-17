@@ -916,7 +916,7 @@ const fr = {
     name: "Nom",
     category: "Catégorie",
     brand: "Marque",
-    sku: "SKU",
+
     reference: "Référence",
     price: "Prix",
     cost: "Coût",
