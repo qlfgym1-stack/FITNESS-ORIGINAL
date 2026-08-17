@@ -64,6 +64,7 @@ export default function AdminUsersPage() {
 
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
+  const [deletePending, setDeletePending] = useState(false)
 
   const generatePassword = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
@@ -178,22 +179,21 @@ export default function AdminUsersPage() {
     }
   }
 
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      const result = await callApi('delete', { user_id: deleteTarget?.id })
+  const confirmDelete = async (target: AdminUser) => {
+    setDeletePending(true)
+    try {
+      const result = await callApi('delete', { user_id: target.id })
       if (result.error) throw new Error(String(result.error))
-      return result as Record<string, unknown>
-    },
-    onSuccess: () => {
       toast({ title: t('admin.users.deleted') })
       setDeleteOpen(false)
       setDeleteTarget(null)
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-    },
-    onError: (err: Error) => {
-      toast({ title: t('admin.users.error'), description: err.message, variant: 'destructive' })
-    },
-  })
+    } catch (err) {
+      toast({ title: t('admin.users.error'), description: (err as Error).message, variant: 'destructive' })
+    } finally {
+      setDeletePending(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -498,7 +498,7 @@ export default function AdminUsersPage() {
       </Dialog>
 
       {/* Delete User Dialog */}
-      <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleteMutation.isPending) setDeleteOpen(open); }}>
+      <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deletePending) setDeleteOpen(open); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('admin.users.deleteTitle')}</DialogTitle>
@@ -509,15 +509,15 @@ export default function AdminUsersPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteMutation.isPending}>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deletePending}>
               {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
-              onClick={() => deleteMutation.mutate()}
-              disabled={!deleteTarget || deleteMutation.isPending}
+              onClick={() => { if (deleteTarget) confirmDelete(deleteTarget); }}
+              disabled={!deleteTarget || deletePending}
             >
-              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {deletePending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {t('admin.users.delete')}
             </Button>
           </DialogFooter>
