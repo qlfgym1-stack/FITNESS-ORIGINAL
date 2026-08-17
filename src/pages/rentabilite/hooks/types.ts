@@ -96,7 +96,6 @@ export interface ProfitabilityData {
   roiData: RoiEntry[]
   profitabilityByProduct: ProfitabilityItem[]
   profitabilityByCategory: ProfitabilityItem[]
-  profitabilityBySupplier: ProfitabilityItem[]
   profitabilityBySubscription: ProfitabilityItem[]
   profitabilityByCoach: ProfitabilityItem[]
   profitabilityByMonth: ProfitabilityItem[]

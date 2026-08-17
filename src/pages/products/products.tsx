@@ -98,7 +98,7 @@ export default function ProductsPage() {
   const [stockProduct, setStockProduct] = useState<Product | null>(null)
   const [stockDialogOpen, setStockDialogOpen] = useState(false)
   const [stockMode, setStockMode] = useState<"add" | "out">("add")
-  const [stockForm, setStockForm] = useState({ quantity: 1, unit_price: "", supplier_id: "", reference: "", movement_date: "", notes: "" })
+  const [stockForm, setStockForm] = useState({ quantity: 1, unit_price: "", reference: "", movement_date: "", notes: "" })
   const fileRef = useRef<HTMLInputElement>(null)
   const importFileRef = useRef<HTMLInputElement>(null)
   const nav = useNavigate()
@@ -236,20 +236,6 @@ export default function ProductsPage() {
     defaultValues: { name: "", category: "", brand: "", reference: "", price: 0, cost: "", stock: "", barcode: "", image_url: "", is_active: true },
   })
 
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers", orgId],
-    queryFn: async (): Promise<{ id: string; name: string }[]> => {
-      if (!orgId) return []
-      const { data } = await supabase
-        .from("suppliers")
-        .select("id, name")
-        .eq("organization_id", orgId)
-        .order("name")
-      return (data ?? []) as { id: string; name: string }[]
-    },
-    enabled: !!orgId,
-  })
-
   const stockMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !stockProduct) throw new Error("No product")
@@ -259,7 +245,6 @@ export default function ProductsPage() {
           p_product_id: stockProduct.id,
           p_quantity: Number(stockForm.quantity),
           p_unit_price: stockForm.unit_price ? Number(stockForm.unit_price) : null,
-          p_supplier_id: stockForm.supplier_id || null,
           p_reference: stockForm.reference || null,
           p_movement_date: stockForm.movement_date || undefined,
           p_notes: stockForm.notes || null,
@@ -283,7 +268,7 @@ export default function ProductsPage() {
       toast({ title: stockMode === "add" ? (t("products.stockAdded") || "Stock ajouté") : (t("products.stockOutDone") || "Sortie enregistrée") })
       setStockDialogOpen(false)
       setStockProduct(null)
-      setStockForm({ quantity: 1, unit_price: "", supplier_id: "", reference: "", movement_date: "", notes: "" })
+      setStockForm({ quantity: 1, unit_price: "", reference: "", movement_date: "", notes: "" })
     },
     onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
   })
@@ -656,10 +641,10 @@ export default function ProductsPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" title={t("products.stockAdd") || "Rajouter du stock"} onClick={() => { setStockMode("add"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: item.cost ? String(item.cost) : "", supplier_id: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
+                    <Button variant="ghost" size="icon" title={t("products.stockAdd") || "Rajouter du stock"} onClick={() => { setStockMode("add"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: item.cost ? String(item.cost) : "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
                       <ArrowDownToLine className="h-4 w-4 text-emerald-600" />
                     </Button>
-                    <Button variant="ghost" size="icon" title={t("products.stockOut") || "Sortie / ajustement"} onClick={() => { setStockMode("out"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: "", supplier_id: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
+                    <Button variant="ghost" size="icon" title={t("products.stockOut") || "Sortie / ajustement"} onClick={() => { setStockMode("out"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
                       <ArrowUpFromLine className="h-4 w-4 text-destructive" />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
@@ -708,10 +693,10 @@ export default function ProductsPage() {
               </p>
               {item.barcode && <p className="text-xs text-muted-foreground font-mono mt-1">{t("products.barcode") || "Barcode"}: {item.barcode}</p>}
               <div className="flex justify-end gap-1 mt-2">
-                <Button variant="ghost" size="icon" title={t("products.stockAdd") || "Rajouter du stock"} onClick={() => { setStockMode("add"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: item.cost ? String(item.cost) : "", supplier_id: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
+                <Button variant="ghost" size="icon" title={t("products.stockAdd") || "Rajouter du stock"} onClick={() => { setStockMode("add"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: item.cost ? String(item.cost) : "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
                   <ArrowDownToLine className="h-4 w-4 text-emerald-600" />
                 </Button>
-                <Button variant="ghost" size="icon" title={t("products.stockOut") || "Sortie / ajustement"} onClick={() => { setStockMode("out"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: "", supplier_id: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
+                <Button variant="ghost" size="icon" title={t("products.stockOut") || "Sortie / ajustement"} onClick={() => { setStockMode("out"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
                   <ArrowUpFromLine className="h-4 w-4 text-destructive" />
                 </Button>
                 <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
@@ -1000,18 +985,6 @@ export default function ProductsPage() {
             </div>
             {stockMode === "add" && (
               <>
-                <div className="grid gap-2">
-                  <Label>{t("products.supplier") || "Fournisseur"}</Label>
-                  <Select value={stockForm.supplier_id} onValueChange={(v) => setStockForm((f) => ({ ...f, supplier_id: v }))}>
-                    <SelectTrigger><SelectValue placeholder={t("products.selectSupplier") || "Sélectionner un fournisseur"} /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">—</SelectItem>
-                      {suppliers.map((s: { id: string; name: string }) => (
-                        <SelectItem key={s.id} value={s.id}>{toUpper(s.name)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label>{t("products.reference") || "Référence"}</Label>

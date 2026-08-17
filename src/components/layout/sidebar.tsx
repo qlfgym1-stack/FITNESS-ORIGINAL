@@ -12,7 +12,7 @@ import {
   ShoppingCart,
   Package,
   Boxes,
-  Truck,
+
   TrendingUp,
   Dumbbell,
   Sparkles,
@@ -33,7 +33,7 @@ import {
   ChevronRight,
   ChevronDown,
   ScrollText,
-  FileText,
+
   SprayCan,
   UserSearch,
 } from "lucide-react"
@@ -101,8 +101,7 @@ const navGroups: NavGroup[] = [
       { key: "products", icon: Package, path: "/products" },
       { key: "inventory", icon: Boxes, path: "/inventory" },
       { key: "consommables", icon: SprayCan, path: "/consommables" },
-      { key: "suppliers", icon: Truck, path: "/suppliers" },
-      { key: "purchaseOrders", icon: FileText, path: "/purchase-orders" },
+
       { key: "materiel", icon: Wrench, path: "/materiel" },
     ],
   },

@@ -9,7 +9,6 @@ import type { ProfitabilityItem } from "../hooks/types"
 interface ProfitabilityBreakdownProps {
   profitabilityByProduct: ProfitabilityItem[]
   profitabilityByCategory: ProfitabilityItem[]
-  profitabilityBySupplier: ProfitabilityItem[]
   profitabilityBySubscription: ProfitabilityItem[]
   profitabilityByCoach: ProfitabilityItem[]
   profitabilityByMonth: ProfitabilityItem[]
@@ -20,7 +19,6 @@ interface ProfitabilityBreakdownProps {
 const TABS = [
   { key: "product", dataKey: "profitabilityByProduct" },
   { key: "category", dataKey: "profitabilityByCategory" },
-  { key: "supplier", dataKey: "profitabilityBySupplier" },
   { key: "subscription", dataKey: "profitabilityBySubscription" },
   { key: "coach", dataKey: "profitabilityByCoach" },
   { key: "month", dataKey: "profitabilityByMonth" },
@@ -36,7 +34,6 @@ function TrendIcon({ trend }: { trend: "up" | "down" | "stable" }) {
 export function ProfitabilityBreakdown({
   profitabilityByProduct,
   profitabilityByCategory,
-  profitabilityBySupplier,
   profitabilityBySubscription,
   profitabilityByCoach,
   profitabilityByMonth,
@@ -48,7 +45,6 @@ export function ProfitabilityBreakdown({
   const dataMap: Record<string, ProfitabilityItem[]> = {
     product: profitabilityByProduct,
     category: profitabilityByCategory,
-    supplier: profitabilityBySupplier,
     subscription: profitabilityBySubscription,
     coach: profitabilityByCoach,
     month: profitabilityByMonth,

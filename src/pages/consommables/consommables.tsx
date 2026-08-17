@@ -88,7 +88,7 @@ export default function ConsommablesPage() {
   const [moving, setMoving] = useState<Consumable | null>(null)
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
-  const [movementForm, setMovementForm] = useState({ type: "in" as "in" | "out", quantity: 1, reason: "achat", notes: "", unit_price: "", supplier_id: "", reference: "", movement_date: new Date().toISOString().slice(0, 10) })
+  const [movementForm, setMovementForm] = useState({ type: "in" as "in" | "out", quantity: 1, reason: "achat", notes: "", unit_price: "", reference: "", movement_date: new Date().toISOString().slice(0, 10) })
 
   const form = useForm<ConsumableForm>({
     resolver: zodResolver(consumableSchema),
@@ -116,19 +116,6 @@ export default function ConsommablesPage() {
     enabled: !!orgId,
   })
 
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers", orgId],
-    queryFn: async (): Promise<{ id: string; name: string }[]> => {
-      if (!orgId) return []
-      const { data } = await supabase
-        .from("suppliers")
-        .select("id, name")
-        .eq("organization_id", orgId)
-        .order("name")
-      return (data ?? []) as { id: string; name: string }[]
-    },
-    enabled: !!orgId,
-  })
 
   const inventoryByConsumable = useMemo(() => {
     const map: Record<string, string> = {}
@@ -212,7 +199,7 @@ export default function ConsommablesPage() {
   })
 
   const movementMutation = useMutation({
-    mutationFn: async ({ id, form }: { id: string; form: { type: "in" | "out"; quantity: number; reason: string; notes: string; unit_price: string; supplier_id: string; reference: string; movement_date: string } }) => {
+    mutationFn: async ({ id, form }: { id: string; form: { type: "in" | "out"; quantity: number; reason: string; notes: string; unit_price: string; reference: string; movement_date: string } }) => {
       if (!orgId) throw new Error("No organization")
       const inventoryId = inventoryByConsumable[id]
       if (!inventoryId) throw new Error("No linked inventory record — re-save the consumable")
@@ -224,7 +211,6 @@ export default function ConsommablesPage() {
         p_reason: form.reason || "ajustement",
         p_notes: form.notes || null,
         p_unit_price: form.type === "in" && form.unit_price !== "" ? Number(form.unit_price) : null,
-        p_supplier_id: form.type === "in" && form.supplier_id !== "" ? form.supplier_id : null,
         p_reference: form.type === "in" && form.reference !== "" ? form.reference : null,
         p_movement_date: form.type === "in" && form.movement_date !== "" ? form.movement_date : new Date().toISOString().slice(0, 10),
       })
@@ -239,7 +225,7 @@ export default function ConsommablesPage() {
       toast({ title: t("common.success") || "Success" })
       setMovementOpen(false)
       setMoving(null)
-      setMovementForm({ type: "in", quantity: 1, reason: "achat", notes: "", unit_price: "", supplier_id: "", reference: "", movement_date: new Date().toISOString().slice(0, 10) })
+      setMovementForm({ type: "in", quantity: 1, reason: "achat", notes: "", unit_price: "", reference: "", movement_date: new Date().toISOString().slice(0, 10) })
     },
     onError: (err: Error) => toast({ title: t("errors.error") || "Error", description: err.message, variant: "destructive" }),
   })
@@ -270,7 +256,7 @@ export default function ConsommablesPage() {
 
   function openMovement(item: Consumable) {
     setMoving(item)
-    setMovementForm({ type: "in", quantity: 1, reason: "achat", notes: "", unit_price: "", supplier_id: "", reference: "", movement_date: new Date().toISOString().slice(0, 10) })
+    setMovementForm({ type: "in", quantity: 1, reason: "achat", notes: "", unit_price: "", reference: "", movement_date: new Date().toISOString().slice(0, 10) })
     setMovementOpen(true)
   }
 
@@ -619,18 +605,6 @@ export default function ConsommablesPage() {
                     <Input type="date" value={movementForm.movement_date}
                       onChange={(e) => setMovementForm((f) => ({ ...f, movement_date: e.target.value }))} />
                   </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label>{t("consommables.movementSupplier") || "Fournisseur"}</Label>
-                  <Select value={movementForm.supplier_id} onValueChange={(v) => setMovementForm((f) => ({ ...f, supplier_id: v }))}>
-                    <SelectTrigger><SelectValue placeholder={t("products.selectSupplier") || "Sélectionner un fournisseur"} /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">—</SelectItem>
-                      {suppliers.map((s: { id: string; name: string }) => (
-                        <SelectItem key={s.id} value={s.id}>{toUpper(s.name)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label>{t("consommables.movementReference") || "Référence"}</Label>

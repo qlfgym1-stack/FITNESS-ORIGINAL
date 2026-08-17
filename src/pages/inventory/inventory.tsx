@@ -42,10 +42,8 @@ interface InventoryItem {
   unit: string
   min_stock: number
   price: number
-  supplier_id: string | null
-  image_url: string | null
   product_id: string | null
-  suppliers?: { name: string } | null
+  image_url: string | null
 }
 
 interface StockMovementLine {
@@ -62,7 +60,6 @@ const inventorySchema = z.object({
   unit: z.string().min(1, "Unit is required"),
   min_stock: z.coerce.number().min(0, "Min 0"),
   price: z.coerce.number().min(0, "Min 0"),
-  supplier_id: z.string().optional().or(z.literal("")),
   image_url: z.string().optional().or(z.literal("")),
 })
 
@@ -89,7 +86,7 @@ export default function InventoryPage() {
       if (!orgId) return []
       const { data } = await supabase
         .from("inventory")
-        .select("*, suppliers(name)")
+        .select("*")
         .eq("organization_id", orgId)
         .order("name")
       return (data ?? []) as any[]
@@ -156,19 +153,18 @@ export default function InventoryPage() {
 
   const form = useForm<InventoryForm>({
     resolver: zodResolver(inventorySchema),
-    defaultValues: { name: "", category: "", quantity: 0, stock_initial: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "", image_url: "" },
+    defaultValues: { name: "", category: "", quantity: 0, stock_initial: 0, unit: "pcs", min_stock: 0, price: 0, image_url: "" },
   })
 
   const filtered = items.filter((i: InventoryItem) =>
     i.name.toLowerCase().includes(search.toLowerCase()) ||
-    i.category.toLowerCase().includes(search.toLowerCase()) ||
-    (i.suppliers?.name ?? "").toLowerCase().includes(search.toLowerCase())
+    i.category.toLowerCase().includes(search.toLowerCase())
   )
 
   const { page, setPage, totalPages, paginatedData: paginatedItems } = usePagination(filtered, 20)
 
   const { exportCsv } = useExportCsv(
-    filtered.map((i: InventoryItem) => ({ name: i.name, category: i.category, stock_initial: i.stock_initial, quantity: i.quantity, unit: i.unit, min_stock: i.min_stock, price: i.price, supplier: i.suppliers?.name ?? '' })),
+    filtered.map((i: InventoryItem) => ({ name: i.name, category: i.category, stock_initial: i.stock_initial, quantity: i.quantity, unit: i.unit, min_stock: i.min_stock, price: i.price })),
     'inventory',
     [
       { key: 'name', label: t('inventory.name') },
@@ -178,7 +174,6 @@ export default function InventoryPage() {
       { key: 'unit', label: t('inventory.unit') },
       { key: 'min_stock', label: t('inventory.minStock') },
       { key: 'price', label: t('inventory.price') },
-      { key: 'supplier', label: t('inventory.supplier') },
     ]
   )
 
@@ -194,7 +189,6 @@ export default function InventoryPage() {
         unit: values.unit,
         min_stock: values.min_stock,
         price: values.price,
-        supplier_id: values.supplier_id || null,
         image_url: values.image_url || null,
         ...(linked ? {} : { quantity: values.quantity, stock_initial: values.stock_initial }),
       }
@@ -242,7 +236,7 @@ export default function InventoryPage() {
 
   function openCreate() {
     setEditing(null)
-    form.reset({ name: "", category: "", quantity: 0, stock_initial: 0, unit: "pcs", min_stock: 0, price: 0, supplier_id: "", image_url: "" })
+    form.reset({ name: "", category: "", quantity: 0, stock_initial: 0, unit: "pcs", min_stock: 0, price: 0, image_url: "" })
     setDialogOpen(true)
   }
 
@@ -256,7 +250,6 @@ export default function InventoryPage() {
       unit: item.unit,
       min_stock: item.min_stock,
       price: item.price,
-      supplier_id: item.supplier_id ?? "",
       image_url: item.image_url ?? "",
     })
     setDialogOpen(true)
@@ -339,7 +332,6 @@ export default function InventoryPage() {
               <TableHead>{t("inventory.unit")}</TableHead>
               <TableHead className="text-right">{t("inventory.minStock")}</TableHead>
               <TableHead className="text-right">{t("inventory.price")}</TableHead>
-              <TableHead>{t("inventory.supplier")}</TableHead>
               <TableHead>{t("inventory.image") || "Image"}</TableHead>
               <TableHead className="text-right">{t("common.actions")}</TableHead>
             </TableRow>
@@ -381,7 +373,6 @@ export default function InventoryPage() {
                   <TableCell>{toUpper(item.unit)}</TableCell>
                   <TableCell className="text-right">{item.min_stock}</TableCell>
                   <TableCell className="text-right">{item.price.toLocaleString()} DA</TableCell>
-                  <TableCell>{toUpper(item.suppliers?.name ?? "")}</TableCell>
                   <TableCell>
                     {item.image_url ? (
                       <img src={item.image_url} alt={item.name} className="w-10 h-10 rounded-md object-cover border border-border" />
@@ -528,13 +519,6 @@ export default function InventoryPage() {
                 <FormItem>
                   <FormLabel>{t("inventory.price")}</FormLabel>
                   <FormControl><Input type="number" min={0} {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="supplier_id" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("inventory.supplier")}</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />

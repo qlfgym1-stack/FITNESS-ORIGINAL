@@ -148,7 +148,6 @@ export default function RentabilitePage() {
           <ProfitabilityBreakdown
             profitabilityByProduct={data.profitabilityByProduct}
             profitabilityByCategory={data.profitabilityByCategory}
-            profitabilityBySupplier={data.profitabilityBySupplier}
             profitabilityBySubscription={data.profitabilityBySubscription}
             profitabilityByCoach={data.profitabilityByCoach}
             profitabilityByMonth={data.profitabilityByMonth}

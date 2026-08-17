@@ -10,7 +10,6 @@ const CASE_PRESERVE_KEYS = new Set([
   "auth.password",
   "members.email",
   "staff.email",
-  "suppliers.email",
   "settings.email",
   "profile.email",
   "auth.login",

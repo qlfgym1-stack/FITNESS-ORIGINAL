@@ -105,18 +105,6 @@ type RawEnrollment = {
   classes: { name: string } | null
 }
 
-type RawSupplier = {
-  id: string
-  name: string
-}
-
-type RawPurchaseOrder = {
-  id: string
-  supplier_id: string | null
-  order_date: string
-  total_amount: number | null
-}
-
 type RawObjective = {
   id: string
   organization_id: string
@@ -267,34 +255,6 @@ export function useProfitabilityData(
     enabled: !!orgId,
   })
 
-  const { data: suppliersData } = useQuery({
-    queryKey: ["profitability", "suppliers", orgId],
-    queryFn: async () => {
-      const { data, error } = await db
-        .from("suppliers")
-        .select("id, name")
-        .eq("organization_id", orgId!)
-      if (error) throw error
-      return (data ?? []) as unknown as RawSupplier[]
-    },
-    enabled: !!orgId,
-  })
-
-  const { data: purchaseOrdersData } = useQuery({
-    queryKey: ["profitability", "purchaseOrders", orgId, filters.dateFrom, filters.dateTo],
-    queryFn: async () => {
-      const { data, error } = await db
-        .from("purchase_orders")
-        .select("id, supplier_id, order_date, total_amount")
-        .eq("organization_id", orgId!)
-        .gte("order_date", filters.dateFrom)
-        .lte("order_date", filters.dateTo)
-      if (error) throw error
-      return (data ?? []) as unknown as RawPurchaseOrder[]
-    },
-    enabled: !!orgId,
-  })
-
   const { data: objectivesData } = useQuery({
     queryKey: ["profitability", "objectives", orgId, filters.dateFrom, filters.dateTo],
     queryFn: async () => {
@@ -317,8 +277,6 @@ export function useProfitabilityData(
   const subscriptions = subscriptionsData ?? []
   const salaryPayments = salaryPaymentsData ?? []
   const enrollments = enrollmentsData ?? []
-  const suppliers = suppliersData ?? []
-  const purchaseOrders = purchaseOrdersData ?? []
   const objectives = objectivesData ?? []
 
   const isLoading = useMemo(
@@ -500,29 +458,6 @@ export function useProfitabilityData(
         margin: data.revenue > 0 ? ((data.revenue - data.cost) / data.revenue) * 100 : 0,
         trend: "stable" as const,
       }))
-    })()
-
-    const profitabilityBySupplier: ProfitabilityItem[] = (() => {
-      const supMap: Record<string, { total: number; count: number }> = {}
-      for (const po of purchaseOrders) {
-        const supId = po.supplier_id || "unknown"
-        if (!supMap[supId]) supMap[supId] = { total: 0, count: 0 }
-        supMap[supId].total += safeNum(po.total_amount)
-        supMap[supId].count++
-      }
-      return suppliers
-        .filter((s: RawSupplier) => supMap[s.id])
-        .map((s: RawSupplier) => {
-          const d = supMap[s.id]
-          return {
-            label: s.name,
-            revenue: d.total,
-            cost: d.total,
-            profit: 0,
-            margin: 0,
-            trend: "stable" as const,
-          }
-        })
     })()
 
     const profitabilityBySubscription: ProfitabilityItem[] = (() => {
@@ -879,7 +814,6 @@ export function useProfitabilityData(
       roiData,
       profitabilityByProduct,
       profitabilityByCategory,
-      profitabilityBySupplier,
       profitabilityBySubscription,
       profitabilityByCoach,
       profitabilityByMonth,
@@ -902,8 +836,6 @@ export function useProfitabilityData(
     subscriptions,
     salaryPayments,
     enrollments,
-    suppliers,
-    purchaseOrders,
     objectives,
     filters.period,
     filters.dateFrom,
