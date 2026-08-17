@@ -186,7 +186,7 @@ export function MemberProfileDialog({ member, open, onOpenChange, onShowHistory,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl flex flex-col max-h-[88vh]">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-3">
             <Avatar className="h-10 w-10 border-2 border-primary/20">

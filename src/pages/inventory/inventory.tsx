@@ -627,7 +627,7 @@ export default function InventoryPage() {
       </Dialog>
 
       <Dialog open={!!historyItem} onOpenChange={(open) => { if (!open) setHistoryItem(null) }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
@@ -639,8 +639,8 @@ export default function InventoryPage() {
           {historyItem && (() => {
             const summary = getSummary(historyItem)
             return (
-              <div className="space-y-4">
-                <div className="grid grid-cols-4 gap-3">
+              <div className="overflow-y-auto flex-1 min-h-0 space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="rounded-md border p-3 text-center">
                     <p className="text-xs text-muted-foreground">{t("inventory.stockInitial") || "Stock initial"}</p>
                     <p className="text-lg font-bold font-mono">{summary.stockInitial}</p>

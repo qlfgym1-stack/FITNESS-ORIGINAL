@@ -200,7 +200,7 @@ export default function CheckinDialog({ open, onOpenChange }: CheckinDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader className="shrink-0">
           <DialogTitle>{t("kiosk.title") || "Check-in / Check-out"}</DialogTitle>
           <DialogDescription>{t("kiosk.subtitle") || "Scanner le badge RFID ou valider manuellement"}</DialogDescription>

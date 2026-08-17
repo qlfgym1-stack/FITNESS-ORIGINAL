@@ -1060,7 +1060,7 @@ export default function Members() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl flex flex-col max-h-[85vh]">
+        <DialogContent className="max-w-2xl">
           <DialogHeader className="shrink-0">
             <DialogTitle>{editingMember ? t('members.edit') : t('members.add')}</DialogTitle>
             <DialogDescription>{t('members.fillDetails')}</DialogDescription>

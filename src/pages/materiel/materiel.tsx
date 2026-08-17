@@ -425,12 +425,13 @@ export default function MaterielPage() {
       <Pagination page={page} totalPages={totalPages} totalItems={filteredList.length} pageSize={20} onPageChange={setPage} />
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); form.reset() } }}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[600px]">
+          <Form {...form}>
           <DialogHeader>
             <DialogTitle>{editing ? "Modifier le matériel" : "Nouveau matériel"}</DialogTitle>
             <DialogDescription>{editing ? "Modifiez les informations du matériel" : "Ajoutez un nouvel élément de matériel"}</DialogDescription>
           </DialogHeader>
-          <Form {...form}>
+          <div className="overflow-y-auto flex-1 min-h-0 space-y-4">
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
@@ -534,14 +535,15 @@ export default function MaterielPage() {
                   <FormMessage />
                 </FormItem>
               )} />
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset() }}>Annuler</Button>
-                <Button type="submit" disabled={upsertMutation.isPending}>
-                  {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editing ? "Enregistrer" : "Ajouter"}
-                </Button>
-              </DialogFooter>
             </form>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset() }}>Annuler</Button>
+            <Button type="submit" disabled={upsertMutation.isPending}>
+              {upsertMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {editing ? "Enregistrer" : "Ajouter"}
+            </Button>
+          </DialogFooter>
           </Form>
         </DialogContent>
       </Dialog>

@@ -139,7 +139,7 @@ export function MemberDayDetail({ memberId, memberName, date, open, onOpenChange
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {toUpper(memberName)}
@@ -149,6 +149,7 @@ export function MemberDayDetail({ memberId, memberName, date, open, onOpenChange
             {formatDate(date)} · N° {data?.member?.member_number ?? "—"}
           </DialogDescription>
         </DialogHeader>
+        <div className="overflow-y-auto flex-1 min-h-0 space-y-4">
 
         {isLoading ? (
           <div className="flex justify-center py-10">
@@ -274,6 +275,7 @@ export function MemberDayDetail({ memberId, memberName, date, open, onOpenChange
             </div>
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   )

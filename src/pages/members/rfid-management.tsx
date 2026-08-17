@@ -131,7 +131,7 @@ export function RfidManagementDialog({ memberId, memberName, open, onOpenChange 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>Gestion RFID — {memberName}</DialogTitle>
           <DialogDescription>

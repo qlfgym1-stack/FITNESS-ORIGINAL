@@ -205,7 +205,7 @@ export function MemberHistoryDialog({ memberId, memberName, open, onOpenChange }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl flex flex-col max-h-[85vh]">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5 text-primary" />
@@ -247,7 +247,7 @@ export function MemberHistoryDialog({ memberId, memberName, open, onOpenChange }
           </div>
         </div>
 
-        <div className="overflow-y-auto max-h-[60vh] -mx-6 px-6 space-y-2 pb-2">
+        <div className="overflow-y-auto flex-1 min-h-0 -mx-6 px-6 space-y-2 pb-2">
           {isLoading && (
             <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           )}

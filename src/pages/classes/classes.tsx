@@ -499,12 +499,13 @@ export default function ClassesPage() {
                 {t("classes.add")}
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[500px]">
+              <Form {...form}>
               <DialogHeader>
                 <DialogTitle>{editingClass ? (t("classes.edit") || "Edit Class") : t("classes.add")}</DialogTitle>
                 <DialogDescription>{t("classes.dialogDescription")}</DialogDescription>
               </DialogHeader>
-              <Form {...form}>
+              <div className="overflow-y-auto flex-1 min-h-0 space-y-4">
                 <form onSubmit={form.handleSubmit((v) => addMutation.mutate(v))} className="space-y-4">
                   <FormField
                     control={form.control}
@@ -657,16 +658,17 @@ export default function ClassesPage() {
                       )}
                     />
                   )}
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button type="button" variant="outline">{t("common.cancel")}</Button>
-                    </DialogClose>
-                    <Button type="submit" disabled={addMutation.isPending}>
-                      {addMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      {t("common.save")}
-                    </Button>
-                  </DialogFooter>
                 </form>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">{t("common.cancel")}</Button>
+                </DialogClose>
+                <Button type="submit" disabled={addMutation.isPending}>
+                  {addMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {t("common.save")}
+                </Button>
+              </DialogFooter>
               </Form>
             </DialogContent>
           </Dialog>

@@ -357,7 +357,7 @@ export default function PaymentsPage() {
                   {t("payments.add")}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px] flex flex-col max-h-[85vh]">
+              <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader className="shrink-0">
                   <DialogTitle>{t("payments.add")}</DialogTitle>
                   <DialogDescription>Ajouter un nouveau paiement</DialogDescription>
