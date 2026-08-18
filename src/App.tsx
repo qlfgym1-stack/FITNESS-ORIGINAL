@@ -40,6 +40,7 @@ const Corporate = lazy(() => import('@/pages/corporate/corporate'))
 const Notifications = lazy(() => import('@/pages/notifications/notifications'))
 const Settings = lazy(() => import('@/pages/settings/settings'))
 const Profile = lazy(() => import('@/pages/settings/profile'))
+const Diagnostics = lazy(() => import('@/pages/settings/diagnostics'))
 const AdminUsers = lazy(() => import('@/pages/admin/users'))
 const Audit = lazy(() => import('@/pages/admin/audit'))
 const Display = lazy(() => import('@/pages/display/display'))
@@ -171,6 +172,7 @@ export default function App() {
               <Route path="corporate" element={<PageTransition><Suspense fallback={<Loading />}><Corporate /></Suspense></PageTransition>} />
               <Route path="notifications" element={<PageTransition><Suspense fallback={<Loading />}><Notifications /></Suspense></PageTransition>} />
               <Route path="settings" element={<PageTransition><Suspense fallback={<Loading />}><Settings /></Suspense></PageTransition>} />
+              <Route path="settings/diagnostics" element={<PageTransition><Suspense fallback={<Loading />}><Diagnostics /></Suspense></PageTransition>} />
               <Route path="profile" element={<PageTransition><Suspense fallback={<Loading />}><Profile /></Suspense></PageTransition>} />
               <Route path="admin/users" element={<PageTransition><Suspense fallback={<Loading />}><AdminUsers /></Suspense></PageTransition>} />
               <Route path="admin/audit" element={<PageTransition><Suspense fallback={<Loading />}><Audit /></Suspense></PageTransition>} />

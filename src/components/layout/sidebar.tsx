@@ -36,6 +36,7 @@ import {
 
   SprayCan,
   UserSearch,
+  Activity,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -146,6 +147,7 @@ const navGroups: NavGroup[] = [
     groupKey: "admin",
     items: [
       { key: "settings", icon: Settings, path: "/settings" },
+      { key: "diagnostics", icon: Activity, path: "/settings/diagnostics" },
       { key: "profile", icon: UserCog, path: "/profile" },
       { key: "users", icon: Users, path: "/admin/users" },
       { key: "corporate", icon: Briefcase, path: "/corporate" },
