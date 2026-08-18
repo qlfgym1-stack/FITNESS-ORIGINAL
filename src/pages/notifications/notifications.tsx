@@ -205,9 +205,7 @@ const SubRowCard = memo(function SubRowCard({
   onWhatsApp: (target: WaTarget) => void
 }) {
   const t = useT()
-  const { roles } = useAuth()
   const openMember = useOpenMember()
-  const isAdmin = roles?.some((r) => r.role === "admin")
   const member = sub.members
   const name = member ? `${member.first_name} ${member.last_name}` : "-"
   const phone = member?.phone ?? null
@@ -242,7 +240,7 @@ const SubRowCard = memo(function SubRowCard({
               {t("notifications.expires") || "Expire le"} : {formatDate(sub.end_date)} · {phone ? displayPhone(phone) : "-"}
             </p>
           </div>
-          {isAdmin && phone && (
+          {phone && (
             <Button
               variant="outline"
               size="icon"
@@ -265,9 +263,7 @@ const BirthdayCard = memo(function BirthdayCard({
   onWhatsApp: (target: WaTarget) => void
 }) {
   const t = useT()
-  const { roles } = useAuth()
   const openMember = useOpenMember()
-  const isAdmin = roles?.some((r) => r.role === "admin")
   const name = `${m.first_name} ${m.last_name}`
   return (
     <Card className="border-rose-500/30">
@@ -290,7 +286,7 @@ const BirthdayCard = memo(function BirthdayCard({
               {t("notifications.bornOn") || "Né le"} : {formatDate(m.birth_date ?? "")}
             </p>
           </div>
-          {isAdmin && m.phone && (
+          {m.phone && (
             <Button
               variant="outline"
               size="icon"
