@@ -8,7 +8,7 @@ import { ThemeProvider } from '@/stores/theme'
 import { I18nProvider } from '@/i18n'
 import { OfflineQueueProvider } from '@/stores/offline-queue'
 import { VersionProvider } from '@/stores/version'
-import { OfflineBanner } from '@/components/ui/offline-banner'
+
 import { Toaster } from '@/components/ui/toast'
 import { PWAUpdateSystem } from '@/components/ui/update-notification'
 import App from './App'
@@ -44,7 +44,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <I18nProvider>
             <VersionProvider>
               <OfflineQueueProvider>
-                <OfflineBanner />
                 <App />
                 <PWAUpdateSystem />
                 <Toaster />

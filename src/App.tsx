@@ -67,6 +67,7 @@ function NotFound() {
 }
 
 import { AiChatProvider } from "@/stores/ai-chat"
+import { OfflineBanner } from '@/components/ui/offline-banner'
 
 function PageTransition({ children }: { children: React.ReactNode }) {
   return (
@@ -129,6 +130,7 @@ export default function App() {
 
   return (
     <AuthProvider>
+      <OfflineBanner />
       <ErrorBoundary>
         <AnimatePresence mode="wait">
           <AiChatProvider>
