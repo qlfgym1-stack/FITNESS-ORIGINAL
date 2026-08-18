@@ -3,6 +3,7 @@ import { useQuery } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
 import { useT } from "@/i18n"
+import { useToast } from "@/components/ui/toast"
 import { format, startOfMonth, endOfMonth } from "date-fns"
 import { PageHeader } from "@/components/layout"
 import { Button } from "@/components/ui/button"
@@ -31,6 +32,7 @@ export default function ReportPage() {
   const supabase = useSupabase()
   const { organization } = useAuth()
   const t = useT()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
   const orgId = organization?.id
@@ -93,17 +95,21 @@ export default function ReportPage() {
   }, [reservations, equipmentMap])
 
   async function exportToExcel() {
-    const ExcelJS = await import("exceljs")
-    const wb = new ExcelJS.default.Workbook()
-    const ws = wb.addWorksheet("Equipment Report")
-    ws.columns = [
-      { header: "Equipment Name", key: "name", width: 30 },
-      { header: "Usage Count", key: "count", width: 15 },
-    ]
-    usageData.forEach((d) => {
-      ws.addRow({ name: d.name, count: d.count })
-    })
-    await wb.xlsx.writeFile(`equipment-report-${startDate}-to-${endDate}.xlsx`)
+    try {
+      const ExcelJS = await import("exceljs")
+      const wb = new ExcelJS.default.Workbook()
+      const ws = wb.addWorksheet("Equipment Report")
+      ws.columns = [
+        { header: "Equipment Name", key: "name", width: 30 },
+        { header: "Usage Count", key: "count", width: 15 },
+      ]
+      usageData.forEach((d) => {
+        ws.addRow({ name: d.name, count: d.count })
+      })
+      await wb.xlsx.writeFile(`equipment-report-${startDate}-to-${endDate}.xlsx`)
+    } catch (err) {
+      toast({ title: "Erreur", description: String(err), variant: "destructive" })
+    }
   }
 
   const currentTab = TABS.find(t => t.path === location.pathname)?.value ?? "report"

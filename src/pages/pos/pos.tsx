@@ -440,12 +440,15 @@ export default function POSPage() {
   }, [selectedMemberId])
 
   const { data: members } = useQuery({
-    queryKey: ["members_minimal"],
+    queryKey: ["members_minimal", organization?.id],
     queryFn: async () => {
       if (IS_MOCK) return []
-      const { data } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url, member_number, corporate_id").eq("status", "active").order("first_name")
+      const orgId = organization?.id
+      if (!orgId) return []
+      const { data } = await supabase.from("members").select("id, first_name, last_name, phone, photo_url, member_number, corporate_id").eq("status", "active").eq("organization_id", orgId).order("first_name")
       return data ?? []
     },
+    enabled: !!organization?.id,
   })
 
   const { data: corporateAccounts } = useQuery({
@@ -816,7 +819,7 @@ export default function POSPage() {
       setQrInput("")
       return
     }
-    toast({ title: "Code non reconnu", description: `Aucun produit ou adh�rent trouv� pour "${value}"`, variant: "destructive" })
+    toast({ title: "Code non reconnu", description: `Aucun produit ou adhérent trouvé pour "${value}"`, variant: "destructive" })
     setQrInput("")
   }
 

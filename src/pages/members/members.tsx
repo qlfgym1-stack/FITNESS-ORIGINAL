@@ -656,7 +656,7 @@ export default function Members() {
             } as any).select().single()
             if (subError) throw subError
             if (rfidUid && rfidUid !== (rfidData[id]?.rfid_uid ?? '')) {
-              try { await (supabase.rpc as any)('assign_rfid_card', { p_member_id: id, p_rfid_uid: rfidUid, p_created_by: user?.id || null }) } catch {}
+              try { await (supabase.rpc as any)('assign_rfid_card', { p_member_id: id, p_rfid_uid: rfidUid, p_created_by: user?.id || null }) } catch (e) { console.error('RFID assignment failed:', e) }
             }
             return {
               member_id: id,
@@ -671,7 +671,7 @@ export default function Members() {
         }
       }
       if (rfidUid && rfidUid !== (rfidData[id]?.rfid_uid ?? '')) {
-        try { await (supabase.rpc as any)('assign_rfid_card', { p_member_id: id, p_rfid_uid: rfidUid, p_created_by: user?.id || null }) } catch {}
+        try { await (supabase.rpc as any)('assign_rfid_card', { p_member_id: id, p_rfid_uid: rfidUid, p_created_by: user?.id || null }) } catch (e) { console.error('RFID assignment failed:', e) }
       }
       return null
     },

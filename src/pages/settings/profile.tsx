@@ -52,7 +52,7 @@ export default function ProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       const orgId = organization?.id
       if (!orgId) throw new Error('No organization')
-      const filePath = "${orgId}/avatars/${user?.id}/${file.name}"
+      const filePath = `${orgId}/avatars/${user?.id}/${file.name}`
       const { error } = await supabase.storage.from('photos').upload(filePath, file)
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(filePath)

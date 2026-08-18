@@ -41,13 +41,17 @@ export default function InstallPage() {
   }, [t, toast])
 
   async function handleInstall() {
-    if (!deferredPrompt) return
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
-    if (outcome === "accepted") {
-      toast({ title: t("install.installed") })
+    try {
+      if (!deferredPrompt) return
+      deferredPrompt.prompt()
+      const { outcome } = await deferredPrompt.userChoice
+      if (outcome === "accepted") {
+        toast({ title: t("install.installed") })
+      }
+      setDeferredPrompt(null)
+    } catch (err) {
+      toast({ title: "Erreur", description: String(err), variant: "destructive" })
     }
-    setDeferredPrompt(null)
   }
 
   return (

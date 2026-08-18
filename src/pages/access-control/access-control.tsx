@@ -244,27 +244,31 @@ export default function AccessControlPage() {
   )
 
   async function exportHistory() {
-    if (!manualValidations || manualValidations.length === 0) return
-    const ExcelJS = await import("exceljs")
-    const wb = new ExcelJS.default.Workbook()
-    const ws = wb.addWorksheet("ManualValidations")
-    ws.columns = [
-      { header: "member", key: "member", width: 30 },
-      { header: "reason", key: "reason", width: 20 },
-      { header: "detail", key: "detail", width: 30 },
-      { header: "terminal", key: "terminal", width: 20 },
-      { header: "validated_at", key: "validated_at", width: 25 },
-    ]
-    manualValidations.forEach((v: ManualValidationWithMember) => {
-      ws.addRow({
-        member: v.member ? `${v.member.first_name} ${v.member.last_name}` : "—",
-        reason: v.reason,
-        detail: v.reason_detail ?? "",
-        terminal: v.terminal ?? "",
-        validated_at: v.validated_at,
+    try {
+      if (!manualValidations || manualValidations.length === 0) return
+      const ExcelJS = await import("exceljs")
+      const wb = new ExcelJS.default.Workbook()
+      const ws = wb.addWorksheet("ManualValidations")
+      ws.columns = [
+        { header: "member", key: "member", width: 30 },
+        { header: "reason", key: "reason", width: 20 },
+        { header: "detail", key: "detail", width: 30 },
+        { header: "terminal", key: "terminal", width: 20 },
+        { header: "validated_at", key: "validated_at", width: 25 },
+      ]
+      manualValidations.forEach((v: ManualValidationWithMember) => {
+        ws.addRow({
+          member: v.member ? `${v.member.first_name} ${v.member.last_name}` : "—",
+          reason: v.reason,
+          detail: v.reason_detail ?? "",
+          terminal: v.terminal ?? "",
+          validated_at: v.validated_at,
+        })
       })
-    })
-    await wb.xlsx.writeFile("manual-validations.xlsx")
+      await wb.xlsx.writeFile("manual-validations.xlsx")
+    } catch (err) {
+      toast({ title: "Erreur", description: String(err), variant: "destructive" })
+    }
   }
 
   return (

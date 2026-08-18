@@ -9,6 +9,7 @@ async function hashEqual(a: string, b: string): Promise<boolean> {
 
 const allowedOrigins = [
   'https://qlfgym1-stack.github.io',
+  'https://qlfgym.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000',
 ]

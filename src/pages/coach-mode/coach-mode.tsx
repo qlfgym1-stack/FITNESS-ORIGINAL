@@ -217,7 +217,7 @@ export default function CoachModePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coach-salary-history'] })
-      toast({ title: 'Snapchat enregistré pour ' + formatMonth(currentMonth) })
+      toast({ title: 'Snapshot enregistré pour ' + formatMonth(currentMonth) })
     },
     onError: (err: Error) => toast({ title: 'Erreur', description: err.message, variant: 'destructive' }),
   })
@@ -596,7 +596,7 @@ export default function CoachModePage() {
                       </div>
                       {currentSnapshot && (
                         <Badge variant="outline" className="text-xs">
-                          Snapchat enregistré
+                          Snapshot enregistré
                         </Badge>
                       )}
                     </div>
