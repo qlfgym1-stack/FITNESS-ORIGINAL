@@ -197,19 +197,19 @@ export default function Members() {
   const [photoUploading, setPhotoUploading] = useState(false)
   const tempMemberIdRef = useRef(crypto.randomUUID())
   const [mockMembers, setMockMembers] = useState<Member[]>(MOCK_MEMBERS)
-  const [mockSubMap, setMockSubMap] = useState<Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number }>>({
-    'mock-1': { id: 'mock-ms-1', subscription_type_id: 'mock-st-2', name: '1 Mois', status: 'active', total_amount: 2400 },
-    'mock-2': { id: 'mock-ms-2', subscription_type_id: 'mock-st-8', name: '3 Mois', status: 'active', total_amount: 8400 },
-    'mock-3': { id: 'mock-ms-3', subscription_type_id: 'mock-st-5', name: '12 Mois', status: 'active', total_amount: 22800 },
-    'mock-4': { id: 'mock-ms-4', subscription_type_id: 'mock-st-6', name: 'Séance Libre', status: 'expired', total_amount: 600 },
-    'mock-5': { id: 'mock-ms-5', subscription_type_id: 'mock-st-10', name: '12 Mois', status: 'active', total_amount: 28800 },
-    'mock-6': { id: 'mock-ms-6', subscription_type_id: 'mock-st-2', name: '1 Mois', status: 'active', total_amount: 2400 },
-    'mock-7': { id: 'mock-ms-7', subscription_type_id: 'mock-st-6', name: 'Séance Libre', status: 'expired', total_amount: 600 },
-    'mock-8': { id: 'mock-ms-8', subscription_type_id: 'mock-st-3', name: '3 Mois', status: 'active', total_amount: 6600 },
-    'mock-9': { id: 'mock-ms-9', subscription_type_id: 'mock-st-5', name: '12 Mois', status: 'active', total_amount: 22800 },
-    'mock-10': { id: 'mock-ms-10', subscription_type_id: 'mock-st-2', name: '1 Mois', status: 'active', total_amount: 2400 },
-    'mock-11': { id: 'mock-ms-11', subscription_type_id: 'mock-st-6', name: 'Séance Libre', status: 'expired', total_amount: 600 },
-    'mock-12': { id: 'mock-ms-12', subscription_type_id: 'mock-st-10', name: '12 Mois', status: 'active', total_amount: 28800 },
+  const [mockSubMap, setMockSubMap] = useState<Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number; start_date: string; end_date: string; sub_count: number }>>({
+    'mock-1': { id: 'mock-ms-1', subscription_type_id: 'mock-st-2', name: '1 Mois', status: 'active', total_amount: 2400, start_date: new Date(Date.now() - 86400000 * 10).toISOString().split('T')[0], end_date: new Date(Date.now() + 86400000 * 20).toISOString().split('T')[0], sub_count: 2 },
+    'mock-2': { id: 'mock-ms-2', subscription_type_id: 'mock-st-8', name: '3 Mois', status: 'active', total_amount: 8400, start_date: new Date(Date.now() - 86400000 * 15).toISOString().split('T')[0], end_date: new Date(Date.now() + 86400000 * 75).toISOString().split('T')[0], sub_count: 1 },
+    'mock-3': { id: 'mock-ms-3', subscription_type_id: 'mock-st-5', name: '12 Mois', status: 'active', total_amount: 22800, start_date: new Date(Date.now() - 86400000 * 30).toISOString().split('T')[0], end_date: new Date(Date.now() + 86400000 * 335).toISOString().split('T')[0], sub_count: 1 },
+    'mock-4': { id: 'mock-ms-4', subscription_type_id: 'mock-st-6', name: 'Séance Libre', status: 'expired', total_amount: 600, start_date: new Date(Date.now() - 86400000 * 60).toISOString().split('T')[0], end_date: new Date(Date.now() - 86400000 * 30).toISOString().split('T')[0], sub_count: 3 },
+    'mock-5': { id: 'mock-ms-5', subscription_type_id: 'mock-st-10', name: '12 Mois', status: 'active', total_amount: 28800, start_date: new Date(Date.now() - 86400000 * 5).toISOString().split('T')[0], end_date: new Date(Date.now() + 86400000 * 360).toISOString().split('T')[0], sub_count: 1 },
+    'mock-6': { id: 'mock-ms-6', subscription_type_id: 'mock-st-2', name: '1 Mois', status: 'active', total_amount: 2400, start_date: new Date(Date.now() - 86400000 * 7).toISOString().split('T')[0], end_date: new Date(Date.now() + 86400000 * 23).toISOString().split('T')[0], sub_count: 2 },
+    'mock-7': { id: 'mock-ms-7', subscription_type_id: 'mock-st-6', name: 'Séance Libre', status: 'expired', total_amount: 600, start_date: new Date(Date.now() - 86400000 * 90).toISOString().split('T')[0], end_date: new Date(Date.now() - 86400000 * 60).toISOString().split('T')[0], sub_count: 1 },
+    'mock-8': { id: 'mock-ms-8', subscription_type_id: 'mock-st-3', name: '3 Mois', status: 'active', total_amount: 6600, start_date: new Date(Date.now() - 86400000 * 20).toISOString().split('T')[0], end_date: new Date(Date.now() + 86400000 * 70).toISOString().split('T')[0], sub_count: 1 },
+    'mock-9': { id: 'mock-ms-9', subscription_type_id: 'mock-st-5', name: '12 Mois', status: 'active', total_amount: 22800, start_date: new Date(Date.now() - 86400000 * 40).toISOString().split('T')[0], end_date: new Date(Date.now() + 86400000 * 325).toISOString().split('T')[0], sub_count: 2 },
+    'mock-10': { id: 'mock-ms-10', subscription_type_id: 'mock-st-2', name: '1 Mois', status: 'active', total_amount: 2400, start_date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], end_date: new Date(Date.now() + 86400000 * 27).toISOString().split('T')[0], sub_count: 1 },
+    'mock-11': { id: 'mock-ms-11', subscription_type_id: 'mock-st-6', name: 'Séance Libre', status: 'expired', total_amount: 600, start_date: new Date(Date.now() - 86400000 * 120).toISOString().split('T')[0], end_date: new Date(Date.now() - 86400000 * 90).toISOString().split('T')[0], sub_count: 4 },
+    'mock-12': { id: 'mock-ms-12', subscription_type_id: 'mock-st-10', name: '12 Mois', status: 'active', total_amount: 28800, start_date: new Date(Date.now() - 86400000 * 25).toISOString().split('T')[0], end_date: new Date(Date.now() + 86400000 * 340).toISOString().split('T')[0], sub_count: 1 },
   })
   const [mockRfidMap, setMockRfidMap] = useState<Record<string, string>>({})
   const rfidManagementQuery = useQuery({
@@ -280,20 +280,54 @@ export default function Members() {
       if (!orgId) return {}
       const { data } = await supabase
         .from('member_subscriptions')
-        .select('id, member_id, subscription_type_id, subscription_types!inner(name), status, total_amount, end_date')
+        .select('id, member_id, subscription_type_id, subscription_types!inner(name), status, total_amount, start_date, end_date')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
-      const map: Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number; end_date: string | null }> = {}
+      const map: Record<string, { id: string; subscription_type_id: string; name: string; status: string; total_amount: number; start_date: string | null; end_date: string | null; sub_count: number }> = {}
+      const subCounts: Record<string, number> = {}
       for (const ms of (data || []) as any[]) {
+        subCounts[ms.member_id] = (subCounts[ms.member_id] || 0) + 1
         if (!map[ms.member_id]) {
-          map[ms.member_id] = { id: ms.id, subscription_type_id: ms.subscription_type_id, name: ms.subscription_types?.name || '—', status: ms.status, total_amount: ms.total_amount, end_date: ms.end_date || null }
+          map[ms.member_id] = { id: ms.id, subscription_type_id: ms.subscription_type_id, name: ms.subscription_types?.name || '—', status: ms.status, total_amount: ms.total_amount, start_date: ms.start_date || null, end_date: ms.end_date || null, sub_count: 0 }
         }
+      }
+      for (const memberId of Object.keys(map)) {
+        map[memberId].sub_count = subCounts[memberId] || 0
       }
       return map
     },
     enabled: !!orgId && !IS_MOCK,
   })
   const memberSubMap = IS_MOCK ? mockSubMap : (memberSubMapQuery ?? {})
+
+  const { data: attendanceCounts } = useQuery({
+    queryKey: ['member-attendance-counts', orgId],
+    queryFn: async () => {
+      if (!orgId) return {} as Record<string, number>
+      const memberIds = Object.keys(memberSubMap || {})
+      if (memberIds.length === 0) return {} as Record<string, number>
+      const { data } = await supabase
+        .from('attendance')
+        .select('member_id, check_in')
+        .eq('organization_id', orgId)
+        .in('member_id', memberIds)
+        .not('check_in', 'is', null)
+      const counts: Record<string, number> = {}
+      for (const row of (data || []) as any[]) {
+        const sub = (memberSubMap as Record<string, { start_date: string | null; end_date: string | null }> | null)?.[row.member_id]
+        if (sub?.start_date && sub?.end_date && row.check_in) {
+          const checkIn = new Date(row.check_in)
+          const start = new Date(sub.start_date)
+          const end = new Date(sub.end_date)
+          if (checkIn >= start && checkIn <= end) {
+            counts[row.member_id] = (counts[row.member_id] || 0) + 1
+          }
+        }
+      }
+      return counts
+    },
+    enabled: !!orgId && !IS_MOCK && Object.keys(memberSubMap || {}).length > 0,
+  })
 
   const { data: urlMember } = useQuery({
     queryKey: ['member-by-id', urlMemberId, orgId],
@@ -370,7 +404,7 @@ export default function Members() {
 
       if (IS_MOCK) {
         const subId = `mock-ms-renew-${renewingMember.id}`
-        setMockSubMap(prev => ({ ...prev, [renewingMember.id]: { id: subId, subscription_type_id: renewTypeId, name: typeDef.name, status: 'pending_payment', total_amount: total } }))
+        setMockSubMap(prev => { const existing = prev[renewingMember.id]; return { ...prev, [renewingMember.id]: { id: subId, subscription_type_id: renewTypeId, name: typeDef.name, status: 'pending_payment', total_amount: total, start_date: renewStartDate, end_date: renewEndDate, sub_count: (existing?.sub_count || 0) + 1 } } })
         navigate('/pos', {
           state: {
             pendingSubscription: {
@@ -542,7 +576,7 @@ export default function Members() {
           const typeDef = subscriptionTypes?.find((t: SubscriptionType) => t.id === values.subscription_type_id)
           if (typeDef) {
             const subId = `mock-sub-${crypto.randomUUID()}`
-            setMockSubMap(prev => ({ ...prev, [memberId]: { id: subId, subscription_type_id: values.subscription_type_id!, name: typeDef.name, status: 'pending_payment', total_amount: typeDef.price } }))
+            setMockSubMap(prev => ({ ...prev, [memberId]: { id: subId, subscription_type_id: values.subscription_type_id!, name: typeDef.name, status: 'pending_payment', total_amount: typeDef.price, start_date: values.start_date || new Date().toISOString().split('T')[0], end_date: new Date(new Date(values.start_date || new Date()).getTime() + (typeDef.duration_days || 30) * 86400000).toISOString().split('T')[0], sub_count: 1 } as const }))
             if (rfidUid) setMockRfidMap(prev => ({ ...prev, [memberId]: rfidUid }))
             return { member_id: memberId, subscription_id: subId, total_amount: typeDef.price, subscription_name: typeDef.name, organization_id: orgId, first_name, last_name }
           }
@@ -625,7 +659,7 @@ export default function Members() {
             const existingSub = mockSubMap[id]
             if (!existingSub || existingSub.subscription_type_id !== values.subscription_type_id) {
               const subId = `mock-sub-${crypto.randomUUID()}`
-              setMockSubMap(prev => ({ ...prev, [id]: { id: subId, subscription_type_id: values.subscription_type_id!, name: typeDef.name, status: 'pending_payment', total_amount: typeDef.price } }))
+              setMockSubMap(prev => { const prevEntry = prev[id]; return { ...prev, [id]: { id: subId, subscription_type_id: values.subscription_type_id!, name: typeDef.name, status: 'pending_payment', total_amount: typeDef.price, start_date: values.start_date || new Date().toISOString().split('T')[0], end_date: new Date(new Date(values.start_date || new Date()).getTime() + (typeDef.duration_days || 30) * 86400000).toISOString().split('T')[0], sub_count: (prevEntry?.sub_count || 0) + 1 } as const } })
               if (rfidUid) setMockRfidMap(prev => ({ ...prev, [id]: rfidUid }))
               return { member_id: id, subscription_id: subId, total_amount: typeDef.price, subscription_name: typeDef.name, organization_id: orgId, first_name, last_name }
             }
@@ -895,6 +929,9 @@ export default function Members() {
                   </TableHead>
                   <TableHead>RFID</TableHead>
                   <TableHead>Abonnement</TableHead>
+                  <TableHead>{t('members.startDate')}</TableHead>
+                  <TableHead>{t('members.endDate')}</TableHead>
+                  <TableHead>{t('members.sessions')}</TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => handleSort('status')}>
                     <div className="flex items-center gap-1">
                       {t('common.status')}
@@ -913,14 +950,14 @@ export default function Members() {
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
+                    <TableCell colSpan={13} className="text-center py-8">
                       <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && membersData?.data.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">{t('members.noData')}</TableCell>
+                    <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">{t('members.noData')}</TableCell>
                   </TableRow>
                 )}
               {membersData?.data.map((member: Member) => (
@@ -945,9 +982,14 @@ export default function Members() {
                     ) : '-'}
                   </TableCell>
                   <TableCell>
-                    {memberSubMap && (memberSubMap as Record<string, { name: string; status: string }>)[member.id] ? (
+                    {memberSubMap && (memberSubMap as Record<string, { name: string; status: string; sub_count: number }>)[member.id] ? (
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-medium">{(memberSubMap as Record<string, { name: string; status: string }>)[member.id].name}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-medium">{(memberSubMap as Record<string, { name: string; status: string; sub_count: number }>)[member.id].name}</span>
+                          <Badge className={`text-[9px] px-1 py-0 ${(memberSubMap as Record<string, { sub_count: number }>)[member.id].sub_count > 1 ? 'bg-primary/10 text-primary' : 'bg-success/10 text-success'}`}>
+                            {(memberSubMap as Record<string, { sub_count: number }>)[member.id].sub_count > 1 ? t('members.renewal') : t('members.newSub')}
+                          </Badge>
+                        </div>
                         <span className={`text-[10px] ${(memberSubMap as Record<string, { name: string; status: string }>)[member.id].status === 'active' ? 'text-success' : 'text-muted-foreground'}`}>
                           {(memberSubMap as Record<string, { name: string; status: string }>)[member.id].status}
                         </span>
@@ -956,6 +998,9 @@ export default function Members() {
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
+                  <TableCell className="text-xs">{(memberSubMap as Record<string, { start_date?: string | null }> | null)?.[member.id]?.start_date ? formatDate((memberSubMap as Record<string, { start_date: string }>)[member.id].start_date) : '—'}</TableCell>
+                  <TableCell className="text-xs">{(memberSubMap as Record<string, { end_date?: string | null }> | null)?.[member.id]?.end_date ? formatDate((memberSubMap as Record<string, { end_date: string }>)[member.id].end_date) : '—'}</TableCell>
+                  <TableCell className="text-xs font-medium">{attendanceCounts?.[member.id] ?? 0}</TableCell>
                   <TableCell><Badge className={getStatusColor(member.status)}>{toUpper(member.status)}</Badge></TableCell>
                   <TableCell>{member.last_visit ? formatDate(member.last_visit) : '-'}</TableCell>
                   <TableCell className="text-right">
@@ -1024,6 +1069,20 @@ export default function Members() {
                     </div>
                   </div>
                   <Badge className={getStatusColor(member.status)}>{toUpper(member.status)}</Badge>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
+                  {(memberSubMap as Record<string, { name?: string; start_date?: string | null; end_date?: string | null; sub_count?: number }> | null)?.[member.id]?.name && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-foreground">{(memberSubMap as Record<string, { name: string }>)[member.id].name}</span>
+                      <Badge className={`text-[9px] px-1 py-0 ${(memberSubMap as Record<string, { sub_count: number }>)[member.id].sub_count! > 1 ? 'bg-primary/10 text-primary' : 'bg-success/10 text-success'}`}>
+                        {(memberSubMap as Record<string, { sub_count: number }>)[member.id].sub_count! > 1 ? t('members.renewal') : t('members.newSub')}
+                      </Badge>
+                    </div>
+                  )}
+                  {(memberSubMap as Record<string, { start_date?: string | null }> | null)?.[member.id]?.start_date && (
+                    <p>{t('members.startDate')}: <span className="text-foreground">{formatDate((memberSubMap as Record<string, { start_date: string }>)[member.id].start_date)}</span> → {t('members.endDate')}: <span className="text-foreground">{formatDate((memberSubMap as Record<string, { end_date: string }>)[member.id].end_date)}</span></p>
+                  )}
+                  <p>{t('members.sessions')}: <span className="font-semibold text-foreground">{attendanceCounts?.[member.id] ?? 0}</span></p>
                 </div>
                 <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>
                   {memberSubMap && (memberSubMap as Record<string, { id: string; status: string; total_amount: number; name: string; subscription_type_id: string }>)[member.id]?.status === 'pending_payment' && (
