@@ -1708,6 +1708,8 @@ const ar = {
     reportDesc: "إذا واجهت مشكلة، أرسل هذا التقرير لفريق التطوير",
     reportDescEn: "If you encounter an issue, send this report to the development team",
     reportDescAr: "إذا واجهت مشكلة، أرسل هذا التقرير لفريق التطوير",
+    reconnect: "إعادة الاتصال",
+    sessionExpired: "الجلسة منتهية — إعادة الاتصال مطلوبة",
   },
 };
 

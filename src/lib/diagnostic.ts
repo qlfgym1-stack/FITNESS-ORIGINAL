@@ -193,6 +193,15 @@ export async function checkSupabase(supabase: { from: (table: string) => { selec
       const msg = (error as { message?: string; code?: string })?.message || 'Query failed'
       const code = (error as { code?: string })?.code || ''
       const isRls = code === '42501' || msg.includes('permission') || msg.includes('RLS')
+      const isSession = code === 'PGRST301' || msg.includes('JWT') || msg.includes('expired') || msg.includes('invalid_token') || msg.includes('3') && msg.includes('token')
+      if (isSession) {
+        return {
+          status: 'error',
+          label: 'SUPABASE',
+          detail: `Session expirée — reconnexion requise (${latency}ms)`,
+          data: { latency, code, isSession: true },
+        }
+      }
       return {
         status: 'warning',
         label: 'SUPABASE',
@@ -363,8 +372,16 @@ function determineCause(results: ZoneResult[]): string {
   const storage = results.find(r => r.label === 'STORAGE')
 
   if (net?.status === 'error') return 'NETWORK_ISSUE'
-  if (auth?.status === 'error') return 'AUTH_ISSUE'
-  if (supa?.status === 'error') return 'SUPABASE_ISSUE'
+  if (auth?.status === 'error') {
+    const detail = auth.detail || ''
+    if (detail.includes('rôle') || detail.includes('role') || detail.includes('Loading')) return 'SESSION_EXPIRED'
+    return 'AUTH_ISSUE'
+  }
+  if (supa?.status === 'error') {
+    const isSession = supa.data && (supa.data as Record<string, unknown>).isSession === true
+    if (isSession) return 'SESSION_EXPIRED'
+    return 'SUPABASE_ISSUE'
+  }
   if (supa?.status === 'warning') return 'SUPABASE_PERMISSION_ISSUE'
   if (js?.status === 'error') return 'FRONTEND_JS_ERROR'
   if (cache?.status === 'warning') return 'CACHE_STALE'

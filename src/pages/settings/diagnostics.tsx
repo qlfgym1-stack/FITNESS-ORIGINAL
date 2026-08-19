@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useSupabase } from '@/hooks/useSupabase'
 import { useAuth } from '@/stores/auth'
 import { useT } from '@/i18n'
@@ -9,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { runFullDiagnostic, generateReport, generateCopyText, type DiagnosticResult, type DiagnosticStatus } from '@/lib/diagnostic'
-import { Activity, Shield, Wifi, Database, HardDrive, Cpu, Globe, RefreshCw, Copy, CheckCircle, AlertTriangle, XCircle, Loader2, Zap } from 'lucide-react'
+import { Activity, Shield, Wifi, Database, HardDrive, Cpu, Globe, RefreshCw, Copy, CheckCircle, AlertTriangle, XCircle, Loader2, Zap, LogIn } from 'lucide-react'
 
 const STATUS_COLORS: Record<DiagnosticStatus, string> = {
   ok: 'bg-success/10 text-success border-success/30',
@@ -55,6 +56,7 @@ function CauseCard({ cause, status }: { cause: string; status: DiagnosticStatus 
     ALL_OK: 'Tous les systèmes fonctionnent normalement',
     NETWORK_ISSUE: 'Problème de connexion réseau détecté',
     AUTH_ISSUE: "Problème d'authentification ou de session",
+    SESSION_EXPIRED: 'Session expirée — reconnexion requise',
     SUPABASE_ISSUE: 'Problème de connexion à la base de données',
     SUPABASE_PERMISSION_ISSUE: 'Restriction de permissions (RLS)',
     FRONTEND_JS_ERROR: 'Erreurs JavaScript détectées dans le frontend',
@@ -75,6 +77,7 @@ function CauseCard({ cause, status }: { cause: string; status: DiagnosticStatus 
 export default function Diagnostics() {
   const t = useT()
   const { toast } = useToast()
+  const navigate = useNavigate()
   const supabase = useSupabase()
   const { user, isAuthenticated, isLoading, roles, authError } = useAuth()
 
@@ -84,6 +87,8 @@ export default function Diagnostics() {
   const [copied, setCopied] = useState(false)
 
   const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || ''
+
+  const isSessionIssue = result?.cause === 'SESSION_EXPIRED' || result?.cause === 'AUTH_ISSUE'
 
   const runDiag = useCallback(async () => {
     setIsRunning(true)
@@ -115,12 +120,20 @@ export default function Diagnostics() {
       }
       const cacheKeys = Object.keys(localStorage).filter(k => k.startsWith('FITMANAGER_QUERY_CACHE') || k.startsWith('fitmanager-version-check'))
       cacheKeys.forEach(k => localStorage.removeItem(k))
+
+      if (isSessionIssue) {
+        await supabase.auth.signOut()
+        toast({ title: 'Session détruite — reconnexion requise', variant: 'success' })
+        setTimeout(() => navigate('/sign-in', { replace: true }), 800)
+        return
+      }
+
       toast({ title: 'Réparation effectuée — rechargement...', variant: 'success' })
       setTimeout(() => window.location.reload(), 1000)
     } catch {
       toast({ title: 'Erreur lors de la réparation', variant: 'destructive' })
     }
-  }, [toast])
+  }, [toast, isSessionIssue, supabase, navigate])
 
   const handleCopy = useCallback(async () => {
     if (!result) return
@@ -203,9 +216,9 @@ export default function Diagnostics() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={handleRepair}>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  {t('diagnostics.secureRepair')}
+                <Button variant={isSessionIssue ? "default" : "outline"} size="sm" onClick={handleRepair}>
+                  {isSessionIssue ? <LogIn className="mr-2 h-4 w-4" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  {isSessionIssue ? (t('diagnostics.reconnect') || 'Se reconnecter') : t('diagnostics.secureRepair')}
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => {
                   const report = generateReport(result)

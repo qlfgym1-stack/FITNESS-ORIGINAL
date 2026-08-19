@@ -1946,6 +1946,8 @@ forecast: "Forecast",
     reportDesc: "If you encounter an issue, send this report to the development team",
     reportDescEn: "If you encounter an issue, send this report to the development team",
     reportDescAr: "إذا واجهت مشكلة، أرسل هذا التقرير لفريق التطوير",
+    reconnect: "Reconnect",
+    sessionExpired: "Session expired — reconnection required",
   },
 };
 

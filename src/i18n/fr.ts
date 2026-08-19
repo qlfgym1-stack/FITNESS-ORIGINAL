@@ -1948,6 +1948,8 @@ forecast: "Prévision",
     reportDesc: "Si vous rencontrez un problème, envoyez ce rapport à l'équipe de développement",
     reportDescEn: "If you encounter an issue, send this report to the development team",
     reportDescAr: "إذا واجهت مشكلة، أرسل هذا التقرير لفريق التطوير",
+    reconnect: "Se reconnecter",
+    sessionExpired: "Session expirée — reconnexion requise",
   },
 };
 
