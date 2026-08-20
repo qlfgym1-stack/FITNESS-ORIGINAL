@@ -50,6 +50,7 @@ type ScanLogMember = {
   name: string
   photo_url: string | null
   subscription_name: string | null
+  start_date: string | null
   end_date: string | null
   days_remaining: number | null
   max_classes: number | null
@@ -404,15 +405,15 @@ export default function PointagePage() {
 
       const subRes = await supabase
         .from("member_subscriptions")
-        .select("end_date, status, subscription_type:subscription_types(name, max_classes)")
+        .select("start_date, end_date, status, subscription_type:subscription_types(name, max_classes)")
         .eq("member_id", memberId)
         .eq("organization_id", orgId)
-        .in("status", ["active"])
+        .in("status", ["active", "expired", "pending_payment"])
         .order("end_date", { ascending: false })
         .limit(1)
         .maybeSingle()
 
-      const sub = subRes.data as unknown as { end_date: string; status: string; subscription_type: { name: string; max_classes: number | null } | null } | null
+      const sub = subRes.data as unknown as { start_date: string; end_date: string; status: string; subscription_type: { name: string; max_classes: number | null } | null } | null
 
       const endDate = sub?.end_date ?? null
       const daysLeft = endDate ? daysBetween(endDate) : null
@@ -434,6 +435,7 @@ export default function PointagePage() {
         name: `${member.first_name} ${member.last_name}`,
         photo_url: member.photo_url,
         subscription_name: subType?.name ?? null,
+        start_date: sub?.start_date ?? null,
         end_date: endDate,
         days_remaining: daysLeft,
         max_classes: subType?.max_classes ?? null,
@@ -1029,7 +1031,6 @@ export default function PointagePage() {
                     ? log.member.max_classes - log.member.sessions_done
                     : null
                   const isLowSessions = sessionsLeft !== null && sessionsLeft <= 2
-                  const isHero = idx === 0
                   const isCheckin = log.type === "granted" && log.action.includes("Entrée")
                   const isAlreadyCheckedOut = log.attendance_id ? checkedOutLogIds.has(log.attendance_id) : false
                   const canCheckout = isCheckin && log.attendance_id && !isAlreadyCheckedOut
@@ -1042,103 +1043,113 @@ export default function PointagePage() {
                     <div key={log.id} className={`rounded-lg border overflow-hidden transition-colors ${
                       log.type === "granted" ? "bg-success/5 border-success/20" : "bg-destructive/5 border-destructive/20"
                     }`}>
-                      {log.member && (
-                        <div className={`relative w-full overflow-hidden ${isHero ? "h-56" : "h-28"}`}>
-                          {log.member.photo_url ? (
-                            <img src={log.member.photo_url} alt={log.member.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-muted">
-                              <Avatar className={isHero ? "h-24 w-24" : "h-14 w-14"}>
-                                <AvatarFallback className={isHero ? "text-3xl" : "text-lg"}>{getInitials(log.member.name.split(" ")[0] ?? "", log.member.name.split(" ").slice(1).join(" ") ?? "")}</AvatarFallback>
-                              </Avatar>
-                            </div>
-                          )}
-                          <div className="absolute top-2 right-2 flex gap-1">
-                            {log.type === "granted"
-                              ? <span className="bg-success/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" /> {isCheckin ? "ARRIVÉE" : "DÉPART"}</span>
-                              : <span className="bg-destructive/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><XCircle className="h-2.5 w-2.5" /> REFUSED</span>
-                            }
-                          </div>
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                            {log.member_id ? (
-                              <button
-                                type="button"
-                                onClick={() => openMember(log.member_id!)}
-                                title="Ouvrir la fiche adhérent"
-                                className={`font-bold text-white leading-tight text-left hover:underline cursor-pointer ${isHero ? "text-lg" : "text-sm"}`}
-                              >
-                                {log.member.name}
-                              </button>
-                            ) : (
-                              <p className={`font-bold text-white leading-tight ${isHero ? "text-lg" : "text-sm"}`}>{log.member.name}</p>
-                            )}
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-white/70 text-[10px]">{log.time}</p>
-                              {log.member.subscription_name && (
-                                <Badge variant="secondary" className="text-[8px] px-1 py-0 h-3 bg-white/20 text-white border-0">{log.member.subscription_name}</Badge>
+                      {log.member ? (
+                        <div className="flex gap-3 p-3">
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <div className="flex items-center gap-2">
+                              {log.member_id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openMember(log.member_id!)}
+                                  title="Ouvrir la fiche adhérent"
+                                  className="font-bold text-sm leading-tight text-left hover:underline cursor-pointer truncate"
+                                >
+                                  {log.member.name}
+                                </button>
+                              ) : (
+                                <p className="font-bold text-sm leading-tight truncate">{log.member.name}</p>
                               )}
+                              {isAlreadyCheckedOut && (
+                                <Badge variant="secondary" className="text-[9px] shrink-0">Terminé</Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-muted-foreground text-xs">{log.action}</p>
+                              <p className="text-muted-foreground text-[10px]">{log.time}</p>
                               {canCheckout && (
-                                <span className="text-white/90 text-[10px] font-mono font-bold animate-pulse">⏱ {elapsedDisplay}</span>
+                                <span className="text-primary text-[10px] font-mono font-bold animate-pulse">⏱ {elapsedDisplay}</span>
                               )}
                             </div>
+                            {log.type === "denied" && log.reason && (
+                              <p className="text-destructive font-medium text-xs">{log.reason}</p>
+                            )}
+                            {log.member.subscription_name && (
+                              <p className="text-xs font-semibold text-foreground">{log.member.subscription_name}</p>
+                            )}
+                            {(log.member.start_date || log.member.end_date) && (
+                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                {log.member.start_date && (
+                                  <span>Début : {new Date(log.member.start_date).toLocaleDateString("fr-FR")}</span>
+                                )}
+                                {log.member.end_date && (
+                                  <span className={isExpired ? "text-destructive font-bold" : isWarning ? "text-orange-500 font-medium" : ""}>
+                                    Fin : {new Date(log.member.end_date).toLocaleDateString("fr-FR")}
+                                    {!isExpired && log.member.days_remaining != null && ` (${log.member.days_remaining}j)`}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {log.member.max_classes != null && (
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1 text-[10px]">
+                                  <span className="text-muted-foreground">Séances :</span>
+                                  <span className={`font-semibold ${isLowSessions ? "text-orange-500" : "text-foreground"}`}>
+                                    {log.member.sessions_done ?? 0} / {log.member.max_classes}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-muted rounded-full h-1.5">
+                                  <div
+                                    className={`h-1.5 rounded-full ${isLowSessions ? "bg-orange-500" : "bg-primary"}`}
+                                    style={{ width: `${Math.min(100, ((log.member.sessions_done ?? 0) / log.member.max_classes) * 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            {log.member.max_classes == null && (
+                              <p className="text-[10px] text-muted-foreground">Séances : Illimité</p>
+                            )}
                           </div>
+                          <div className="flex flex-col items-center gap-2 shrink-0">
+                            <div className="relative">
+                              {log.member.photo_url ? (
+                                <img src={log.member.photo_url} alt={log.member.name} className="h-16 w-16 rounded-full object-cover" />
+                              ) : (
+                                <Avatar className="h-16 w-16">
+                                  <AvatarFallback className="text-lg">{getInitials(log.member.name.split(" ")[0] ?? "", log.member.name.split(" ").slice(1).join(" ") ?? "")}</AvatarFallback>
+                                </Avatar>
+                              )}
+                              <div className="absolute -bottom-1 -right-1">
+                                {log.type === "granted"
+                                  ? <span className="bg-success/90 text-white text-[8px] font-bold px-1 py-0.5 rounded-full flex items-center gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" /> {isCheckin ? "ARRIVÉE" : "DÉPART"}</span>
+                                  : <span className="bg-destructive/90 text-white text-[8px] font-bold px-1 py-0.5 rounded-full flex items-center gap-0.5"><XCircle className="h-2.5 w-2.5" /> REFUSÉ</span>
+                                }
+                              </div>
+                            </div>
+                            {log.member.subscription_name ? (
+                              <div className={`rounded-md px-2 py-1 text-center ${
+                                isExpired
+                                  ? "bg-destructive/15 border border-destructive/30"
+                                  : "bg-success/15 border border-success/30"
+                              }`}>
+                                <p className={`text-[9px] font-bold uppercase leading-tight ${
+                                  isExpired ? "text-destructive" : "text-success"
+                                }`}>
+                                  {isExpired ? "Abonnement expiré" : "Abonnement en cours"}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="rounded-md px-2 py-1 bg-orange-500/15 border border-orange-500/30">
+                                <p className="text-[9px] font-bold uppercase text-orange-500 leading-tight">Pas d'abonnement</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3">
+                          <p className="text-xs text-muted-foreground">{log.action}</p>
+                          <p className="text-[10px] text-muted-foreground">{log.time}</p>
                         </div>
                       )}
-                      <div className={`${isHero ? "p-3" : "p-2"} space-y-2`}>
-                        <div className="flex items-center justify-between">
-                          <p className={`text-muted-foreground font-medium ${isHero ? "text-xs" : "text-[10px]"}`}>{log.action}</p>
-                          {isAlreadyCheckedOut && (
-                            <Badge variant="secondary" className="text-[9px]">Terminé</Badge>
-                          )}
-                        </div>
-                        {log.type === "denied" && log.reason && (
-                          <p className={`text-destructive font-medium ${isHero ? "text-xs" : "text-[10px]"}`}>{log.reason}</p>
-                        )}
-                        {isHero && log.member && (
-                          <div className="grid grid-cols-2 gap-2 pt-1">
-                            <div className="rounded-md bg-muted/50 p-2 space-y-0.5">
-                              <p className="text-[9px] text-muted-foreground uppercase font-medium">Abonnement</p>
-                              <p className="text-xs font-semibold">{log.member.subscription_name ?? "—"}</p>
-                              {log.member.end_date && (
-                                <p className={`text-[10px] ${isExpired ? "text-destructive font-bold" : isWarning ? "text-orange-500 font-medium" : "text-muted-foreground"}`}>
-                                  {isExpired
-                                    ? `Expiré le ${new Date(log.member.end_date).toLocaleDateString("fr-FR")}`
-                                    : `Expire le ${new Date(log.member.end_date).toLocaleDateString("fr-FR")} (${log.member.days_remaining}j)`
-                                  }
-                                </p>
-                              )}
-                            </div>
-                            <div className="rounded-md bg-muted/50 p-2 space-y-0.5">
-                              <p className="text-[9px] text-muted-foreground uppercase font-medium">Séances</p>
-                              {log.member.max_classes != null ? (
-                                <>
-                                  <p className={`text-xs font-semibold ${isLowSessions ? "text-orange-500" : ""}`}>
-                                    {log.member.sessions_done ?? 0} / {log.member.max_classes}
-                                  </p>
-                                  <div className="w-full bg-muted rounded-full h-1.5 mt-1">
-                                    <div
-                                      className={`h-1.5 rounded-full ${isLowSessions ? "bg-orange-500" : "bg-primary"}`}
-                                      style={{ width: `${Math.min(100, ((log.member.sessions_done ?? 0) / log.member.max_classes) * 100)}%` }}
-                                    />
-                                  </div>
-                                </>
-                              ) : (
-                                <p className="text-xs text-muted-foreground">Illimité</p>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {isHero && (
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {isExpired && <Badge variant="destructive" className="text-[8px] px-1 py-0 h-3">EXPIRÉ</Badge>}
-                            {isWarning && !isExpired && <Badge variant="outline" className="text-[8px] px-1 py-0 h-3 border-orange-500 text-orange-500">EXPIRE BIENTÔT</Badge>}
-                            {isLowSessions && <Badge variant="outline" className="text-[8px] px-1 py-0 h-3 border-orange-500 text-orange-500">SÉANCES LIMITÉES</Badge>}
-                            {!log.member?.subscription_name && log.type === "granted" && (
-                              <Badge variant="outline" className="text-[8px] px-1 py-0 h-3 border-orange-500 text-orange-500">PAS D'ABO</Badge>
-                            )}
-                          </div>
-                        )}
-                      </div>
                     </div>
                   )
                 })}

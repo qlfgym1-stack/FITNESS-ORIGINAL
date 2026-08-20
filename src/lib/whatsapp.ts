@@ -1,4 +1,4 @@
-export type WaTemplateKey = "renewal" | "expired" | "birthday" | "welcome" | "receipt" | "attendance"
+export type WaTemplateKey = "renewal" | "expired" | "birthday" | "welcome" | "receipt" | "attendance" | "session"
 
 export const WA_TEMPLATE_KEYS: WaTemplateKey[] = [
   "renewal",
@@ -7,6 +7,7 @@ export const WA_TEMPLATE_KEYS: WaTemplateKey[] = [
   "welcome",
   "receipt",
   "attendance",
+  "session",
 ]
 
 export const DEFAULT_TEMPLATES: Record<WaTemplateKey, string> = {
@@ -16,6 +17,7 @@ export const DEFAULT_TEMPLATES: Record<WaTemplateKey, string> = {
   welcome: "Bienvenue {NOM} à {NOM_SALLE} ! Nous sommes ravis de vous accueillir.",
   receipt: "Bonjour {NOM}, nous avons bien reçu votre paiement à {NOM_SALLE}. Merci pour votre confiance !",
   attendance: "Bonjour {NOM}, merci pour votre visite à {NOM_SALLE} aujourd'hui. À très bientôt !",
+  session: "Bonjour {NOM}, merci pour votre séance libre à {NOM_SALLE} ! Découvrez nos abonnements pour un accès complet.",
 }
 
 export function formatPhone(phone: string): string {
@@ -33,17 +35,8 @@ export function sendWhatsApp(phone: string, message: string): void {
   const digits = formatPhone(phone)
   if (!digits) return
   const text = encodeURIComponent(message)
-  const webUrl = `https://wa.me/${digits}?text=${text}`
-  const desktopUrl = `whatsapp://send?phone=${digits}&text=${text}`
-
-  const isDesktop = typeof navigator !== "undefined" && /Win|Mac|Linux/i.test(navigator.platform)
-
-  if (isDesktop) {
-    window.open(desktopUrl, "_blank")
-    setTimeout(() => window.open(webUrl, "_blank"), 800)
-  } else {
-    window.open(webUrl, "_blank")
-  }
+  const url = `https://wa.me/${digits}?text=${text}`
+  window.open(url, "_blank")
 }
 
 /** Choisit le modèle WhatsApp selon le statut d'abonnement du membre. */

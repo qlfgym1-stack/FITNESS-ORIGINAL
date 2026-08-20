@@ -23,13 +23,14 @@ import { IS_MOCK } from "@/lib/config"
 import {
   WaTemplateKey, WA_TEMPLATE_KEYS, DEFAULT_TEMPLATES, sendWhatsApp,
 } from "@/lib/whatsapp"
+import { WhatsAppIcon } from "@/components/ui/whatsapp-button"
 import type { WhatsappOutbox } from "@/types/supabase"
 import {
   Trash2,
-  MessageCircle, Settings2, Send, CalendarClock, CalendarX, Loader2, Cake, Search, History, Users, CheckCircle, X,
+  Settings2, Send, CalendarClock, CalendarX, Loader2, Cake, Search, History, Users, CheckCircle, X, Package,
 } from "lucide-react"
 
-type TopTab = "renewals" | "expired" | "birthdays" | "campaign" | "history"
+type TopTab = "renewals" | "expired" | "birthdays" | "sessions" | "campaign" | "history"
 type CampaignStatus = "all" | "active" | "inactive" | "suspended" | "blocked"
 
 interface SubWithRelations {
@@ -56,6 +57,15 @@ interface WaTarget {
   phone: string
   date: string
   kind: WaTemplateKey
+}
+
+interface SessionMember {
+  id: string
+  member_id: string
+  member_name: string
+  phone: string | null
+  session_date: string
+  total_sessions: number
 }
 
 const DEFAULT_DELAYS = [30, 15, 7, 3, 1, 0]
@@ -87,6 +97,7 @@ function templateLabel(t: (key: string) => string, key: WaTemplateKey): string {
     case "welcome": return t("notifications.waWelcome") || "Bienvenue"
     case "receipt": return t("notifications.waReceipt") || "Reçu de paiement"
     case "attendance": return t("notifications.waAttendance") || "Visite"
+    case "session": return t("notifications.waSession") || "Séance libre"
   }
 }
 
@@ -98,6 +109,7 @@ function templateIcon(key: WaTemplateKey): string {
     case "welcome": return "👋"
     case "receipt": return "🧾"
     case "attendance": return "✅"
+    case "session": return "🏋️"
   }
 }
 
@@ -240,15 +252,15 @@ const SubRowCard = memo(function SubRowCard({
               {t("notifications.expires") || "Expire le"} : {formatDate(sub.end_date)} · {phone ? displayPhone(phone) : "-"}
             </p>
           </div>
-          {phone && (
-            <Button
+          <Button
               variant="outline"
               size="icon"
-              onClick={() => onWhatsApp({ member_id: sub.member_id, name, phone, date: sub.end_date, kind: isExpired ? "expired" : "renewal" })}
+              disabled={!phone}
+              title={phone ? "WhatsApp" : t("notifications.noPhone") || "Pas de téléphone"}
+              onClick={() => phone && onWhatsApp({ member_id: sub.member_id, name, phone, date: sub.end_date, kind: isExpired ? "expired" : "renewal" })}
             >
-              <MessageCircle className="h-4 w-4" />
+              <WhatsAppIcon className={`h-4 w-4 ${phone ? "text-[#25d366]" : "text-muted-foreground"}`} />
             </Button>
-          )}
         </div>
       </CardContent>
     </Card>
@@ -286,15 +298,65 @@ const BirthdayCard = memo(function BirthdayCard({
               {t("notifications.bornOn") || "Né le"} : {formatDate(m.birth_date ?? "")}
             </p>
           </div>
-          {m.phone && (
-            <Button
+          <Button
               variant="outline"
               size="icon"
-              onClick={() => onWhatsApp({ member_id: m.id, name, phone: m.phone ?? "", date: m.birth_date ?? "", kind: "birthday" })}
+              disabled={!m.phone}
+              title={m.phone ? "WhatsApp" : t("notifications.noPhone") || "Pas de téléphone"}
+              onClick={() => m.phone && onWhatsApp({ member_id: m.id, name, phone: m.phone ?? "", date: m.birth_date ?? "", kind: "birthday" })}
             >
-              <MessageCircle className="h-4 w-4" />
+              <WhatsAppIcon className={`h-4 w-4 ${m.phone ? "text-[#25d366]" : "text-muted-foreground"}`} />
             </Button>
-          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+})
+
+const SessionRowCard = memo(function SessionRowCard({
+  session,
+  onWhatsApp,
+}: {
+  session: SessionMember
+  onWhatsApp: (target: WaTarget) => void
+}) {
+  const t = useT()
+  const openMember = useOpenMember()
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-4">
+          <div className="mt-1 rounded-full p-2 bg-blue-500/10">
+            <Package className="h-4 w-4 text-blue-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => openMember(session.member_id)}
+                title="Ouvrir la fiche adhérent"
+                className="font-medium text-left cursor-pointer hover:text-primary hover:underline transition-colors"
+              >
+                {session.member_name}
+              </button>
+              <Badge variant="secondary">{session.total_sessions} {session.total_sessions > 1 ? "séances" : "séance"}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {session.phone ? displayPhone(session.phone) : "-"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("notifications.lastSession") || "Dernière séance"} : {formatDate(session.session_date.substring(0, 10))}
+            </p>
+          </div>
+          <Button
+              variant="outline"
+              size="icon"
+              disabled={!session.phone}
+              title={session.phone ? "WhatsApp" : t("notifications.noPhone") || "Pas de téléphone"}
+              onClick={() => session.phone && onWhatsApp({ member_id: session.member_id, name: session.member_name, phone: session.phone ?? "", date: session.session_date.substring(0, 10), kind: "session" })}
+            >
+              <WhatsAppIcon className={`h-4 w-4 ${session.phone ? "text-[#25d366]" : "text-muted-foreground"}`} />
+            </Button>
         </div>
       </CardContent>
     </Card>
@@ -351,7 +413,7 @@ const CampaignRow = memo(function CampaignRow({
           size="icon"
           onClick={() => onWhatsApp({ member_id: m.id, name, phone: m.phone ?? "", date: "", kind: campaignTemplate })}
         >
-          <MessageCircle className="h-4 w-4" />
+          <WhatsAppIcon className="h-4 w-4 text-[#25d366]" />
         </Button>
       </td>
     </tr>
@@ -414,6 +476,7 @@ export default function NotificationsPage() {
   const renewalsSearch = useSearch()
   const expiredSearch = useSearch()
   const birthdaySearch = useSearch()
+  const sessionSearch = useSearch()
   const historySearch = useSearch()
   const campaignSearch = useSearch()
 
@@ -466,6 +529,7 @@ export default function NotificationsPage() {
       welcome: templatesSetting?.welcome || DEFAULT_TEMPLATES.welcome,
       receipt: templatesSetting?.receipt || DEFAULT_TEMPLATES.receipt,
       attendance: templatesSetting?.attendance || DEFAULT_TEMPLATES.attendance,
+      session: templatesSetting?.session || DEFAULT_TEMPLATES.session,
     }),
     [templatesSetting],
   )
@@ -562,6 +626,53 @@ export default function NotificationsPage() {
       memberMatches(`${m.first_name} ${m.last_name}`, m.phone ?? "", birthdaySearch.applied),
     )
   }, [birthdays, birthdaySearch.applied])
+
+  const { data: sessionMembers = [], isLoading: sessionsLoading } = useQuery({
+    queryKey: ["sessions-members", orgId],
+    queryFn: async () => {
+      if (!orgId || IS_MOCK) return []
+      const { data, error } = await supabase
+        .from("pos_transactions")
+        .select("id, member_id, created_at, items, members(first_name, last_name, phone, member_number)")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(200)
+      if (error) throw error
+      const rows = (data ?? []) as any[]
+      const map = new Map<string, SessionMember>()
+      for (const row of rows) {
+        if (!row.items || !Array.isArray(row.items)) continue
+        const hasDropIn = row.items.some((it: any) => typeof it.id === "string" && it.id.startsWith("__dropin__"))
+        if (!hasDropIn) continue
+        const member = row.members
+        if (!member || !member.phone) continue
+        if (member.member_number?.startsWith("QLF-VISITEUR")) continue
+        const memberId = row.member_id
+        const existing = map.get(memberId)
+        if (existing) {
+          existing.total_sessions++
+          if (row.created_at > existing.session_date) existing.session_date = row.created_at
+        } else {
+          map.set(memberId, {
+            id: row.id,
+            member_id: memberId,
+            member_name: `${member.first_name} ${member.last_name}`,
+            phone: member.phone,
+            session_date: row.created_at,
+            total_sessions: 1,
+          })
+        }
+      }
+      return Array.from(map.values()).sort((a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime())
+    },
+    enabled: !!orgId && !IS_MOCK,
+  })
+
+  const searchedSessionMembers = useMemo(() => {
+    return sessionMembers.filter((s: SessionMember) =>
+      memberMatches(s.member_name, s.phone ?? "", sessionSearch.applied),
+    )
+  }, [sessionMembers, sessionSearch.applied])
 
   const { data: history = [] } = useQuery({
     queryKey: ["whatsapp-history", orgId],
@@ -802,6 +913,7 @@ export default function NotificationsPage() {
           <TabsTrigger value="renewals">{t("notifications.renewals") || "Renouvellements"}</TabsTrigger>
           <TabsTrigger value="expired">{t("notifications.expired") || "Expirés"}</TabsTrigger>
           <TabsTrigger value="birthdays">{t("notifications.birthdays") || "Anniversaires"}</TabsTrigger>
+          <TabsTrigger value="sessions">{t("notifications.sessions") || "Séances libres"}</TabsTrigger>
           <TabsTrigger value="campaign">{t("notifications.campaign") || "Campagne WhatsApp"}</TabsTrigger>
           <TabsTrigger value="history">{t("notifications.history") || "Historique"}</TabsTrigger>
         </TabsList>
@@ -940,8 +1052,44 @@ export default function NotificationsPage() {
           </div>
         </TabsContent>
 
-        {isAdmin && (
-          <TabsContent value="campaign">
+        <TabsContent value="sessions">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">{t("notifications.sessionsTitle") || "Séances libres récentes"}</h3>
+              {sessionMembers.length > 0 && <Badge variant="default">{sessionMembers.length}</Badge>}
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <SearchField
+                value={sessionSearch.query}
+                onChange={sessionSearch.setQuery}
+                onSearch={sessionSearch.flush}
+                placeholder={t("notifications.searchMember") || "Rechercher un membre..."}
+                className="max-w-xs"
+              />
+              {sessionMembers.length > 0 && (
+                <Badge variant="outline" className="shrink-0 text-xs">{searchedSessionMembers.length} / {sessionMembers.length}</Badge>
+              )}
+            </div>
+            {sessionsLoading ? (
+              <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
+            ) : searchedSessionMembers.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Package className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <p>{sessionSearch.query
+                  ? t("notifications.noResult") || "Aucun membre ne correspond à la recherche"
+                  : t("notifications.noSessions") || "Aucune séance libre récente"}</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {searchedSessionMembers.map((s: SessionMember) => (
+                  <SessionRowCard key={s.id} session={s} onWhatsApp={openWhatsApp} />
+                ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="campaign">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <div>
@@ -971,7 +1119,7 @@ export default function NotificationsPage() {
               <Card className="bg-muted/50">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <MessageCircle className="h-4 w-4 text-[#25d366]" />
+                    <WhatsAppIcon className="h-4 w-4 text-[#25d366]" />
                     <span className="text-sm text-muted-foreground">{t("notifications.templatePreview") || "Aperçu du message"}</span>
                   </div>
                   <p className="text-sm whitespace-pre-wrap bg-background rounded-lg p-3">
@@ -1078,7 +1226,6 @@ export default function NotificationsPage() {
               )}
             </div>
           </TabsContent>
-        )}
 
         {isAdmin && (
           <TabsContent value="history">

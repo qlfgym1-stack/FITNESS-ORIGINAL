@@ -172,8 +172,8 @@ const VISIBLE_GROUPS: Record<string, string[]> = {
   cleaner: ['checkin'],
 }
 
-// Réception : /pointage, /members, /pos + encaissements (lecture + modification)
-const RECEPTION_ITEMS = new Set(['pointage', 'members', 'pos', 'encaissement'])
+// Réception : /pointage, /members, /pos (lecture + modification)
+const RECEPTION_ITEMS = new Set(['pointage', 'members', 'pos'])
 // Ménage : uniquement /pointage (lecture seule)
 const CLEANER_ITEMS = new Set(['pointage'])
 

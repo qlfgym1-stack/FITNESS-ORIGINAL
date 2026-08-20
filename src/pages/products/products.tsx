@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@/hooks/useQuery"
 import { useSupabase } from "@/hooks/useSupabase"
 import { useAuth } from "@/stores/auth"
@@ -25,11 +25,11 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast"
 import { useT } from "@/i18n"
-import { toUpper, formatCurrency } from "../../lib/utils"
+import { toUpper, formatCurrency, formatDate } from "../../lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Package, Plus, Search, Edit, Trash2, Loader2, Download, Upload, Camera, ImageIcon, X, DollarSign, ShoppingCart, TrendingUp,
-  ArrowDownToLine, ArrowUpFromLine,
+  ArrowDownToLine, ArrowUpFromLine, Clock,
 } from "lucide-react"
 import { usePagination } from "@/hooks/usePagination"
 import { useExportCsv } from "@/hooks/useExportCsv"
@@ -99,6 +99,8 @@ export default function ProductsPage() {
   const [stockDialogOpen, setStockDialogOpen] = useState(false)
   const [stockMode, setStockMode] = useState<"add" | "out">("add")
   const [stockForm, setStockForm] = useState({ quantity: 1, unit_price: "", reference: "", movement_date: "", notes: "" })
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null)
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const importFileRef = useRef<HTMLInputElement>(null)
   const nav = useNavigate()
@@ -215,6 +217,32 @@ export default function ProductsPage() {
     },
     enabled: !!orgId,
   })
+
+  const { data: stockMovements = [] } = useQuery({
+    queryKey: ["stock_movements", orgId, historyProduct?.id],
+    queryFn: async () => {
+      if (!orgId || !historyProduct) return []
+      const { data } = await supabase
+        .from("stock_movements")
+        .select("id, type, quantity, unit_price, reference, movement_date, reason, notes, created_at")
+        .eq("organization_id", orgId)
+        .eq("product_id", historyProduct.id)
+        .order("movement_date", { ascending: false })
+      return (data ?? []) as { id: string; type: "in" | "out"; quantity: number; unit_price: number | null; reference: string | null; movement_date: string; reason: string | null; notes: string | null; created_at: string }[]
+    },
+    enabled: !!orgId && !!historyProduct,
+  })
+
+  const historyMovements = useMemo(() => {
+    if (!historyProduct || stockMovements.length === 0) return []
+    let running = historyProduct.stock_initial ?? 0
+    const sorted = [...stockMovements].sort((a, b) => new Date(a.movement_date).getTime() - new Date(b.movement_date).getTime() || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    return sorted.map((m) => {
+      const before = running
+      running = running + (m.type === "in" ? m.quantity : -m.quantity)
+      return { ...m, before, after: running }
+    }).reverse()
+  }, [historyProduct, stockMovements])
 
   const { data: productExpenses = [] } = useQuery({
     queryKey: ["product-expenses", orgId],
@@ -647,6 +675,9 @@ export default function ProductsPage() {
                     <Button variant="ghost" size="icon" title={t("products.stockOut") || "Sortie / ajustement"} onClick={() => { setStockMode("out"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
                       <ArrowUpFromLine className="h-4 w-4 text-destructive" />
                     </Button>
+                    <Button variant="ghost" size="icon" title={t("products.stockHistory") || "Historique du stock"} onClick={() => { setHistoryProduct(item); setHistoryDialogOpen(true) }}>
+                      <Clock className="h-4 w-4 text-blue-600" />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -698,6 +729,9 @@ export default function ProductsPage() {
                 </Button>
                 <Button variant="ghost" size="icon" title={t("products.stockOut") || "Sortie / ajustement"} onClick={() => { setStockMode("out"); setStockProduct(item); setStockForm({ quantity: 1, unit_price: "", reference: "", movement_date: "", notes: "" }); setStockDialogOpen(true) }}>
                   <ArrowUpFromLine className="h-4 w-4 text-destructive" />
+                </Button>
+                <Button variant="ghost" size="icon" title={t("products.stockHistory") || "Historique du stock"} onClick={() => { setHistoryProduct(item); setHistoryDialogOpen(true) }}>
+                  <Clock className="h-4 w-4 text-blue-600" />
                 </Button>
                 <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                   <Edit className="h-4 w-4" />
@@ -1025,6 +1059,55 @@ export default function ProductsPage() {
               {stockMode === "add" ? (t("common.confirm") || "Confirmer") : (t("common.confirm") || "Confirmer")}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {t("products.stockHistory") || "Historique de stock"} — {toUpper(historyProduct?.name ?? "")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("products.stock") || "Stock"} actuel : {historyProduct?.stock ?? 0} · {t("products.stockInitial") || "Stock initial"} : {historyProduct?.stock_initial ?? 0}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {historyMovements.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">{t("products.noMovements") || "Aucun mouvement de stock"}</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("products.movementDate") || "Date"}</TableHead>
+                    <TableHead>{t("products.type") || "Type"}</TableHead>
+                    <TableHead className="text-right">{t("products.quantity") || "Qté"}</TableHead>
+                    <TableHead className="text-right">{t("products.unitPrice") || "Prix unit."}</TableHead>
+                    <TableHead className="text-right">{t("products.before") || "Avant"}</TableHead>
+                    <TableHead className="text-right">{t("products.after") || "Après"}</TableHead>
+                    <TableHead>{t("products.reason") || "Motif"}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historyMovements.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="text-xs">{formatDate(m.movement_date)}</TableCell>
+                      <TableCell>
+                        <Badge variant={m.type === "in" ? "default" : "destructive"}>
+                          {m.type === "in" ? "+" : "-"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{m.type === "in" ? "+" : "-"}{m.quantity}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{m.unit_price != null ? `${m.unit_price.toLocaleString()} DA` : "-"}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{m.before}</TableCell>
+                      <TableCell className="text-right font-mono text-xs font-bold">{m.after}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{m.reason ?? m.notes ?? "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

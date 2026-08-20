@@ -971,7 +971,23 @@ export default function Members() {
                       <AvatarFallback className="text-[10px]">{getInitials(member.first_name, member.last_name)}</AvatarFallback>
                     </Avatar>
                   </TableCell>
-                  <TableCell onClick={() => setProfileMember(member)} className="font-medium transition-colors group-hover:text-primary">{toUpper(memberFullName(member))}</TableCell>
+                  <TableCell onClick={() => setProfileMember(member)} className="font-medium transition-colors group-hover:text-primary">
+                    <div className="flex items-center gap-1.5">
+                      {member.phone && (
+                        <WhatsAppButton
+                          phone={member.phone}
+                          template={DEFAULT_TEMPLATES[templateForStatus((memberSubMap as Record<string, { status?: string }> | null)?.[member.id]?.status)]}
+                          tone={toneForStatus((memberSubMap as Record<string, { status?: string }> | null)?.[member.id]?.status)}
+                          data={{
+                            NOM: memberFullName(member),
+                            DATE: (memberSubMap as Record<string, { end_date?: string | null }> | null)?.[member.id]?.end_date ?? '',
+                            NOM_SALLE: organization?.name || '',
+                          }}
+                        />
+                      )}
+                      {toUpper(memberFullName(member))}
+                    </div>
+                  </TableCell>
                   <TableCell>{member.email ?? '-'}</TableCell>
                   <TableCell>{displayPhone(member.phone)}</TableCell>
                   <TableCell>
@@ -1064,7 +1080,21 @@ export default function Members() {
                       <AvatarFallback>{getInitials(member.first_name, member.last_name)}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{toUpper(memberFullName(member))}</p>
+                      <div className="flex items-center gap-1.5">
+                        {member.phone && (
+                          <WhatsAppButton
+                            phone={member.phone}
+                            template={DEFAULT_TEMPLATES[templateForStatus((memberSubMap as Record<string, { status?: string }> | null)?.[member.id]?.status)]}
+                            tone={toneForStatus((memberSubMap as Record<string, { status?: string }> | null)?.[member.id]?.status)}
+                            data={{
+                              NOM: memberFullName(member),
+                              DATE: (memberSubMap as Record<string, { end_date?: string | null }> | null)?.[member.id]?.end_date ?? '',
+                              NOM_SALLE: organization?.name || '',
+                            }}
+                          />
+                        )}
+                        <p className="font-medium">{toUpper(memberFullName(member))}</p>
+                      </div>
                       <p className="text-xs text-muted-foreground">N° {member.member_number ?? '—'} · {displayPhone(member.phone)}</p>
                     </div>
                   </div>
